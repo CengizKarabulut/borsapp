@@ -24,8 +24,9 @@ from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTr
 from market_intelligence.delivery.telegram.publisher import TelegramPublisher
 from market_intelligence.delivery.telegram.updates import HttpxTelegramUpdateSource
 from market_intelligence.features.ma import QualifiedMaResearchProvider
-from market_intelligence.features.momentum import MacdProvider, RsiProvider
+from market_intelligence.features.momentum import MacdProvider, RsiProvider, SmiProvider
 from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
+from market_intelligence.features.trend import InclusiveVolumeSma20Provider, Sma200Provider
 from market_intelligence.features.volume import RelativeVolume20Provider
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
 from market_intelligence.market_data.adapters.borsapy_universe import (
@@ -410,6 +411,9 @@ def _feature_engine(connection) -> FeatureEngine:
         RelativeVolume20Provider(),
         MacdProvider(),
         RsiProvider(),
+        SmiProvider(),
+        Sma200Provider(),
+        InclusiveVolumeSma20Provider(),
         QualifiedMaResearchProvider(PostgresMaQualificationSource(connection)),
     ):
         registry.register(provider)

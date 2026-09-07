@@ -10,13 +10,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ScannerCatalogTests(unittest.TestCase):
-    def test_all_three_pilot_families_load_from_resolved_toml(self) -> None:
+    def test_all_migrated_scanners_load_from_resolved_toml(self) -> None:
         bindings = load_scanner_catalog(ROOT / "config/scanners.toml")
         self.assertEqual(
             {binding.scanner.id for binding in bindings},
             {
                 "technical.volume_spike",
                 "signal.macd_positive_cross",
+                "signal.smi_macd_positive",
+                "signal.smi_macd_positive_volume_confirmed",
                 "ma.near_zone",
             },
         )

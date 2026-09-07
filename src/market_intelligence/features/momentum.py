@@ -22,6 +22,14 @@ RSI_14 = FeatureSpec(
     warmup=WarmupSpec(bars=15, seed="first_complete_sma"),
 )
 
+SMI_10_3_3 = FeatureSpec(
+    feature_id="momentum.smi",
+    implementation="legacy_pine_double_recursive_ema_v1",
+    version="1.0.0",
+    parameters={"length_k": 10, "length_d": 3, "signal": 3},
+    warmup=WarmupSpec(bars=11, seed="first_valid_value"),
+)
+
 
 @dataclass(frozen=True)
 class MacdSnapshot:
@@ -37,6 +45,14 @@ class MacdSnapshot:
 class RsiSnapshot:
     value: float
     previous_value: float
+
+
+@dataclass(frozen=True)
+class SmiSnapshot:
+    value: float
+    signal: float
+    previous_value: float
+    previous_signal: float
 
 
 def recursive_ema(values: list[float], period: int) -> list[float]:
@@ -97,6 +113,40 @@ def calculate_rsi(frame: CanonicalFrame, period: int = 14) -> RsiSnapshot | None
     return RsiSnapshot(value=values[-1], previous_value=values[-2])
 
 
+def calculate_smi(
+    frame: CanonicalFrame,
+    *,
+    length_k: int = 10,
+    length_d: int = 3,
+    signal_period: int = 3,
+) -> SmiSnapshot | None:
+    if min(length_k, length_d, signal_period) < 1:
+        raise ValueError("SMI periyotları pozitif olmalıdır")
+    if frame.is_partial or len(frame.bars) < length_k + 1:
+        return None
+    relative: list[float] = []
+    widths: list[float] = []
+    for index in range(length_k - 1, len(frame.bars)):
+        window = frame.bars[index - length_k + 1 : index + 1]
+        highest = max(bar.high for bar in window)
+        lowest = min(bar.low for bar in window)
+        relative.append(frame.bars[index].close - (highest + lowest) / 2.0)
+        widths.append(highest - lowest)
+    numerator = recursive_ema(recursive_ema(relative, length_d), length_d)
+    denominator = recursive_ema(recursive_ema(widths, length_d), length_d)
+    smi = [
+        200.0 * value / (width if width != 0 else 0.000001)
+        for value, width in zip(numerator, denominator, strict=True)
+    ]
+    smi_signal = recursive_ema(smi, signal_period)
+    return SmiSnapshot(
+        value=smi[-1],
+        signal=smi_signal[-1],
+        previous_value=smi[-2],
+        previous_signal=smi_signal[-2],
+    )
+
+
 class MacdProvider:
     spec = MACD_12_26_9
 
@@ -109,3 +159,15 @@ class RsiProvider:
 
     def compute(self, frame: CanonicalFrame) -> RsiSnapshot | None:
         return calculate_rsi(frame, int(self.spec.parameters["period"]))
+
+
+class SmiProvider:
+    spec = SMI_10_3_3
+
+    def compute(self, frame: CanonicalFrame) -> SmiSnapshot | None:
+        return calculate_smi(
+            frame,
+            length_k=int(self.spec.parameters["length_k"]),
+            length_d=int(self.spec.parameters["length_d"]),
+            signal_period=int(self.spec.parameters["signal"]),
+        )

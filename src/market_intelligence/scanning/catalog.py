@@ -14,6 +14,12 @@ from market_intelligence.scanning.signal.macd_positive_cross import (
     MacdPositiveCrossScanner,
     MacdTriggerMode,
 )
+from market_intelligence.scanning.signal.smi_macd_positive import (
+    SmiMacdPositiveConfig,
+    SmiMacdPositiveScanner,
+    SmiMacdPositiveVolumeConfig,
+    SmiMacdPositiveVolumeConfirmedScanner,
+)
 from market_intelligence.scanning.technical.volume_spike import (
     TechnicalVolumeSpikeScanner,
     VolumeSpikeConfig,
@@ -118,6 +124,37 @@ def load_scanner_catalog(
                 MacdPositiveCrossScanner(macd_config),
                 macd_config,
                 macd_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    smi_section = _section(document, SmiMacdPositiveScanner.id)
+    smi_config = SmiMacdPositiveConfig(
+        minimum_history=int(smi_section["minimum_history"]),
+    )
+    if bool(smi_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                SmiMacdPositiveScanner(smi_config),
+                smi_config,
+                smi_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    confirmed_section = _section(
+        document, SmiMacdPositiveVolumeConfirmedScanner.id
+    )
+    confirmed_config = SmiMacdPositiveVolumeConfig(
+        minimum_history=int(confirmed_section["minimum_history"]),
+        volume_multiplier=float(confirmed_section["volume_multiplier"]),
+    )
+    if bool(confirmed_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                SmiMacdPositiveVolumeConfirmedScanner(confirmed_config),
+                confirmed_config,
+                confirmed_section,
                 calendar_version=calendar_version,
             )
         )

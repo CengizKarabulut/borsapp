@@ -32,3 +32,20 @@ trigger_mode = "legacy_rising_or_cross"
 partial_bar_policy = "drop"
 shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
 notification_timeframes = ["1h", "4h", "1d"]
+
+[signal.smi_macd_positive]
+enabled = true
+version = "1.0.0"
+minimum_history = 200
+partial_bar_policy = "drop"
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+notification_timeframes = ["1h", "4h", "1d"]
+
+[signal.smi_macd_positive_volume_confirmed]
+enabled = true
+version = "1.0.0"
+minimum_history = 200
+volume_multiplier = 1.5
+partial_bar_policy = "drop"
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+notification_timeframes = ["1h", "4h", "1d"]
