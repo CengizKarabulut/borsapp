@@ -229,6 +229,26 @@ CREATE TABLE IF NOT EXISTS state_transitions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS confluence_reports (
+    report_id TEXT PRIMARY KEY,
+    cycle_id UUID NOT NULL REFERENCES scan_cycles(cycle_id),
+    instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    symbol_at_report TEXT NOT NULL,
+    mode TEXT NOT NULL CHECK (mode IN ('strict', 'recent_n', 'cross_timeframe')),
+    reference_time TIMESTAMPTZ NOT NULL,
+    reference_timeframe TEXT,
+    families JSONB NOT NULL DEFAULT '[]'::jsonb,
+    scanner_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    directions JSONB NOT NULL DEFAULT '[]'::jsonb,
+    direction_conflict BOOLEAN NOT NULL DEFAULT FALSE,
+    unknown_families JSONB NOT NULL DEFAULT '[]'::jsonb,
+    no_match_families JSONB NOT NULL DEFAULT '[]'::jsonb,
+    qualifies BOOLEAN NOT NULL,
+    evaluated_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_confluence_reports_instrument_time
+    ON confluence_reports(instrument_id, reference_time DESC);
+
 CREATE TABLE IF NOT EXISTS telegram_outbox (
     outbox_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     semantic_key TEXT NOT NULL UNIQUE,

@@ -107,6 +107,13 @@ tutulur; snapshot yalnız pencere başlangıcı, sonu ve bar sayısını taşır
 aynı `series_revision` altında geçmiş bir barı değiştirirse sistem sessizce
 üzerine yazmak yerine hata verir ve revizyonun artırılmasını ister.
 
+Her canonical frame sonunda SIGNAL, TECHNICAL ve MA ailelerinin aynı kapanmış
+mumdaki bulguları `strict` confluence raporunda birleşir. En az iki aile eşleşirse
+rapor nitelikli olur; bullish/bearish çatışması gizlenmez. UNKNOWN ve NO_MATCH
+aileleri raporda ayrıca tutulur. Canlı bildirim yalnız ilgili scanner'ların o
+timeframe için bildirim izni varsa Taramalar konusuna yazılır; catch-up taramaları
+raporu saklar ancak eski bildirim üretmez.
+
 Üretimde uzun yaşayan Docker worker tercih edilir. GitHub Actions, shadow ve
 yedek catch-up için uygundur; tek merkezi Telegram listener/publisher olarak
 kullanılmaz.

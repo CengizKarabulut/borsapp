@@ -53,6 +53,7 @@ from market_intelligence.news.kap import KapDisclosureProvider
 from market_intelligence.persistence.postgres.command_jobs import (
     PostgresCommandJobRepository,
 )
+from market_intelligence.persistence.postgres.confluence import PostgresConfluenceStore
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
     PostgresMaResearchStore,
@@ -635,6 +636,7 @@ def _scan_symbol(
                 event_store=PostgresScanStore(connection),
                 state_store=PostgresStateStore(connection),
                 telegram_settings=effective_telegram,
+                confluence_store=PostgresConfluenceStore(connection),
             )
             result = coordinator.run(
                 cycle_id=cycle_id,
@@ -667,7 +669,7 @@ def _scan_symbol(
         f"Tarama tamamlandı: {instrument.symbol} {timeframe.value} "
         f"bar={frame.through_bar_time.isoformat()} · {statuses} · "
         f"events={result.event_count}, transitions={result.transition_count}, "
-        f"outbox={result.outbox_count}"
+        f"confluence={result.confluence_count}, outbox={result.outbox_count}"
     )
     return 0
 
@@ -690,6 +692,7 @@ def _scheduled_components(settings: ApplicationSettings, connection, *, notify: 
         event_store=PostgresScanStore(connection),
         state_store=PostgresStateStore(connection),
         telegram_settings=telegram,
+        confluence_store=PostgresConfluenceStore(connection),
     )
     return runtime, ingestion, coordinator
 

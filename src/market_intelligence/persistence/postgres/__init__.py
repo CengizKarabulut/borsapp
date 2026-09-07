@@ -3,6 +3,9 @@
 from market_intelligence.persistence.postgres.command_jobs import (
     PostgresCommandJobRepository,
 )
+from market_intelligence.persistence.postgres.confluence import (
+    PostgresConfluenceStore,
+)
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
 )
@@ -33,6 +36,7 @@ __all__ = [
     "PersistedScan",
     "PersistedStateRun",
     "PostgresCommandJobRepository",
+    "PostgresConfluenceStore",
     "PostgresOutboxRepository",
     "PostgresRuntimeRepository",
     "PostgresLongJobQueue",
