@@ -1,0 +1,13 @@
+.git
+.github
+_legacy
+.venv
+venv
+__pycache__
+*.pyc
+.env
+data
+reports
+out
+tests
+scripts

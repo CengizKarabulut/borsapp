@@ -12,12 +12,12 @@ from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.persistence.postgres.scan_store import PersistedScan
 from market_intelligence.persistence.postgres.state_store import (
     PersistedStateRun,
-    TransitionDecision,
 )
 from market_intelligence.scanning.catalog import ScannerBinding
 from market_intelligence.scanning.contracts import Finding, ScanContext
 from market_intelligence.scanning.engine import ScanRun
 from market_intelligence.scanning.pipeline import ScanPipeline
+from market_intelligence.scanning.state_machine import TransitionDecision
 
 
 class EventRunStore(Protocol):
@@ -71,6 +71,7 @@ class ScanFrameCoordinator:
         bindings: tuple[ScannerBinding, ...],
         evaluation_time: datetime,
         instrument_halted: bool = False,
+        allow_notifications: bool = True,
     ) -> ScanFrameResult:
         if evaluation_time.tzinfo is None or evaluation_time.utcoffset() is None:
             raise ValueError("evaluation_time timezone bilgisi içermelidir")
@@ -97,6 +98,8 @@ class ScanFrameCoordinator:
             run = pipeline_run.scan
             runs.append(run)
             can_notify = (
+                allow_notifications
+                and
                 self.telegram_settings.delivery_mode is DeliveryMode.LIVE
                 and frame.timeframe in binding.notification_timeframes
             )

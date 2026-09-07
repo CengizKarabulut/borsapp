@@ -1,0 +1,64 @@
+name: Shadow scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeframe:
+        description: Canonical timeframe
+        required: true
+        default: 1h
+        type: choice
+        options: [15m, 30m, 45m, 1h, 2h, 4h, 1d]
+  schedule:
+    - cron: "*/15 7-14 * * 1-5"
+    - cron: "0 15 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: borsapp-shadow-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: shadow
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      DELIVERY_MODE: shadow
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Skip until PostgreSQL is configured
+        if: ${{ env.DATABASE_URL == '' }}
+        run: echo "DATABASE_URL secret is not configured; shadow scan skipped."
+      - name: Install runtime
+        if: ${{ env.DATABASE_URL != '' }}
+        run: python -m pip install ".[runtime]"
+      - name: Run requested or scheduled shadow scans
+        if: ${{ env.DATABASE_URL != '' }}
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            borsapp scan-due --timeframe "${{ inputs.timeframe }}"
+          else
+            for timeframe in 15m 30m 45m 1h 2h 4h 1d; do
+              borsapp scan-due --timeframe "$timeframe"
+            done
+          fi

@@ -60,6 +60,51 @@ SET status = %s,
 WHERE cycle_id = %s
 """
 
+LIST_UNIVERSE_SQL = """
+SELECT
+    i.instrument_id,
+    upper(canonical.symbol),
+    upper(provider_symbol.symbol),
+    i.market,
+    i.asset_class
+FROM universe_memberships membership
+JOIN instruments i ON i.instrument_id = membership.instrument_id
+JOIN instrument_symbols canonical
+  ON canonical.instrument_id = i.instrument_id AND canonical.provider = 'canonical'
+JOIN instrument_symbols provider_symbol
+  ON provider_symbol.instrument_id = i.instrument_id AND provider_symbol.provider = 'borsapy'
+WHERE membership.universe_id = %s
+  AND membership.valid_from <= %s
+  AND (membership.valid_to IS NULL OR membership.valid_to >= %s)
+  AND i.valid_from <= %s
+  AND (i.valid_to IS NULL OR i.valid_to >= %s)
+  AND canonical.valid_from <= %s
+  AND (canonical.valid_to IS NULL OR canonical.valid_to >= %s)
+  AND provider_symbol.valid_from <= %s
+  AND (provider_symbol.valid_to IS NULL OR provider_symbol.valid_to >= %s)
+ORDER BY canonical.symbol
+"""
+
+WATERMARKS_SQL = """
+SELECT scanner_id, last_completed_bar_time
+FROM scan_watermarks
+WHERE market = %s AND universe_id = %s AND timeframe = %s
+  AND scanner_id = ANY(%s)
+"""
+
+UPSERT_WATERMARK_SQL = """
+INSERT INTO scan_watermarks (
+    market, universe_id, scanner_id, timeframe, last_completed_bar_time
+) VALUES (%s, %s, %s, %s, %s)
+ON CONFLICT (market, universe_id, scanner_id, timeframe)
+DO UPDATE SET
+    last_completed_bar_time = GREATEST(
+        scan_watermarks.last_completed_bar_time,
+        EXCLUDED.last_completed_bar_time
+    ),
+    updated_at = now()
+"""
+
 
 @dataclass(frozen=True)
 class RuntimeInstrument:
@@ -79,9 +124,9 @@ class PostgresRuntimeRepository:
         symbol: str,
         *,
         provider: str = "borsapy",
-        as_of: date | None = None,
+        as_of: date,
     ) -> RuntimeInstrument | None:
-        effective_date = as_of or date.today()
+        effective_date = as_of
         with self.connection.cursor() as cursor:
             cursor.execute(
                 FIND_INSTRUMENT_SQL,
@@ -113,9 +158,9 @@ class PostgresRuntimeRepository:
         market: str = "BIST",
         asset_class: str = "equity",
         universe_id: str = "BIST_ALL",
-        valid_from: date | None = None,
+        valid_from: date,
     ) -> RuntimeInstrument:
-        effective_date = valid_from or date.today()
+        effective_date = valid_from
         existing = self.resolve_instrument(
             provider_symbol,
             provider="borsapy",
@@ -197,3 +242,56 @@ class PostgresRuntimeRepository:
                     FINISH_CYCLE_SQL,
                     (status, successful, stale, failed, finished_at, cycle_id),
                 )
+
+    def list_universe(self, universe_id: str, *, as_of: date) -> tuple[RuntimeInstrument, ...]:
+        params = (universe_id,) + (as_of,) * 8
+        with self.connection.cursor() as cursor:
+            cursor.execute(LIST_UNIVERSE_SQL, params)
+            rows = cursor.fetchall()
+        return tuple(
+            RuntimeInstrument(
+                instrument_id=str(row[0]),
+                symbol=str(row[1]),
+                provider_symbol=str(row[2]),
+                market=str(row[3]),
+                asset_class=str(row[4]),
+            )
+            for row in rows
+        )
+
+    def earliest_watermark(
+        self,
+        *,
+        market: str,
+        universe_id: str,
+        scanner_ids: tuple[str, ...],
+        timeframe: str,
+    ) -> datetime | None:
+        if not scanner_ids:
+            return None
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                WATERMARKS_SQL,
+                (market, universe_id, timeframe, list(scanner_ids)),
+            )
+            rows = cursor.fetchall()
+        if len(rows) != len(set(scanner_ids)):
+            return None
+        return min(row[1] for row in rows)
+
+    def update_watermarks(
+        self,
+        *,
+        market: str,
+        universe_id: str,
+        scanner_ids: tuple[str, ...],
+        timeframe: str,
+        bar_time: datetime,
+    ) -> None:
+        with self.connection.transaction():
+            with self.connection.cursor() as cursor:
+                for scanner_id in scanner_ids:
+                    cursor.execute(
+                        UPSERT_WATERMARK_SQL,
+                        (market, universe_id, scanner_id, timeframe, bar_time),
+                    )

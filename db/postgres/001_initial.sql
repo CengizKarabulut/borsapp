@@ -1,6 +1,4 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE TABLE instruments (
+CREATE TABLE IF NOT EXISTS instruments (
     instrument_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     asset_class TEXT NOT NULL,
     market TEXT NOT NULL,
@@ -11,7 +9,7 @@ CREATE TABLE instruments (
     CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
 
-CREATE TABLE instrument_symbols (
+CREATE TABLE IF NOT EXISTS instrument_symbols (
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     provider TEXT NOT NULL,
     symbol TEXT NOT NULL,
@@ -20,10 +18,10 @@ CREATE TABLE instrument_symbols (
     PRIMARY KEY (instrument_id, provider, symbol, valid_from),
     CHECK (valid_to IS NULL OR valid_to >= valid_from)
 );
-CREATE INDEX ix_instrument_symbols_lookup
+CREATE INDEX IF NOT EXISTS ix_instrument_symbols_lookup
     ON instrument_symbols(provider, symbol, valid_from, valid_to);
 
-CREATE TABLE universe_memberships (
+CREATE TABLE IF NOT EXISTS universe_memberships (
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     universe_id TEXT NOT NULL,
     valid_from DATE NOT NULL,
@@ -31,7 +29,7 @@ CREATE TABLE universe_memberships (
     PRIMARY KEY (instrument_id, universe_id, valid_from)
 );
 
-CREATE TABLE corporate_actions (
+CREATE TABLE IF NOT EXISTS corporate_actions (
     action_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     action_type TEXT NOT NULL,
@@ -41,7 +39,7 @@ CREATE TABLE corporate_actions (
     observed_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE data_snapshots (
+CREATE TABLE IF NOT EXISTS data_snapshots (
     snapshot_id TEXT PRIMARY KEY,
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     timeframe TEXT NOT NULL,
@@ -56,7 +54,7 @@ CREATE TABLE data_snapshots (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE canonical_bars (
+CREATE TABLE IF NOT EXISTS canonical_bars (
     snapshot_id TEXT NOT NULL REFERENCES data_snapshots(snapshot_id) ON DELETE CASCADE,
     open_time TIMESTAMPTZ NOT NULL,
     close_time TIMESTAMPTZ NOT NULL,
@@ -70,7 +68,7 @@ CREATE TABLE canonical_bars (
     CHECK (volume >= 0)
 );
 
-CREATE TABLE scan_cycles (
+CREATE TABLE IF NOT EXISTS scan_cycles (
     cycle_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     market TEXT NOT NULL,
     universe_id TEXT NOT NULL,
@@ -86,7 +84,7 @@ CREATE TABLE scan_cycles (
     UNIQUE (market, universe_id, timeframe, bar_time)
 );
 
-CREATE TABLE scan_watermarks (
+CREATE TABLE IF NOT EXISTS scan_watermarks (
     market TEXT NOT NULL,
     universe_id TEXT NOT NULL,
     scanner_id TEXT NOT NULL,
@@ -96,7 +94,7 @@ CREATE TABLE scan_watermarks (
     PRIMARY KEY (market, universe_id, scanner_id, timeframe)
 );
 
-CREATE TABLE scan_evaluations (
+CREATE TABLE IF NOT EXISTS scan_evaluations (
     evaluation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cycle_id UUID NOT NULL REFERENCES scan_cycles(cycle_id),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
@@ -118,7 +116,7 @@ CREATE TABLE scan_evaluations (
     )
 );
 
-CREATE TABLE scan_events (
+CREATE TABLE IF NOT EXISTS scan_events (
     event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     evaluation_id UUID NOT NULL REFERENCES scan_evaluations(evaluation_id),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
@@ -133,7 +131,7 @@ CREATE TABLE scan_events (
     UNIQUE (instrument_id, scanner_id, finding_key, timeframe, bar_time)
 );
 
-CREATE TABLE active_states (
+CREATE TABLE IF NOT EXISTS active_states (
     state_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     scanner_id TEXT NOT NULL,
@@ -150,7 +148,7 @@ CREATE TABLE active_states (
     UNIQUE (instrument_id, scanner_id, timeframe, state_key)
 );
 
-CREATE TABLE state_transitions (
+CREATE TABLE IF NOT EXISTS state_transitions (
     transition_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transition_key TEXT NOT NULL UNIQUE,
     state_id UUID REFERENCES active_states(state_id),
@@ -168,7 +166,7 @@ CREATE TABLE state_transitions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE telegram_outbox (
+CREATE TABLE IF NOT EXISTS telegram_outbox (
     outbox_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     semantic_key TEXT NOT NULL UNIQUE,
     publication_kind TEXT NOT NULL,
@@ -186,16 +184,16 @@ CREATE TABLE telegram_outbox (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     sent_at TIMESTAMPTZ
 );
-CREATE INDEX ix_telegram_outbox_pending
+CREATE INDEX IF NOT EXISTS ix_telegram_outbox_pending
     ON telegram_outbox(status, available_at);
 
-CREATE TABLE telegram_consumers (
+CREATE TABLE IF NOT EXISTS telegram_consumers (
     consumer_key TEXT PRIMARY KEY,
     last_update_id BIGINT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE shadow_comparisons (
+CREATE TABLE IF NOT EXISTS shadow_comparisons (
     comparison_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     snapshot_id TEXT NOT NULL REFERENCES data_snapshots(snapshot_id),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
@@ -212,7 +210,7 @@ CREATE TABLE shadow_comparisons (
     UNIQUE (snapshot_id, scanner_id)
 );
 
-CREATE TABLE research_artifacts (
+CREATE TABLE IF NOT EXISTS research_artifacts (
     artifact_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     artifact_kind TEXT NOT NULL,
@@ -225,7 +223,29 @@ CREATE TABLE research_artifacts (
     UNIQUE (instrument_id, artifact_kind, timeframe, bar_time, content_hash)
 );
 
-CREATE TABLE news_items (
+CREATE TABLE IF NOT EXISTS ma_research_levels (
+    research_level_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    timeframe TEXT NOT NULL,
+    ma_type TEXT NOT NULL,
+    period INTEGER NOT NULL CHECK (period >= 2),
+    level_class TEXT NOT NULL,
+    touches INTEGER NOT NULL CHECK (touches >= 0),
+    quality_score DOUBLE PRECISION NOT NULL,
+    research_version TEXT NOT NULL,
+    valid_from TIMESTAMPTZ NOT NULL,
+    valid_until TIMESTAMPTZ,
+    metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+    CHECK (valid_until IS NULL OR valid_until > valid_from),
+    UNIQUE (
+        instrument_id, timeframe, ma_type, period,
+        research_version, valid_from
+    )
+);
+CREATE INDEX IF NOT EXISTS ix_ma_research_levels_active
+    ON ma_research_levels(instrument_id, timeframe, valid_from, valid_until);
+
+CREATE TABLE IF NOT EXISTS news_items (
     news_id TEXT PRIMARY KEY,
     instrument_id UUID REFERENCES instruments(instrument_id),
     headline TEXT NOT NULL,
@@ -235,10 +255,10 @@ CREATE TABLE news_items (
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     observed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX ix_news_items_instrument_published
+CREATE INDEX IF NOT EXISTS ix_news_items_instrument_published
     ON news_items(instrument_id, published_at DESC);
 
-CREATE TABLE command_jobs (
+CREATE TABLE IF NOT EXISTS command_jobs (
     job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     command_name TEXT NOT NULL,
     instrument_id UUID REFERENCES instruments(instrument_id),
@@ -252,7 +272,7 @@ CREATE TABLE command_jobs (
     error_detail TEXT
 );
 
-CREATE TABLE finding_outcomes (
+CREATE TABLE IF NOT EXISTS finding_outcomes (
     event_id UUID NOT NULL REFERENCES scan_events(event_id),
     horizon_bars INTEGER NOT NULL,
     observed_at TIMESTAMPTZ NOT NULL,

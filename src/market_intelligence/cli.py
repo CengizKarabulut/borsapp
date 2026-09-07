@@ -12,17 +12,25 @@ from types import FrameType
 
 from market_intelligence.application.ingestion import IngestionRequest, IngestionService
 from market_intelligence.application.scan_frame import ScanFrameCoordinator
+from market_intelligence.application.scheduled_scan import (
+    ScheduledScanRequest,
+    ScheduledScanService,
+)
 from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.application.telegram_listener import TelegramListener
 from market_intelligence.core.timeframes import parse_timeframe
+from market_intelligence.delivery.telegram.config import DeliveryMode
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.delivery.telegram.publisher import TelegramPublisher
 from market_intelligence.delivery.telegram.updates import HttpxTelegramUpdateSource
-from market_intelligence.features.ma import UnavailableMaResearchProvider
+from market_intelligence.features.ma import QualifiedMaResearchProvider
 from market_intelligence.features.momentum import MacdProvider, RsiProvider
 from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
 from market_intelligence.features.volume import RelativeVolume20Provider
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
+from market_intelligence.persistence.postgres.ma_research import (
+    PostgresMaQualificationSource,
+)
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.persistence.postgres.scan_store import PostgresScanStore
@@ -36,6 +44,7 @@ from market_intelligence.persistence.postgres.telegram_updates import (
     PostgresTelegramUpdateRepository,
 )
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scheduling.xist import ExchangeCalendarsXist, ScheduledBarPlanner
 from market_intelligence.settings import ApplicationSettings, merged_environment
 
 
@@ -105,6 +114,32 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Yalnız DELIVERY_MODE=live ise uygun finding'leri outbox'a ekler.",
     )
+
+    due = subparsers.add_parser(
+        "scan-due",
+        help="XIST takvimi ve watermark'a göre zamanı gelen universe taramalarını çalıştır",
+    )
+    due.add_argument("--timeframe", default="1h")
+    due.add_argument("--universe", default="BIST_ALL")
+    due.add_argument("--bars", type=int, default=250)
+    due.add_argument("--lookback-days", type=int, default=7)
+    due.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
+    due.add_argument("--notify", action="store_true")
+
+    worker = subparsers.add_parser(
+        "scan-worker",
+        help="Zamanı gelen timeframe'leri sürekli watermark kontrollü çalıştır",
+    )
+    worker.add_argument(
+        "--timeframes",
+        default="15m,30m,45m,1h,2h,4h,1d",
+    )
+    worker.add_argument("--universe", default="BIST_ALL")
+    worker.add_argument("--bars", type=int, default=250)
+    worker.add_argument("--lookback-days", type=int, default=7)
+    worker.add_argument("--poll-seconds", type=float, default=60.0)
+    worker.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
+    worker.add_argument("--notify", action="store_true")
     return parser
 
 
@@ -273,10 +308,12 @@ def _register_instrument(
     if not canonical or not provider_value or not universe.strip():
         raise ValueError("Sembol ve universe boş olamaz")
     with _connect(settings.runtime.database_url) as connection:
+        effective_date = datetime.now(settings.runtime.timezone).date()
         instrument = PostgresRuntimeRepository(connection).register_instrument(
             canonical,
             provider_symbol=provider_value,
             universe_id=universe.strip(),
+            valid_from=effective_date,
         )
     print(
         f"Enstrüman hazır: {instrument.symbol} · provider={instrument.provider_symbol} "
@@ -285,13 +322,13 @@ def _register_instrument(
     return 0
 
 
-def _feature_engine() -> FeatureEngine:
+def _feature_engine(connection) -> FeatureEngine:
     registry = FeatureRegistry()
     for provider in (
         RelativeVolume20Provider(),
         MacdProvider(),
         RsiProvider(),
-        UnavailableMaResearchProvider(),
+        QualifiedMaResearchProvider(PostgresMaQualificationSource(connection)),
     ):
         registry.register(provider)
     return FeatureEngine(registry)
@@ -314,7 +351,7 @@ def _scan_symbol(
     effective_telegram = (
         settings.telegram
         if notify
-        else replace(settings.telegram, delivery_mode=settings.telegram.delivery_mode.DISABLED)
+        else replace(settings.telegram, delivery_mode=DeliveryMode.DISABLED)
     )
     evaluation_time = datetime.now(settings.runtime.timezone)
     with _connect(settings.runtime.database_url) as connection:
@@ -348,7 +385,7 @@ def _scan_symbol(
             started_at=evaluation_time,
         )
         coordinator = ScanFrameCoordinator(
-            feature_engine=_feature_engine(),
+            feature_engine=_feature_engine(connection),
             event_store=PostgresScanStore(connection),
             state_store=PostgresStateStore(connection),
             telegram_settings=effective_telegram,
@@ -376,6 +413,131 @@ def _scan_symbol(
         f"events={result.event_count}, transitions={result.transition_count}, "
         f"outbox={result.outbox_count}"
     )
+    return 0
+
+
+def _scheduled_components(settings: ApplicationSettings, connection, *, notify: bool):
+    if notify and settings.telegram.delivery_mode is not DeliveryMode.LIVE:
+        raise ValueError("--notify için DELIVERY_MODE=live olmalıdır")
+    telegram = (
+        settings.telegram
+        if notify
+        else replace(settings.telegram, delivery_mode=DeliveryMode.DISABLED)
+    )
+    runtime = PostgresRuntimeRepository(connection)
+    ingestion = IngestionService(
+        provider=BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
+        store=PostgresSnapshotStore(connection),
+    )
+    coordinator = ScanFrameCoordinator(
+        feature_engine=_feature_engine(connection),
+        event_store=PostgresScanStore(connection),
+        state_store=PostgresStateStore(connection),
+        telegram_settings=telegram,
+    )
+    return runtime, ingestion, coordinator
+
+
+def _scan_due(
+    settings: ApplicationSettings,
+    *,
+    timeframe_raw: str,
+    universe: str,
+    bars: int,
+    lookback_days: int,
+    scanners_path: Path,
+    notify: bool,
+) -> int:
+    if bars < 40 or bars > 5000:
+        raise ValueError("--bars 40 ile 5000 arasında olmalıdır")
+    if lookback_days < 1 or lookback_days > 60:
+        raise ValueError("--lookback-days 1 ile 60 arasında olmalıdır")
+    timeframe = parse_timeframe(timeframe_raw)
+    evaluation_time = datetime.now(settings.runtime.timezone)
+    calendar = ExchangeCalendarsXist()
+    with _connect(settings.runtime.database_url) as connection:
+        runtime, ingestion, coordinator = _scheduled_components(
+            settings,
+            connection,
+            notify=notify,
+        )
+        result = ScheduledScanService(
+            repository=runtime,
+            ingestion=ingestion,
+            coordinator=coordinator,
+            planner=ScheduledBarPlanner(
+                calendar,
+                maximum_lookback_days=lookback_days,
+            ),
+        ).run(
+            ScheduledScanRequest(
+                market="BIST",
+                universe_id=universe,
+                timeframe=timeframe,
+                bars=bars,
+                evaluation_time=evaluation_time,
+            ),
+            load_scanner_catalog(
+                scanners_path,
+                calendar_version=calendar.version,
+            ),
+        )
+    print(
+        f"Scheduled scan: timeframe={timeframe.value}, due={len(result.due_bars)}, "
+        f"completed={result.completed_bars}, success={result.successful_instruments}, "
+        f"failed={result.failed_instruments}"
+    )
+    return 0 if result.failed_instruments == 0 else 1
+
+
+def _scan_worker(
+    settings: ApplicationSettings,
+    *,
+    timeframes_raw: str,
+    universe: str,
+    bars: int,
+    lookback_days: int,
+    poll_seconds: float,
+    scanners_path: Path,
+    notify: bool,
+) -> int:
+    if poll_seconds < 5:
+        raise ValueError("--poll-seconds en az 5 saniye olmalıdır")
+    timeframes = tuple(
+        part.strip() for part in timeframes_raw.split(",") if part.strip()
+    )
+    if not timeframes:
+        raise ValueError("--timeframes en az bir değer içermelidir")
+    for value in timeframes:
+        parse_timeframe(value)
+    stopped = False
+
+    def stop(_signum: int, _frame: FrameType | None) -> None:
+        nonlocal stopped
+        stopped = True
+
+    signal.signal(signal.SIGINT, stop)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, stop)
+    while not stopped:
+        for timeframe in timeframes:
+            try:
+                _scan_due(
+                    settings,
+                    timeframe_raw=timeframe,
+                    universe=universe,
+                    bars=bars,
+                    lookback_days=lookback_days,
+                    scanners_path=scanners_path,
+                    notify=notify,
+                )
+            except Exception as exc:
+                print(
+                    f"Scheduled scan hatası ({timeframe}): {type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+        if not stopped:
+            time.sleep(poll_seconds)
     return 0
 
 
@@ -414,6 +576,27 @@ def main(argv: list[str] | None = None) -> int:
                 symbol=args.symbol,
                 timeframe_raw=args.timeframe,
                 bars=args.bars,
+                scanners_path=args.scanners,
+                notify=args.notify,
+            )
+        if args.command == "scan-due":
+            return _scan_due(
+                settings,
+                timeframe_raw=args.timeframe,
+                universe=args.universe,
+                bars=args.bars,
+                lookback_days=args.lookback_days,
+                scanners_path=args.scanners,
+                notify=args.notify,
+            )
+        if args.command == "scan-worker":
+            return _scan_worker(
+                settings,
+                timeframes_raw=args.timeframes,
+                universe=args.universe,
+                bars=args.bars,
+                lookback_days=args.lookback_days,
+                poll_seconds=args.poll_seconds,
                 scanners_path=args.scanners,
                 notify=args.notify,
             )

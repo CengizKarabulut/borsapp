@@ -46,6 +46,7 @@ Kullanıcı kurulumları:
 
 - [Telegram forum ve topic kurulumu](docs/setup/telegram.md)
 - [GitHub Actions ve repo ayarları](docs/setup/github.md)
+- [Çalıştırma, shadow ve canlıya geçiş](docs/setup/operations.md)
 
 İlk taşınan dikey dilim `technical.volume_spike` scanner'ıdır. Pilot kuralları
 [config/scanners.toml](config/scanners.toml), MACD referans kararı ise
@@ -59,10 +60,13 @@ Kullanıcı kurulumları:
 - [x] BIST seans çıpalı kapanışlar ve watermark catch-up
 - [x] Event + Telegram outbox atomik PostgreSQL adapter'ı
 - [x] Tek bot / çok topic yönlendirme sözleşmesi
-- [ ] Canonical veri sağlayıcı adapter'ı
-- [ ] Legacy/new shadow karşılaştırma çalıştırıcısı
-- [ ] Merkezi Telegram publisher ve listener
-- [ ] `signal.macd_positive_cross` dikey dilimi
-- [ ] `ma.near_zone` state dikey dilimi
+- [x] Canonical `borsapy` veri sağlayıcı adapter'ı
+- [x] İlk legacy/new shadow karşılaştırma sözleşmesi
+- [x] Merkezi Telegram publisher ve listener
+- [x] `signal.macd_positive_cross` dikey dilimi
+- [x] `ma.near_zone` state makinesi ve persistence dilimi
+- [x] XIST tatil takvimi + watermark/catch-up worker
+- [ ] MA Research seviye üreticisinin yeni feature store'a taşınması
+- [ ] Kalan legacy scanner ailelerinin parity ile taşınması
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.

@@ -39,13 +39,13 @@ class FakeSymbolStore:
         return SymbolSnapshot("instrument-1", "ASELS")
 
 
-def settings() -> TelegramSettings:
+def settings(mode: DeliveryMode = DeliveryMode.LIVE) -> TelegramSettings:
     return TelegramSettings(
         bot_token="secret",
         chat_id=-100123,
         allowed_user_ids=frozenset({42}),
         topic_ids={kind: index + 10 for index, kind in enumerate(TopicKind)},
-        delivery_mode=DeliveryMode.DISABLED,
+        delivery_mode=mode,
     )
 
 
@@ -95,6 +95,20 @@ class TelegramListenerTests(unittest.TestCase):
 
         self.assertEqual(result.ignored, 1)
         self.assertEqual(repository.committed, [(8, None)])
+
+    def test_disabled_mode_checkpoints_command_without_stale_reply_backlog(self) -> None:
+        repository = FakeRepository()
+        listener = TelegramListener(
+            settings=settings(DeliveryMode.DISABLED),
+            source=FakeSource([update(9)]),
+            repository=repository,
+            command_service=SymbolCommandService(FakeSymbolStore()),
+        )
+
+        result = listener.run_once(timeout_seconds=0)
+
+        self.assertEqual(result.accepted, 1)
+        self.assertEqual(repository.committed, [(9, None)])
 
 
 if __name__ == "__main__":

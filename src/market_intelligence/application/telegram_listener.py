@@ -5,7 +5,7 @@ from typing import Any, Protocol
 
 from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.delivery.telegram.commands import TelegramCommandParser
-from market_intelligence.delivery.telegram.config import TelegramSettings
+from market_intelligence.delivery.telegram.config import DeliveryMode, TelegramSettings
 from market_intelligence.delivery.telegram.routing import (
     OutboxEnvelope,
     PublicationKind,
@@ -80,16 +80,17 @@ class TelegramListener:
                 ignored += 1
             else:
                 reply = self.command_service.handle(command)
-                envelope = self.router.route(
-                    publication_kind=PublicationKind.COMMAND_REPLY,
-                    semantic_identity={
-                        "update_id": update_id,
-                        "message_id": command.message_id,
-                        "command": command.name.value,
-                    },
-                    payload={"text": reply.text},
-                    origin_topic_id=command.topic_id,
-                )
+                if self.settings.delivery_mode is DeliveryMode.LIVE:
+                    envelope = self.router.route(
+                        publication_kind=PublicationKind.COMMAND_REPLY,
+                        semantic_identity={
+                            "update_id": update_id,
+                            "message_id": command.message_id,
+                            "command": command.name.value,
+                        },
+                        payload={"text": reply.text},
+                        origin_topic_id=command.topic_id,
+                    )
                 accepted += 1
             self.repository.commit_update(update_id=update_id, envelope=envelope)
             offset = update_id + 1

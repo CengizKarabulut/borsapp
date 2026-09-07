@@ -1,5 +1,8 @@
 """PostgreSQL persistence adapters."""
 
+from market_intelligence.persistence.postgres.ma_research import (
+    PostgresMaQualificationSource,
+)
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import (
     PostgresRuntimeRepository,
@@ -28,6 +31,7 @@ __all__ = [
     "PostgresOutboxRepository",
     "PostgresRuntimeRepository",
     "PostgresLongJobQueue",
+    "PostgresMaQualificationSource",
     "PostgresScanStore",
     "PostgresSnapshotStore",
     "PostgresStateStore",

@@ -52,6 +52,11 @@ def _binding(
     *,
     calendar_version: str,
 ) -> ScannerBinding:
+    configured_version = str(section.get("version", ""))
+    if configured_version != scanner.version:
+        raise ValueError(
+            f"{scanner.id}: config version={configured_version}, code version={scanner.version}"
+        )
     partial_policy = str(section.get("partial_bar_policy", "drop"))
     if partial_policy != "drop":
         raise ValueError(f"{scanner.id}: yalnız drop partial bar politikası destekleniyor")
