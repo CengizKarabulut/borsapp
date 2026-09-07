@@ -1,0 +1,14 @@
+[technical.volume_spike]
+enabled = true
+version = "1.0.0"
+relative_volume_threshold = 3.0
+minimum_average_turnover = 20000000.0
+minimum_price = 1.0
+baseline_window = 20
+minimum_history = 5
+partial_bar_policy = "drop"
+
+# İlk pilotta bildirim trafiği sınırlıdır. Diğer canonical zaman dilimleri
+# shadow çalışabilir ama Telegram'a yazmaz.
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+notification_timeframes = ["1h", "4h", "1d"]

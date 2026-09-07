@@ -1,0 +1,1 @@
+"""Delivery contracts and adapters."""

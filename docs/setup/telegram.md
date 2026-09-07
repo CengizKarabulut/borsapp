@@ -1,0 +1,65 @@
+# Telegram forum kurulumu
+
+Bu işlem bir kez kullanıcı tarafından yapılır. Bot token'ı veya kimlikler hiçbir
+zaman Git'e commit edilmez.
+
+## 1. Grup ve bot
+
+1. Telegram'da bir **özel süpergrup** oluşturun.
+2. Grup ayarlarından **Konular / Topics** özelliğini açın.
+3. BotFather üzerinden yeni bir bot oluşturun ve token'ı güvenli yerde saklayın.
+4. Botu gruba ekleyin. Mesaj gönderebilmesi, fotoğraf/dosya paylaşabilmesi ve
+   konu mesajlarını okuyabilmesi için yönetici yetkisi verin.
+5. BotFather'da botun grup gizlilik ayarını komut dinleme ihtiyacına göre
+   kapatın. Komutlar yalnız aşağıdaki Komut Merkezi konusunda ve izin verilen
+   kullanıcı kimliklerinden kabul edilecektir.
+
+## 2. Açılacak konular
+
+Adlar değişebilir; yapılandırmada sayısal topic ID kullanılır.
+
+| Önerilen konu | İçerik | Ortam değişkeni |
+| --- | --- | --- |
+| Komut Merkezi | `/tara ASELS`, `/analiz ASELS` ve doğrudan yanıtlar | `TELEGRAM_TOPIC_COMMAND` |
+| Taramalar | SIGNAL, TECHNICAL, MA ve confluence bildirimleri | `TELEGRAM_TOPIC_SCANS` |
+| Analiz & Araştırma | Birleşik hisse araştırması | `TELEGRAM_TOPIC_ANALYSIS` |
+| Grafikler | Grafik ve görsel çıktılar | `TELEGRAM_TOPIC_CHARTS` |
+| Haberler & KAP | Şirket/piyasa haberleri ve KAP | `TELEGRAM_TOPIC_NEWS` |
+| Takvim | Ekonomik ve şirket olay takvimi | `TELEGRAM_TOPIC_CALENDAR` |
+| Raporlar & Bültenler | Günlük/haftalık özetler | `TELEGRAM_TOPIC_REPORTS` |
+| Sistem | Shadow farkları, veri gecikmesi ve hata bildirimleri | `TELEGRAM_TOPIC_SYSTEM` |
+
+Tüm tarama aileleri tek **Taramalar** konusunda birleşir; mesaj başlığı
+`[SIGNAL]`, `[TECHNICAL]`, `[MA]` veya `[CONFLUENCE]` olarak ayrılır.
+Bu, her scanner için ayrı Telegram konusu açıp konuları çoğaltmayı önler.
+
+## 3. Kimlikleri alma
+
+- Grup chat ID değeri çoğunlukla `-100...` biçimindedir.
+- Topic ID, ilgili konu içindeki bir mesajın bağlantısındaki son sayıdır.
+- Kendi numeric user ID'nizi Telegram update çıktısından veya güvenilir bir
+  ID botundan öğrenin.
+- Token'ı topic ID öğrenmek için üçüncü taraf sitelere yapıştırmayın.
+
+Hazırlanacak değerler:
+
+    TELEGRAM_CHAT_ID=-100...
+    TELEGRAM_ALLOWED_USERS=123456789
+    TELEGRAM_TOPIC_COMMAND=...
+    TELEGRAM_TOPIC_SCANS=...
+    TELEGRAM_TOPIC_ANALYSIS=...
+    TELEGRAM_TOPIC_CHARTS=...
+    TELEGRAM_TOPIC_NEWS=...
+    TELEGRAM_TOPIC_CALENDAR=...
+    TELEGRAM_TOPIC_REPORTS=...
+    TELEGRAM_TOPIC_SYSTEM=...
+
+## 4. Mesaj davranışı
+
+- Zamanlanmış yayınlar içerik türünün sabit konusuna gider.
+- Kullanıcı komutuna verilen kısa cevap Komut Merkezi'nde kalır.
+- Komut uzun analiz/grafik üretirse Komut Merkezi'nde durum ve bağlantı
+  gönderilir; asıl çıktı Analiz veya Grafikler konusuna yönlendirilebilir.
+- Başka grup, başka topic veya izin verilmeyen kullanıcıdan gelen komut işlenmez.
+- Sistem konusu başarısızlık ve shadow farkları içindir; normal başarı loglarıyla
+  doldurulmaz.

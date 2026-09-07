@@ -32,6 +32,7 @@ Ayrıntılı sözleşme: [docs/architecture/frozen-contract.md](docs/architectur
 
 ## Yerel doğrulama
 
+    python -m pip install --editable ".[dev]"
     python -m unittest discover -s tests -v
     python scripts/audit_purity.py --root _legacy --output docs/migration/purity-audit.json
     python scripts/map_indicators.py --root _legacy --output docs/migration/indicator-map.json
@@ -40,5 +41,14 @@ Ayrıntılı sözleşme: [docs/architecture/frozen-contract.md](docs/architectur
 PostgreSQL geliştirme servisi:
 
     docker compose up -d postgres
+
+Kullanıcı kurulumları:
+
+- [Telegram forum ve topic kurulumu](docs/setup/telegram.md)
+- [GitHub Actions ve repo ayarları](docs/setup/github.md)
+
+İlk taşınan dikey dilim `technical.volume_spike` scanner'ıdır. Pilot kuralları
+[config/scanners.toml](config/scanners.toml), MACD referans kararı ise
+[ADR-0001](docs/adr/0001-macd-reference-implementation.md) içindedir.
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.

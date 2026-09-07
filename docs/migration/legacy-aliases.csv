@@ -1,10 +1,21 @@
 source_repo,legacy_id,legacy_label,new_id,direction,status,evidence
-taramabot,M-1,MACD Pozitif Kesişim,,legacy_to_new,unverified,
-taramabot,S-M-1,SMI MACD Momentum,,legacy_to_new,unverified,
-taramabot,S-M-V-1,SMI MACD Güçlü Onay,,legacy_to_new,unverified,
-taramabot,E-V-1,EMA Trend ve Hacim,,legacy_to_new,unverified,
-taramabot,R-M-V-1,RSI MACD ve Hacim,,legacy_to_new,unverified,
-taramabot,A-M-V-1,SMA MACD ve Hacim,,legacy_to_new,unverified,
-taramabot,S-M-V-2,SMI MACD Full,,legacy_to_new,unverified,
-taramabot,S-M-2,SMI MACD Erken,,legacy_to_new,unverified,
-taramabot,R-V-1,RSI Momentum,,legacy_to_new,unverified,
+taramabot,M-1,MACD Pozitif Kesişim,signal.macd_positive_cross,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:25
+taramabot,S-M-1,SMI MACD Momentum,signal.smi_macd_positive,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:26
+taramabot,S-M-V-1,SMI MACD Güçlü Onay,signal.smi_macd_positive_volume_confirmed,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:27
+taramabot,E-V-1,EMA Trend ve Hacim,signal.ema_trend_volume,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:28
+taramabot,R-M-V-1,RSI MACD ve Hacim,signal.rsi_macd_volume,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:29
+taramabot,A-M-V-1,SMA MACD ve Hacim,signal.sma_macd_volume,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:30
+taramabot,S-M-V-2,SMI MACD Full,signal.smi_macd_full,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:31
+taramabot,S-M-2,SMI MACD Erken,signal.smi_macd_early,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:35
+taramabot,R-V-1,RSI Momentum,signal.rsi_momentum_volume,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:39
+market-telegram-suite,hacim_patlamasi,Hacim patlaması,technical.volume_spike,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:266
+taramabot,M-1,MACD Pozitif Kesişim,signal.macd_positive_cross,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:36
+taramabot,S-M-1,SMI MACD Momentum,signal.smi_macd_positive,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:37
+taramabot,S-M-V-1,SMI MACD Güçlü Onay,signal.smi_macd_positive_volume_confirmed,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:38
+taramabot,E-V-1,EMA Trend ve Hacim,signal.ema_trend_volume,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:35
+taramabot,R-M-V-1,RSI MACD ve Hacim,signal.rsi_macd_volume,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:34
+taramabot,A-M-V-1,SMA MACD ve Hacim,signal.sma_macd_volume,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:33
+taramabot,S-M-V-2,SMI MACD Full,signal.smi_macd_full,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:30
+taramabot,S-M-2,SMI MACD Erken,signal.smi_macd_early,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:31
+taramabot,R-V-1,RSI Momentum,signal.rsi_momentum_volume,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:32
+market-telegram-suite,hacim_patlamasi,Hacim patlaması,technical.volume_spike,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:269
