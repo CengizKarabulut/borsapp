@@ -170,4 +170,6 @@ class SymbolCommandService:
             reverse=True,
         )[:5]:
             lines.append(f"- {item.published_at.date().isoformat()} · {item.headline}")
+            if item.url:
+                lines.append(f"  {item.url}")
         return "\n".join(lines)

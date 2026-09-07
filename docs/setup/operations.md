@@ -72,6 +72,19 @@ engeller. `command-worker`, `/tara SYMBOL --force` ve
 tamamlanma veya hata yanıtını aynı Komut Merkezi konusuna outbox ile bırakır.
 Disabled/shadow modda listener iş kuyruğu oluşturmaz ve command worker iş çekmez.
 
+## KAP haber akışı
+
+`borsapp news-kap-sync --lookback-days 1` KAP bildirimlerini ortak haber
+deposuna yazar ve bir bildirimi birden fazla BIST hissesine bağlayabilir. İlk
+çalışma yalnız başlangıç referansı oluşturur; eski bildirimleri Telegram'a
+göndermez. `--notify` yalnız `DELIVERY_MODE=live` iken kabul edilir ve yeni,
+BIST ile eşleşmiş bildirimleri `TELEGRAM_TOPIC_NEWS` konusuna bırakır.
+
+GitHub Actions zamanlaması varsayılan olarak kapalıdır. Hazır olduğunda
+`ENABLE_SCHEDULED_NEWS=true` tanımlanır. Bildirimleri açmak ayrıca
+`NEWS_DELIVERY_MODE=live` gerektirir; bu ikinci anahtar eklenmedikçe iş yalnız
+veritabanını günceller.
+
 ## GitHub Actions
 
 `Shadow scan` workflow'u manuel olarak çalıştırılabilir. Zamanlanmış hafta içi

@@ -64,6 +64,7 @@ Kullanıcı kurulumları:
 - [x] İlk legacy/new shadow karşılaştırma sözleşmesi
 - [x] Merkezi Telegram publisher ve listener
 - [x] `/tara SYMBOL --force` için kiralamalı PostgreSQL iş kuyruğu ve worker
+- [x] KAP bildirimlerini çoklu BIST sembolüyle ilişkilendiren canonical haber akışı
 - [x] `signal.macd_positive_cross` dikey dilimi
 - [x] `signal.smi_macd_positive` (`S-M-1`) ve MA200/hacim onaylı
       `signal.smi_macd_positive_volume_confirmed` (`S-M-V-1`) dikey dilimleri
@@ -78,6 +79,6 @@ Kullanıcı kurulumları:
 - [x] BIST Tüm (XUTUM) kaynaklı, güvenlik frenli `BIST_ALL` universe eşitlemesi
 - [x] Yön-duyarlı MA Research seviye üreticisi ve günlük feature-store yenilemesi
 - [x] `taramabot` içindeki dokuz legacy sinyal kodunun yeni scanner kataloğuna taşınması
-- [ ] Kalan TECHNICAL, haber, analiz ve grafik üreticilerinin parity ile taşınması
+- [ ] Genel piyasa haberleri, takvim, analiz ve grafik üreticilerinin parity ile taşınması
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.

@@ -6,12 +6,13 @@ import signal
 import sys
 import time
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import FrameType
 
 from market_intelligence.application.command_jobs import CommandJob, CommandJobRunner
 from market_intelligence.application.ingestion import IngestionRequest, IngestionService
+from market_intelligence.application.news_ingestion import NewsIngestionService
 from market_intelligence.application.scan_frame import ScanFrameCoordinator
 from market_intelligence.application.scheduled_scan import (
     ScheduledScanRequest,
@@ -48,6 +49,7 @@ from market_intelligence.market_data.universe import (
     build_universe_sync_plan,
     validate_universe_sync_plan,
 )
+from market_intelligence.news.kap import KapDisclosureProvider
 from market_intelligence.persistence.postgres.command_jobs import (
     PostgresCommandJobRepository,
 )
@@ -55,6 +57,7 @@ from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
     PostgresMaResearchStore,
 )
+from market_intelligence.persistence.postgres.news import PostgresNewsStore
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.persistence.postgres.scan_store import PostgresScanStore
@@ -214,6 +217,13 @@ def _parser() -> argparse.ArgumentParser:
     command_loop.add_argument("--bars", type=int, default=250)
     command_loop.add_argument("--interval", type=float, default=2.0)
     command_loop.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
+
+    news_kap = subparsers.add_parser(
+        "news-kap-sync",
+        help="KAP bildirimlerini canonical haber deposuna eşitle",
+    )
+    news_kap.add_argument("--lookback-days", type=int, default=1)
+    news_kap.add_argument("--notify", action="store_true")
     return parser
 
 
@@ -875,6 +885,35 @@ def _command_worker_loop(
     return 0
 
 
+def _news_kap_sync(
+    settings: ApplicationSettings,
+    *,
+    lookback_days: int,
+    notify: bool,
+) -> int:
+    if lookback_days < 0 or lookback_days > 30:
+        raise ValueError("--lookback-days 0 ile 30 arasında olmalıdır")
+    observed_at = datetime.now(settings.runtime.timezone)
+    with _connect(settings.runtime.database_url) as connection:
+        result = NewsIngestionService(
+            provider=KapDisclosureProvider(timezone=settings.runtime.timezone),
+            store=PostgresNewsStore(connection),
+            telegram_settings=settings.telegram,
+        ).run(
+            from_date=observed_at.date() - timedelta(days=lookback_days),
+            to_date=observed_at.date(),
+            observed_at=observed_at,
+            notify=notify,
+        )
+    print(
+        "KAP haber eşitleme: "
+        f"bulunan={result.fetched}, yeni={result.inserted}, "
+        f"BIST_bağlantılı={result.linked_items}, outbox={result.outbox_count}, "
+        f"ilk_referans={'evet' if result.bootstrapped else 'hayır'}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -969,6 +1008,12 @@ def main(argv: list[str] | None = None) -> int:
                 bars=args.bars,
                 scanners_path=args.scanners,
                 interval=args.interval,
+            )
+        if args.command == "news-kap-sync":
+            return _news_kap_sync(
+                settings,
+                lookback_days=args.lookback_days,
+                notify=args.notify,
             )
     except (RuntimeError, ValueError) as exc:
         print(f"Hata: {exc}", file=sys.stderr)

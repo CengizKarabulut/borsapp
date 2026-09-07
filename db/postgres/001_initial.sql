@@ -325,6 +325,16 @@ CREATE TABLE IF NOT EXISTS news_items (
 CREATE INDEX IF NOT EXISTS ix_news_items_instrument_published
     ON news_items(instrument_id, published_at DESC);
 
+CREATE TABLE IF NOT EXISTS news_item_instruments (
+    news_id TEXT NOT NULL REFERENCES news_items(news_id) ON DELETE CASCADE,
+    instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    symbol_at_link TEXT NOT NULL,
+    linked_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (news_id, instrument_id)
+);
+CREATE INDEX IF NOT EXISTS ix_news_item_instruments_lookup
+    ON news_item_instruments(instrument_id, news_id);
+
 CREATE TABLE IF NOT EXISTS command_jobs (
     job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     command_name TEXT NOT NULL,

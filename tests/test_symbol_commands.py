@@ -66,7 +66,7 @@ def snapshot() -> SymbolSnapshot:
                 status=EvaluationStatus.NO_MATCH,
             ),
         ),
-        news=(StoredNews("Yeni sözleşme", now),),
+        news=(StoredNews("Yeni sözleşme", now, "https://example.com"),),
     )
 
 
@@ -129,6 +129,12 @@ class SymbolCommandServiceTests(unittest.TestCase):
         )
         self.assertIn("yalnız /tara", reply.text)
         self.assertEqual(queue.calls, 0)
+
+    def test_news_reply_includes_source_url(self) -> None:
+        reply = SymbolCommandService(FakeStore(snapshot())).handle(
+            command(CommandName.NEWS, "ASELS")
+        )
+        self.assertIn("https://example.com", reply.text)
 
 
 if __name__ == "__main__":

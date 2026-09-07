@@ -6,6 +6,7 @@ from market_intelligence.persistence.postgres.command_jobs import (
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
 )
+from market_intelligence.persistence.postgres.news import PostgresNewsStore
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import (
     PostgresRuntimeRepository,
@@ -36,6 +37,7 @@ __all__ = [
     "PostgresRuntimeRepository",
     "PostgresLongJobQueue",
     "PostgresMaQualificationSource",
+    "PostgresNewsStore",
     "PostgresScanStore",
     "PostgresSnapshotStore",
     "PostgresStateStore",

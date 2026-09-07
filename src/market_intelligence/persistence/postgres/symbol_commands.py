@@ -54,10 +54,11 @@ LIMIT 20
 """
 
 NEWS_SQL = """
-SELECT headline, published_at, url
-FROM news_items
-WHERE instrument_id = %s
-ORDER BY published_at DESC
+SELECT DISTINCT n.headline, n.published_at, n.url
+FROM news_items n
+LEFT JOIN news_item_instruments link ON link.news_id = n.news_id
+WHERE n.instrument_id = %s OR link.instrument_id = %s
+ORDER BY n.published_at DESC
 LIMIT 20
 """
 
@@ -95,7 +96,7 @@ class PostgresSymbolReadStore:
                 StoredArtifact(str(row[0]), str(row[1]), row[2], row[3])
                 for row in cursor.fetchall()
             )
-            cursor.execute(NEWS_SQL, (instrument_id,))
+            cursor.execute(NEWS_SQL, (instrument_id, instrument_id))
             news = tuple(
                 StoredNews(str(row[0]), row[1], row[2]) for row in cursor.fetchall()
             )
