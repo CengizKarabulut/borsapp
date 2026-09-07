@@ -35,6 +35,7 @@ Zamanlanmış yeni akışlar ayrı repo değişkenleriyle açılır:
 - `ENABLE_SCHEDULED_RESEARCH=true`: MA Research yenilemesi
 - `ENABLE_SCHEDULED_NEWS=true`: KAP haber eşitlemesi
 - `NEWS_DELIVERY_MODE=live`: yeni KAP kayıtlarını Haberler & KAP konusuna yayınlar
+- `ENABLE_TELEGRAM_PULSE=true`: kalıcı host kurulana kadar gecikmeli canlı komut botu
 
 Son değişken eklenmezse veya `disabled` kalırsa haberler yalnız Neon'a yazılır.
 5. PostgreSQL barındırma hedefi seçilmeden `DATABASE_URL` üretim secret'ı

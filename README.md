@@ -66,6 +66,7 @@ Kullanıcı kurulumları:
 - [x] `/tara SYMBOL --force` için kiralamalı PostgreSQL iş kuyruğu ve worker
 - [x] KAP bildirimlerini çoklu BIST sembolüyle ilişkilendiren canonical haber akışı
 - [x] SIGNAL + TECHNICAL + MA için strict, yön-çatışması görünür confluence raporu
+- [x] Kalıcı host öncesi GitHub Actions tabanlı kontrollü Telegram live pulse
 - [x] `signal.macd_positive_cross` dikey dilimi
 - [x] `signal.smi_macd_positive` (`S-M-1`) ve MA200/hacim onaylı
       `signal.smi_macd_positive_volume_confirmed` (`S-M-V-1`) dikey dilimleri

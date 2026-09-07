@@ -118,6 +118,18 @@ raporu saklar ancak eski bildirim üretmez.
 yedek catch-up için uygundur; tek merkezi Telegram listener/publisher olarak
 kullanılmaz.
 
+Kalıcı host kurulana kadarki kullanıcı testi denemesi için `Telegram live pulse`
+workflow'u bulunur. `ENABLE_TELEGRAM_PULSE=true` olduğunda yaklaşık beş dakikada
+bir başlar ve üç dakika boyunca Telegram'ı long-poll eder. Bu geçici modelde
+komut yanıtı anlık olmayabilir; gecikme normaldir. Workflow aynı döngüde
+publisher ve `/tara ... --force` command worker'ını da çalıştırır. PostgreSQL
+checkpoint, advisory lock, lease ve outbox tekilleştirmeleri nedeniyle geciken
+veya üst üste gelen GitHub çalışmaları aynı update'i yeniden göndermez.
+
+Laptop/Docker veya başka bir kalıcı host devreye alındığında
+`ENABLE_TELEGRAM_PULSE` kaldırılır ve `listener-loop`, `publisher-loop` ile
+`command-worker-loop` kesintisiz servisler olarak çalıştırılır.
+
 ## Kullanıcının sağlaması gereken altyapı
 
 - Kalıcı PostgreSQL sunucusu ve `DATABASE_URL`/`COMPOSE_DATABASE_URL` değeri.
