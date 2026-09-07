@@ -100,6 +100,18 @@ CREATE TABLE IF NOT EXISTS scan_cycles (
     UNIQUE (market, universe_id, timeframe, bar_time)
 );
 
+CREATE TABLE IF NOT EXISTS scan_cycle_failures (
+    cycle_id UUID NOT NULL REFERENCES scan_cycles(cycle_id) ON DELETE CASCADE,
+    instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    symbol_at_failure TEXT NOT NULL,
+    error_code TEXT NOT NULL,
+    error_detail TEXT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (cycle_id, instrument_id)
+);
+CREATE INDEX IF NOT EXISTS ix_scan_cycle_failures_instrument
+    ON scan_cycle_failures(instrument_id, observed_at DESC);
+
 CREATE TABLE IF NOT EXISTS scan_watermarks (
     market TEXT NOT NULL,
     universe_id TEXT NOT NULL,

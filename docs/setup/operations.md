@@ -31,6 +31,11 @@ işler. Eski catch-up barları Telegram'a bildirilmez. 45 dakikalık mumlar 10:0
 seans çıpasından türetilir ve 17:30-18:00 arasındaki 30 dakikalık kuyruk mum
 varsayılan olarak atılır.
 
+Tüm-BIST döngüsünde tek bir sembolün veri hatası bütün evrenin watermark'ını
+kilitlemez. Hata `scan_cycle_failures` tablosuna sembol ve hata türüyle yazılır,
+döngü `completed_with_errors` olur ve diğer hisseler ilerler. Universe boşsa
+başarılı görünmek yerine tarama açıkça hata verir.
+
 `borsapy` BIST intraday verisi ücretsiz kullanımda yaklaşık 15 dakika gecikmeli
 olabilir; sistem bu nedenle yalnız kapanmış barları değerlendirir. Ayrıntı:
 [borsapy fiyat geçmişi](https://github.com/saidsurucu/borsapy#fiyat-ge%C3%A7mi%C5%9Fi).

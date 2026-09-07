@@ -143,6 +143,17 @@ DO UPDATE SET
     updated_at = now()
 """
 
+INSERT_CYCLE_FAILURE_SQL = """
+INSERT INTO scan_cycle_failures (
+    cycle_id, instrument_id, symbol_at_failure, error_code, error_detail
+) VALUES (%s, %s, %s, %s, %s)
+ON CONFLICT (cycle_id, instrument_id)
+DO UPDATE SET
+    error_code = EXCLUDED.error_code,
+    error_detail = EXCLUDED.error_detail,
+    observed_at = now()
+"""
+
 
 @dataclass(frozen=True)
 class RuntimeInstrument:
@@ -151,6 +162,14 @@ class RuntimeInstrument:
     provider_symbol: str
     market: str
     asset_class: str
+
+
+@dataclass(frozen=True)
+class InstrumentScanFailure:
+    instrument_id: str
+    symbol: str
+    error_code: str
+    error_detail: str
 
 
 class PostgresRuntimeRepository:
@@ -383,10 +402,24 @@ class PostgresRuntimeRepository:
         stale: int,
         failed: int,
         finished_at: datetime,
+        failures: tuple[InstrumentScanFailure, ...] = (),
     ) -> None:
+        if failed != len(failures) and failures:
+            raise ValueError("failed sayısı ile failure kayıtları uyuşmuyor")
         status = "completed" if failed == 0 else "completed_with_errors"
         with self.connection.transaction():
             with self.connection.cursor() as cursor:
+                for failure in failures:
+                    cursor.execute(
+                        INSERT_CYCLE_FAILURE_SQL,
+                        (
+                            cycle_id,
+                            failure.instrument_id,
+                            failure.symbol,
+                            failure.error_code[:120],
+                            failure.error_detail[:2000],
+                        ),
+                    )
                 cursor.execute(
                     FINISH_CYCLE_SQL,
                     (status, successful, stale, failed, finished_at, cycle_id),

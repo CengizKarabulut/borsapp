@@ -7,7 +7,10 @@ from typing import Protocol
 from market_intelligence.application.ingestion import IngestionRequest, IngestionService
 from market_intelligence.application.scan_frame import ScanFrameCoordinator
 from market_intelligence.core.timeframes import Timeframe
-from market_intelligence.persistence.postgres.runtime import RuntimeInstrument
+from market_intelligence.persistence.postgres.runtime import (
+    InstrumentScanFailure,
+    RuntimeInstrument,
+)
 from market_intelligence.scanning.catalog import ScannerBinding
 from market_intelligence.scheduling.xist import ScheduledBarPlanner
 
@@ -96,6 +99,10 @@ class ScheduledScanService:
                 request.universe_id,
                 as_of=bar_time.date(),
             )
+            if not instruments:
+                raise ValueError(
+                    f"Universe boş: {request.universe_id}; önce universe-sync --apply çalıştırın"
+                )
             cycle_id = self.repository.start_cycle(
                 market=request.market,
                 universe_id=request.universe_id,
@@ -105,7 +112,7 @@ class ScheduledScanService:
                 started_at=request.evaluation_time,
             )
             successful = 0
-            failed = 0
+            failures: list[InstrumentScanFailure] = []
             newest = bar_time == due_bars[-1]
             fresh = request.evaluation_time - bar_time <= request.notification_max_age
             for instrument in instruments:
@@ -129,21 +136,28 @@ class ScheduledScanService:
                         evaluation_time=request.evaluation_time,
                         allow_notifications=newest and fresh,
                     )
-                except Exception:
-                    failed += 1
+                except Exception as exc:
+                    failures.append(
+                        InstrumentScanFailure(
+                            instrument_id=instrument.instrument_id,
+                            symbol=instrument.symbol,
+                            error_code=type(exc).__name__,
+                            error_detail=str(exc) or type(exc).__name__,
+                        )
+                    )
                 else:
                     successful += 1
+            failed = len(failures)
             self.repository.finish_cycle(
                 cycle_id=cycle_id,
                 successful=successful,
                 stale=0,
                 failed=failed,
                 finished_at=request.evaluation_time,
+                failures=tuple(failures),
             )
             total_success += successful
             total_failed += failed
-            if failed:
-                break
             self.repository.update_watermarks(
                 market=request.market,
                 universe_id=request.universe_id,

@@ -28,6 +28,7 @@ class Repository:
         return "cycle-1"
 
     def finish_cycle(self, **kwargs):
+        self.failures = kwargs.get("failures", ())
         return None
 
     def update_watermarks(self, **kwargs):
@@ -88,6 +89,70 @@ class ScheduledScanServiceTests(unittest.TestCase):
         self.assertEqual(result.completed_bars, 2)
         self.assertEqual(coordinator.notification_flags, [False, True])
         self.assertEqual(len(repository.updated), 2)
+
+    def test_one_bad_instrument_does_not_block_universe_watermark(self) -> None:
+        class TwoInstrumentRepository(Repository):
+            def list_universe(self, universe_id, *, as_of):
+                return (
+                    RuntimeInstrument("i-1", "GOOD", "GOOD", "BIST", "equity"),
+                    RuntimeInstrument("i-2", "BAD", "BAD", "BIST", "equity"),
+                )
+
+        class OneBarPlanner:
+            def due(self, **kwargs):
+                return (datetime(2026, 9, 7, 13, 0, tzinfo=ISTANBUL),)
+
+        class PartialFailureIngestion:
+            def ingest(self, request):
+                if request.symbol == "BAD":
+                    raise RuntimeError("provider unavailable")
+                return object()
+
+        repository = TwoInstrumentRepository()
+        service = ScheduledScanService(
+            repository=repository,
+            ingestion=PartialFailureIngestion(),
+            coordinator=Coordinator(),
+            planner=OneBarPlanner(),
+        )
+        result = service.run(
+            ScheduledScanRequest(
+                market="BIST",
+                universe_id="BIST_ALL",
+                timeframe=Timeframe.H1,
+                bars=100,
+                evaluation_time=datetime(2026, 9, 7, 13, 5, tzinfo=ISTANBUL),
+            ),
+            (Binding(),),
+        )
+        self.assertEqual(result.completed_bars, 1)
+        self.assertEqual(result.successful_instruments, 1)
+        self.assertEqual(result.failed_instruments, 1)
+        self.assertEqual(repository.updated, [datetime(2026, 9, 7, 13, 0, tzinfo=ISTANBUL)])
+        self.assertEqual(repository.failures[0].symbol, "BAD")
+
+    def test_empty_universe_fails_loudly(self) -> None:
+        class EmptyRepository(Repository):
+            def list_universe(self, universe_id, *, as_of):
+                return ()
+
+        service = ScheduledScanService(
+            repository=EmptyRepository(),
+            ingestion=Ingestion(),
+            coordinator=Coordinator(),
+            planner=Planner(),
+        )
+        with self.assertRaisesRegex(ValueError, "Universe boş"):
+            service.run(
+                ScheduledScanRequest(
+                    market="BIST",
+                    universe_id="BIST_ALL",
+                    timeframe=Timeframe.H1,
+                    bars=100,
+                    evaluation_time=datetime(2026, 9, 7, 14, 5, tzinfo=ISTANBUL),
+                ),
+                (Binding(),),
+            )
 
 
 if __name__ == "__main__":
