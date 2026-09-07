@@ -1,0 +1,56 @@
+name: MA Market Scan Watchdog
+run-name: "MA Watchdog · ${{ github.event_name }}"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ma-market-scan-watchdog
+  cancel-in-progress: true
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Manuel MA watchdog testi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          TARGET_WORKFLOW: ma_market_scan.yml
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dow="$(TZ=Europe/Istanbul date +%u)"
+          hour="$(TZ=Europe/Istanbul date +%H)"
+          minute="$(TZ=Europe/Istanbul date +%M)"
+          now_min=$((10#${hour} * 60 + 10#${minute}))
+
+          if [ "${dow}" -gt 5 ]; then
+            echo "Hafta sonu; MA taramasi baslatilmadi."
+            exit 0
+          fi
+
+          # Manuel watchdog sadece normal MA pencerelerinde calisabilir.
+          if ! { (( now_min >= 660 && now_min <= 1139 )) || (( now_min >= 1170 && now_min <= 1200 )); }; then
+            echo "MA tarama penceresi disinda; kurtarma engellendi: $(TZ=Europe/Istanbul date '+%F %T')"
+            exit 0
+          fi
+
+          active_count="$(
+            gh api "repos/${REPOSITORY}/actions/workflows/${TARGET_WORKFLOW}/runs?per_page=40" |
+              jq '[.workflow_runs[] | select(.status == "queued" or .status == "in_progress")] | length'
+          )"
+
+          if [ "${active_count}" -gt 0 ]; then
+            echo "Ana MA taramasi zaten aktif; yeni kosu yok."
+            exit 0
+          fi
+
+          echo "Manuel watchdog ana MA taramasini baslatiyor."
+          gh workflow run "${TARGET_WORKFLOW}" --repo "${REPOSITORY}" --ref main

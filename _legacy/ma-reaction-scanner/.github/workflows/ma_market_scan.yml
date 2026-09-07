@@ -1,0 +1,284 @@
+name: Tüm BIST MA Trend ve Tepki Taraması
+
+# Otomatik saat yönetimi ma_recovery_heartbeat.yml tarafından yapılır.
+# Bu workflow doğrudan schedule kabul etmez; böylece saatlerce gecikmiş
+# GitHub cron olayları piyasa/kapanış penceresi dışında tarama başlatamaz.
+on:
+  workflow_dispatch:
+    inputs:
+      timeframe_preset:
+        description: Zaman dilimi paketi
+        required: true
+        default: all
+        type: choice
+        options: [daily, 1d, all, intraday, swing, custom]
+      custom_timeframes:
+        description: "custom için: 5m,15m,30m,1h,4h,1d,1wk,1mo"
+        required: false
+        default: ""
+      ma_types:
+        description: Seçilecek MA türleri
+        required: true
+        default: "SMA,EMA,WMA,VWMA,KAMA,ALMA,HMA"
+      periods:
+        description: Seçilecek MA periyotları
+        required: true
+        default: "5,8,10,13,20,21,22,34,50,55,89,100,144,200,233,377"
+      trend_slope_bars:
+        description: Trend eğimi ölçüm barı
+        required: true
+        default: "10"
+      trend_slope_threshold_atr:
+        description: Yatay trend ATR eşiği
+        required: true
+        default: "0.10"
+      touch_zone_atr:
+        description: MA temas bölgesi ATR
+        required: true
+        default: "0.20"
+      separation_atr:
+        description: Temas öncesi uzaklaşma ATR
+        required: true
+        default: "2.0"
+      min_touches:
+        description: Minimum bağımsız temas
+        required: true
+        default: "12"
+      stop_buffer_atr:
+        description: İlk stop tamponu ATR
+        required: true
+        default: "0.20"
+      trailing_stop_atr:
+        description: Takip eden stop ATR
+        required: true
+        default: "2.0"
+      max_holding_bars:
+        description: Azami pozisyon barı
+        required: true
+        default: "20"
+      roundtrip_cost_bps:
+        description: Gidiş-dönüş maliyet baz puanı
+        required: true
+        default: "25"
+      min_edge_r:
+        description: Güçlü uyum minimum baz avantajı (R)
+        required: true
+        default: "0.10"
+      near_distance_atr:
+        description: Güncel yakınlık ATR
+        required: true
+        default: "1.0"
+      quality_lookback:
+        description: Likidite ve gap filtresi bakis araligi
+        required: true
+        default: "60"
+      min_price:
+        description: Minimum fiyat (TRY)
+        required: true
+        default: "1"
+      min_daily_turnover_try:
+        description: Minimum medyan gunluk islem degeri (TRY)
+        required: true
+        default: "1000000"
+      max_zero_volume_pct:
+        description: Maksimum sifir hacimli bar orani (%)
+        required: true
+        default: "20"
+      max_gap_pct:
+        description: Maksimum yakin donem gap (%)
+        required: true
+        default: "15"
+      max_abs_edge_r:
+        description: Maksimum mutlak aykiri Edge (R)
+        required: true
+        default: "5"
+      level_config_json:
+        description: 'MA DNA ileri ayar JSON, orn: {"evidence_target_touches":30}'
+        required: false
+        default: "{}"
+      relative_to:
+        description: Benchmark-relative MA DNA, e.g. XU100; blank = nominal
+        required: false
+        default: ""
+      rank_by:
+        description: Main ranking mode
+        required: true
+        default: level
+        type: choice
+        options: [level, compat]
+      source:
+        description: Veri kaynağı
+        required: true
+        default: auto
+        type: choice
+        options: [auto, borsapy, yfinance]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare_timeframes:
+    runs-on: ubuntu-latest
+    outputs:
+      timeframes: ${{ steps.resolve.outputs.timeframes }}
+    steps:
+      - name: Zaman dilimlerini ayir
+        id: resolve
+        shell: bash
+        env:
+          PRESET: ${{ inputs.timeframe_preset || 'all' }}
+          CUSTOM_TF: ${{ inputs.custom_timeframes || '' }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          presets = {
+              "all": ["5m", "15m", "30m", "1h", "4h", "1d", "1wk", "1mo"],
+              "intraday": ["5m", "15m", "30m", "1h", "4h"],
+              "swing": ["1d", "1wk", "1mo"],
+              "daily": ["1d"],
+              "1d": ["1d"],
+          }
+          allowed = set(presets["all"])
+          preset = (os.environ.get("PRESET") or "all").strip().lower()
+          custom = (os.environ.get("CUSTOM_TF") or "").strip()
+
+          if preset == "custom":
+              raw_values = custom or "1d"
+              values = [item.strip().lower() for item in raw_values.split(",") if item.strip()]
+          elif custom:
+              values = [item.strip().lower() for item in custom.split(",") if item.strip()]
+          else:
+              values = list(presets.get(preset, [preset]))
+
+          unique = []
+          for value in values:
+              if value not in allowed:
+                  raise SystemExit(f"Bilinmeyen zaman dilimi: {value}")
+              if value not in unique:
+                  unique.append(value)
+          if not unique:
+              raise SystemExit("En az bir zaman dilimi gerekli")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"timeframes={json.dumps(unique)}\n")
+          print("Timeframes:", ",".join(unique))
+          PY
+
+  scan:
+    needs: prepare_timeframes
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        timeframe: ${{ fromJson(needs.prepare_timeframes.outputs.timeframes) }}
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Parcali tum BIST taramasi (${{ matrix.timeframe }})
+        shell: bash
+        env:
+          MA_TYPES: ${{ inputs.ma_types || 'SMA,EMA,WMA,VWMA,KAMA,ALMA,HMA' }}
+          PERIODS: ${{ inputs.periods || '5,8,10,13,20,21,22,34,50,55,89,100,144,200,233,377' }}
+          SLOPE_BARS: ${{ inputs.trend_slope_bars || '10' }}
+          SLOPE_THRESHOLD: ${{ inputs.trend_slope_threshold_atr || '0.10' }}
+          TOUCH_ZONE: ${{ inputs.touch_zone_atr || '0.20' }}
+          SEPARATION: ${{ inputs.separation_atr || '2.0' }}
+          MIN_TOUCHES: ${{ inputs.min_touches || '12' }}
+          STOP_BUFFER: ${{ inputs.stop_buffer_atr || '0.20' }}
+          TRAIL: ${{ inputs.trailing_stop_atr || '2.0' }}
+          MAX_HOLD: ${{ inputs.max_holding_bars || '20' }}
+          COST: ${{ inputs.roundtrip_cost_bps || '25' }}
+          MIN_EDGE: ${{ inputs.min_edge_r || '0.10' }}
+          NEAR: ${{ inputs.near_distance_atr || '1.0' }}
+          QUALITY_LOOKBACK: ${{ inputs.quality_lookback || '60' }}
+          MIN_PRICE: ${{ inputs.min_price || '1' }}
+          MIN_TURNOVER: ${{ inputs.min_daily_turnover_try || '1000000' }}
+          MAX_ZERO_VOLUME: ${{ inputs.max_zero_volume_pct || '20' }}
+          MAX_GAP: ${{ inputs.max_gap_pct || '15' }}
+          MAX_EDGE: ${{ inputs.max_abs_edge_r || '5' }}
+          LEVEL_CONFIG_JSON: ${{ inputs.level_config_json || '{}' }}
+          RELATIVE_TO: ${{ inputs.relative_to || '' }}
+          RANK_BY: ${{ inputs.rank_by || 'level' }}
+          SOURCE: ${{ inputs.source || 'auto' }}
+        run: |
+          python -m scanner.ma_scan \
+            --universe bist_all_stocks \
+            --timeframes "${{ matrix.timeframe }}" \
+            --ma-types "$MA_TYPES" \
+            --periods "$PERIODS" \
+            --trend-slope-bars "$SLOPE_BARS" \
+            --trend-slope-threshold-atr "$SLOPE_THRESHOLD" \
+            --touch-zone-atr "$TOUCH_ZONE" \
+            --separation-atr "$SEPARATION" \
+            --min-touches "$MIN_TOUCHES" \
+            --stop-buffer-atr "$STOP_BUFFER" \
+            --trailing-stop-atr "$TRAIL" \
+            --max-holding-bars "$MAX_HOLD" \
+            --roundtrip-cost-bps "$COST" \
+            --min-edge-r "$MIN_EDGE" \
+            --near-distance-atr "$NEAR" \
+            --quality-lookback "$QUALITY_LOOKBACK" \
+            --min-price "$MIN_PRICE" \
+            --min-daily-turnover-try "$MIN_TURNOVER" \
+            --max-zero-volume-pct "$MAX_ZERO_VOLUME" \
+            --max-gap-pct "$MAX_GAP" \
+            --max-abs-edge-r "$MAX_EDGE" \
+            --level-config-json "$LEVEL_CONFIG_JSON" \
+            --relative-to "$RELATIVE_TO" \
+            --rank-by "$RANK_BY" \
+            --source "$SOURCE" \
+            --shard-index "${{ matrix.shard }}" \
+            --shard-count 20 \
+            --output-dir "reports/${{ matrix.timeframe }}/shard-${{ matrix.shard }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ma-${{ matrix.timeframe }}-shard-${{ matrix.shard }}
+          path: reports/${{ matrix.timeframe }}/shard-${{ matrix.shard }}/
+          retention-days: 3
+
+  merge:
+    needs: [prepare_timeframes, scan]
+    if: always() && needs.prepare_timeframes.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        timeframe: ${{ fromJson(needs.prepare_timeframes.outputs.timeframes) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ma-${{ matrix.timeframe }}-shard-*
+          path: parts/${{ matrix.timeframe }}
+      - run: >-
+          python -m scanner.ma_scan
+          --merge-dir parts/${{ matrix.timeframe }}
+          --expected-shards 20
+          --output-dir reports/final/${{ matrix.timeframe }}
+      - name: Telegram ozet ve tam CSV (${{ matrix.timeframe }})
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scanner.ma_notify --summary reports/final/${{ matrix.timeframe }}/market_summary.csv --watchlist reports/final/${{ matrix.timeframe }}/ma_watchlist.csv --label "Tum BIST MA Trend ve Tepki - ${{ matrix.timeframe }}" --top 25
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tum-bist-ma-trend-tepki-${{ matrix.timeframe }}-${{ github.run_id }}
+          path: reports/final/${{ matrix.timeframe }}/
+          retention-days: 90

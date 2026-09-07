@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ma-reaction-scanner"
+version = "1.0.0"
+description = "Configurable moving-average trend and reaction scanner"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Cengiz Karabulut" }]
+dependencies = [
+    "borsapy>=0.10.0,<1",
+    "yfinance>=0.2.0,<1",
+    "pandas>=2.0,<3",
+    "numpy>=1.26,<3",
+    "httpx>=0.27.0,<1",
+    "Pillow>=10.0,<12",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.5,<1"]
+
+[tool.setuptools.packages.find]
+include = ["scanner*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501"]

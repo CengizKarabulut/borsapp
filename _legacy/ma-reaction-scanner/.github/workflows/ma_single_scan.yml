@@ -1,0 +1,180 @@
+name: Tek Hisse MA Trend ve Tepki Analizi
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: BIST hisse kodu
+        required: true
+        default: ASELS
+      timeframes:
+        description: "daily/1d/all veya CSV: 5m,15m,30m,1h,4h,1d,1wk,1mo"
+        required: true
+        default: 1d
+      ma_types:
+        description: Seçilecek MA türleri
+        required: true
+        default: "SMA,EMA,WMA,VWMA,KAMA,ALMA,HMA"
+      periods:
+        description: Seçilecek periyotlar
+        required: true
+        default: "5,8,10,13,20,21,22,34,50,55,89,100,144,200,233,377"
+      trend_slope_bars:
+        description: Trend eğimi ölçüm barı
+        required: true
+        default: "10"
+      trend_slope_threshold_atr:
+        description: Yatay trend ATR eşiği
+        required: true
+        default: "0.10"
+      touch_zone_atr:
+        description: Temas bölgesi ATR
+        required: true
+        default: "0.20"
+      separation_atr:
+        description: Temas öncesi uzaklaşma ATR
+        required: true
+        default: "2.0"
+      min_touches:
+        description: Minimum bağımsız temas
+        required: true
+        default: "12"
+      stop_buffer_atr:
+        description: İlk stop tamponu ATR
+        required: true
+        default: "0.20"
+      trailing_stop_atr:
+        description: Takip eden stop ATR
+        required: true
+        default: "2.0"
+      max_holding_bars:
+        description: Azami pozisyon barı
+        required: true
+        default: "20"
+      roundtrip_cost_bps:
+        description: Gidiş-dönüş maliyet baz puanı
+        required: true
+        default: "25"
+      min_edge_r:
+        description: Güçlü uyum minimum baz avantajı (R)
+        required: true
+        default: "0.10"
+      near_distance_atr:
+        description: Güncel yakınlık ATR
+        required: true
+        default: "1.0"
+      quality_lookback:
+        description: Likidite ve gap filtresi bakis araligi
+        required: true
+        default: "60"
+      min_price:
+        description: Minimum fiyat (TRY)
+        required: true
+        default: "1"
+      min_daily_turnover_try:
+        description: Minimum medyan gunluk islem degeri (TRY)
+        required: true
+        default: "1000000"
+      max_zero_volume_pct:
+        description: Maksimum sifir hacimli bar orani (%)
+        required: true
+        default: "20"
+      max_gap_pct:
+        description: Maksimum yakin donem gap (%)
+        required: true
+        default: "15"
+      max_abs_edge_r:
+        description: Maksimum mutlak aykiri Edge (R)
+        required: true
+        default: "5"
+      level_config_json:
+        description: 'MA DNA ileri ayar JSON, orn: {"evidence_target_touches":30}'
+        required: false
+        default: "{}"
+      relative_to:
+        description: Benchmark-relative MA DNA, e.g. XU100; blank = nominal
+        required: false
+        default: ""
+      rank_by:
+        description: Main ranking mode
+        required: true
+        default: level
+        type: choice
+        options: [level, compat]
+      source:
+        description: Veri kaynağı
+        required: true
+        default: auto
+        type: choice
+        options: [auto, borsapy, yfinance]
+
+permissions:
+  contents: read
+
+jobs:
+  single:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Tek hisse analizi
+        shell: bash
+        env:
+          LEVEL_CONFIG_JSON: ${{ inputs.level_config_json || '{}' }}
+        run: |
+          python -m scanner.ma_scan \
+            --universe custom \
+            --asset-class stock \
+            --market BIST \
+            --symbol "${{ inputs.symbol }}" \
+            --timeframes "${{ inputs.timeframes }}" \
+            --ma-types "${{ inputs.ma_types }}" \
+            --periods "${{ inputs.periods }}" \
+            --trend-slope-bars "${{ inputs.trend_slope_bars }}" \
+            --trend-slope-threshold-atr "${{ inputs.trend_slope_threshold_atr }}" \
+            --touch-zone-atr "${{ inputs.touch_zone_atr }}" \
+            --separation-atr "${{ inputs.separation_atr }}" \
+            --min-touches "${{ inputs.min_touches }}" \
+            --stop-buffer-atr "${{ inputs.stop_buffer_atr }}" \
+            --trailing-stop-atr "${{ inputs.trailing_stop_atr }}" \
+            --max-holding-bars "${{ inputs.max_holding_bars }}" \
+            --roundtrip-cost-bps "${{ inputs.roundtrip_cost_bps }}" \
+            --min-edge-r "${{ inputs.min_edge_r }}" \
+            --near-distance-atr "${{ inputs.near_distance_atr }}" \
+            --quality-lookback "${{ inputs.quality_lookback }}" \
+            --min-price "${{ inputs.min_price }}" \
+            --min-daily-turnover-try "${{ inputs.min_daily_turnover_try }}" \
+            --max-zero-volume-pct "${{ inputs.max_zero_volume_pct }}" \
+            --max-gap-pct "${{ inputs.max_gap_pct }}" \
+            --max-abs-edge-r "${{ inputs.max_abs_edge_r }}" \
+            --level-config-json "$LEVEL_CONFIG_JSON" \
+            --relative-to "${{ inputs.relative_to }}" \
+            --rank-by "${{ inputs.rank_by }}" \
+            --source "${{ inputs.source }}" \
+            --output-dir reports/single
+      - name: Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: >-
+          python -m scanner.ma_notify
+          --summary reports/single/market_summary.csv
+          --detail reports/single/single_stock_table.csv
+          --report reports/single/single_stock_report.html
+          --watchlist reports/single/ma_watchlist.csv
+          --label "Tek Hisse MA Trend ve Tepki · ${{ inputs.symbol }}"
+          --top 20
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tek-hisse-ma-trend-tepki-${{ inputs.symbol }}-${{ github.run_id }}
+          path: |
+            reports/single/
+            data_cache/
+          retention-days: 90
