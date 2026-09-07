@@ -333,11 +333,19 @@ CREATE TABLE IF NOT EXISTS command_jobs (
     requested_by BIGINT NOT NULL,
     requested_topic BIGINT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
     requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     started_at TIMESTAMPTZ,
+    lease_until TIMESTAMPTZ,
     finished_at TIMESTAMPTZ,
     error_detail TEXT
 );
+ALTER TABLE command_jobs
+    ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE command_jobs
+    ADD COLUMN IF NOT EXISTS lease_until TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS ix_command_jobs_claim
+    ON command_jobs(status, requested_at, lease_until);
 
 CREATE TABLE IF NOT EXISTS finding_outcomes (
     event_id UUID NOT NULL REFERENCES scan_events(event_id),

@@ -33,7 +33,11 @@ class FakeRepository:
 
 
 class FakeSymbolStore:
+    def __init__(self) -> None:
+        self.calls = 0
+
     def load_symbol(self, symbol: str):
+        self.calls += 1
         if symbol != "ASELS":
             return None
         return SymbolSnapshot("instrument-1", "ASELS")
@@ -98,17 +102,19 @@ class TelegramListenerTests(unittest.TestCase):
 
     def test_disabled_mode_checkpoints_command_without_stale_reply_backlog(self) -> None:
         repository = FakeRepository()
+        store = FakeSymbolStore()
         listener = TelegramListener(
             settings=settings(DeliveryMode.DISABLED),
             source=FakeSource([update(9)]),
             repository=repository,
-            command_service=SymbolCommandService(FakeSymbolStore()),
+            command_service=SymbolCommandService(store),
         )
 
         result = listener.run_once(timeout_seconds=0)
 
         self.assertEqual(result.accepted, 1)
         self.assertEqual(repository.committed, [(9, None)])
+        self.assertEqual(store.calls, 0)
 
 
 if __name__ == "__main__":

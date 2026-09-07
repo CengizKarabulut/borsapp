@@ -79,8 +79,8 @@ class TelegramListener:
             if command is None:
                 ignored += 1
             else:
-                reply = self.command_service.handle(command)
                 if self.settings.delivery_mode is DeliveryMode.LIVE:
+                    reply = self.command_service.handle(command)
                     envelope = self.router.route(
                         publication_kind=PublicationKind.COMMAND_REPLY,
                         semantic_identity={

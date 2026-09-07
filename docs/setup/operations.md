@@ -67,7 +67,10 @@ Canlıya geçiş üç ayrı bilinçli koşula bağlıdır:
 Tek bot yeterlidir. `listener` yalnız Komut Merkezi konusundan ve izin verilen
 kullanıcılardan komut kabul eder. `publisher` bütün konu başlıklarına merkezi
 outbox üzerinden yazar. Advisory lock ikinci listener'ın aynı anda açılmasını
-engeller.
+engeller. `command-worker`, `/tara SYMBOL --force` ve
+`/taramalar SYMBOL --force` isteklerini 1h canonical frame üzerinde işler;
+tamamlanma veya hata yanıtını aynı Komut Merkezi konusuna outbox ile bırakır.
+Disabled/shadow modda listener iş kuyruğu oluşturmaz ve command worker iş çekmez.
 
 ## GitHub Actions
 

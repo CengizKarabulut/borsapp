@@ -84,6 +84,8 @@ class SymbolCommandService:
         symbol = command.args[0]
         force = any(argument.casefold() == "--force" for argument in command.args[1:])
         if force:
+            if command.name not in {CommandName.SCAN, CommandName.SCANS}:
+                return CommandReply("--force yalnız /tara ve /taramalar için kullanılabilir.")
             if self.job_queue is None:
                 return CommandReply("Uzun iş kuyruğu bu ortamda etkin değil.")
             job_id = self.job_queue.enqueue(
@@ -114,9 +116,16 @@ class SymbolCommandService:
 
     @staticmethod
     def _overview(snapshot: SymbolSnapshot) -> str:
+        priorities = {
+            EvaluationStatus.NO_MATCH: 0,
+            EvaluationStatus.UNKNOWN: 1,
+            EvaluationStatus.MATCH: 2,
+        }
         family_status: dict[str, EvaluationStatus] = {}
         for result in snapshot.results:
-            family_status.setdefault(result.family, result.status)
+            current = family_status.get(result.family)
+            if current is None or priorities[result.status] > priorities[current]:
+                family_status[result.family] = result.status
         lines = [f"{snapshot.symbol} · saklanmış son durum"]
         for family in ("signal", "technical", "ma"):
             status = family_status.get(family)

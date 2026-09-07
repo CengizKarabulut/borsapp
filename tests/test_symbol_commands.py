@@ -95,6 +95,41 @@ class SymbolCommandServiceTests(unittest.TestCase):
         )
         self.assertIn("--force", reply.text)
 
+    def test_overview_uses_strongest_status_in_each_family(self) -> None:
+        source = snapshot()
+        mixed = SymbolSnapshot(
+            source.instrument_id,
+            source.symbol,
+            results=(
+                StoredScannerResult(
+                    "signal.a",
+                    "signal",
+                    "1h",
+                    source.results[0].bar_time,
+                    EvaluationStatus.NO_MATCH,
+                ),
+                StoredScannerResult(
+                    "signal.b",
+                    "signal",
+                    "4h",
+                    source.results[0].bar_time,
+                    EvaluationStatus.MATCH,
+                ),
+            ),
+        )
+        reply = SymbolCommandService(FakeStore(mixed)).handle(
+            command(CommandName.SCAN, "ASELS")
+        )
+        self.assertIn("SIGNAL: match", reply.text)
+
+    def test_force_is_restricted_to_scan_commands(self) -> None:
+        queue = FakeQueue()
+        reply = SymbolCommandService(FakeStore(snapshot()), queue).handle(
+            command(CommandName.NEWS, "ASELS", "--FORCE")
+        )
+        self.assertIn("yalnız /tara", reply.text)
+        self.assertEqual(queue.calls, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

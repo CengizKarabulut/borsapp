@@ -15,3 +15,6 @@ services:
   publisher:
     environment:
       DELIVERY_MODE: live
+  command-worker:
+    environment:
+      DELIVERY_MODE: live

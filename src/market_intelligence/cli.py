@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from types import FrameType
 
+from market_intelligence.application.command_jobs import CommandJob, CommandJobRunner
 from market_intelligence.application.ingestion import IngestionRequest, IngestionService
 from market_intelligence.application.scan_frame import ScanFrameCoordinator
 from market_intelligence.application.scheduled_scan import (
@@ -19,6 +20,7 @@ from market_intelligence.application.scheduled_scan import (
 from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.application.telegram_listener import TelegramListener
 from market_intelligence.core.timeframes import parse_timeframe
+from market_intelligence.delivery.telegram.commands import CommandName
 from market_intelligence.delivery.telegram.config import DeliveryMode
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.delivery.telegram.publisher import TelegramPublisher
@@ -45,6 +47,9 @@ from market_intelligence.market_data.adapters.borsapy_universe import (
 from market_intelligence.market_data.universe import (
     build_universe_sync_plan,
     validate_universe_sync_plan,
+)
+from market_intelligence.persistence.postgres.command_jobs import (
+    PostgresCommandJobRepository,
 )
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
@@ -192,6 +197,23 @@ def _parser() -> argparse.ArgumentParser:
     worker.add_argument("--poll-seconds", type=float, default=60.0)
     worker.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     worker.add_argument("--notify", action="store_true")
+
+    command_once = subparsers.add_parser(
+        "command-worker-once",
+        help="Telegram --force kuyruğundan tek işi güvenle çalıştır",
+    )
+    command_once.add_argument("--timeframe", default="1h")
+    command_once.add_argument("--bars", type=int, default=250)
+    command_once.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
+
+    command_loop = subparsers.add_parser(
+        "command-worker-loop",
+        help="Telegram --force kuyruğunu sürekli tüket",
+    )
+    command_loop.add_argument("--timeframe", default="1h")
+    command_loop.add_argument("--bars", type=int, default=250)
+    command_loop.add_argument("--interval", type=float, default=2.0)
+    command_loop.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     return parser
 
 
@@ -597,25 +619,36 @@ def _scan_symbol(
             expected_instruments=1,
             started_at=evaluation_time,
         )
-        coordinator = ScanFrameCoordinator(
-            feature_engine=_feature_engine(connection),
-            event_store=PostgresScanStore(connection),
-            state_store=PostgresStateStore(connection),
-            telegram_settings=effective_telegram,
-        )
-        result = coordinator.run(
-            cycle_id=cycle_id,
-            frame=frame,
-            bindings=load_scanner_catalog(scanners_path),
-            evaluation_time=evaluation_time,
-        )
-        runtime.finish_cycle(
-            cycle_id=cycle_id,
-            successful=1,
-            stale=0,
-            failed=0,
-            finished_at=datetime.now(settings.runtime.timezone),
-        )
+        try:
+            coordinator = ScanFrameCoordinator(
+                feature_engine=_feature_engine(connection),
+                event_store=PostgresScanStore(connection),
+                state_store=PostgresStateStore(connection),
+                telegram_settings=effective_telegram,
+            )
+            result = coordinator.run(
+                cycle_id=cycle_id,
+                frame=frame,
+                bindings=load_scanner_catalog(scanners_path),
+                evaluation_time=evaluation_time,
+            )
+        except Exception:
+            runtime.finish_cycle(
+                cycle_id=cycle_id,
+                successful=0,
+                stale=0,
+                failed=1,
+                finished_at=datetime.now(settings.runtime.timezone),
+            )
+            raise
+        else:
+            runtime.finish_cycle(
+                cycle_id=cycle_id,
+                successful=1,
+                stale=0,
+                failed=0,
+                finished_at=datetime.now(settings.runtime.timezone),
+            )
     statuses = ", ".join(
         f"{run.evaluation.scanner_id}={run.evaluation.status.value}"
         for run in result.runs
@@ -754,6 +787,94 @@ def _scan_worker(
     return 0
 
 
+def _command_job_executor(
+    settings: ApplicationSettings,
+    *,
+    timeframe: str,
+    bars: int,
+    scanners_path: Path,
+):
+    parse_timeframe(timeframe)
+
+    def execute(job: CommandJob) -> None:
+        if job.command not in {CommandName.SCAN, CommandName.SCANS}:
+            raise ValueError(f"Desteklenmeyen force komutu: {job.command.value}")
+        _scan_symbol(
+            settings,
+            symbol=job.symbol,
+            timeframe_raw=timeframe,
+            bars=bars,
+            scanners_path=scanners_path,
+            notify=False,
+        )
+
+    return execute
+
+
+def _command_worker_once(
+    settings: ApplicationSettings,
+    *,
+    timeframe: str,
+    bars: int,
+    scanners_path: Path,
+) -> int:
+    with _connect(settings.runtime.database_url) as connection:
+        result = CommandJobRunner(
+            settings=settings.telegram,
+            repository=PostgresCommandJobRepository(connection),
+            executor=_command_job_executor(
+                settings,
+                timeframe=timeframe,
+                bars=bars,
+                scanners_path=scanners_path,
+            ),
+        ).run_once(now=datetime.now(settings.runtime.timezone))
+    print(
+        f"Command worker: claimed={result.claimed}, "
+        f"completed={result.completed}, failed={result.failed}"
+    )
+    return 0 if result.failed == 0 else 1
+
+
+def _command_worker_loop(
+    settings: ApplicationSettings,
+    *,
+    timeframe: str,
+    bars: int,
+    scanners_path: Path,
+    interval: float,
+) -> int:
+    if interval < 0.2:
+        raise ValueError("--interval en az 0.2 saniye olmalıdır")
+    stopped = False
+
+    def stop(_signum: int, _frame: FrameType | None) -> None:
+        nonlocal stopped
+        stopped = True
+
+    signal.signal(signal.SIGINT, stop)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, stop)
+    with _connect(settings.runtime.database_url) as connection:
+        runner = CommandJobRunner(
+            settings=settings.telegram,
+            repository=PostgresCommandJobRepository(connection),
+            executor=_command_job_executor(
+                settings,
+                timeframe=timeframe,
+                bars=bars,
+                scanners_path=scanners_path,
+            ),
+        )
+        while not stopped:
+            result = runner.run_once(now=datetime.now(settings.runtime.timezone))
+            if result.failed:
+                print("Command worker işi başarısız oldu", file=sys.stderr)
+            if not result.claimed:
+                time.sleep(interval)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -833,6 +954,21 @@ def main(argv: list[str] | None = None) -> int:
                 poll_seconds=args.poll_seconds,
                 scanners_path=args.scanners,
                 notify=args.notify,
+            )
+        if args.command == "command-worker-once":
+            return _command_worker_once(
+                settings,
+                timeframe=args.timeframe,
+                bars=args.bars,
+                scanners_path=args.scanners,
+            )
+        if args.command == "command-worker-loop":
+            return _command_worker_loop(
+                settings,
+                timeframe=args.timeframe,
+                bars=args.bars,
+                scanners_path=args.scanners,
+                interval=args.interval,
             )
     except (RuntimeError, ValueError) as exc:
         print(f"Hata: {exc}", file=sys.stderr)

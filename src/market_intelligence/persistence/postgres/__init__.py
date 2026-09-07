@@ -1,5 +1,8 @@
 """PostgreSQL persistence adapters."""
 
+from market_intelligence.persistence.postgres.command_jobs import (
+    PostgresCommandJobRepository,
+)
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
 )
@@ -28,6 +31,7 @@ from market_intelligence.persistence.postgres.telegram_updates import (
 __all__ = [
     "PersistedScan",
     "PersistedStateRun",
+    "PostgresCommandJobRepository",
     "PostgresOutboxRepository",
     "PostgresRuntimeRepository",
     "PostgresLongJobQueue",

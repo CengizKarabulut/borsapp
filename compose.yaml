@@ -56,5 +56,17 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  command-worker:
+    profiles: ["runtime"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+    command: ["command-worker-loop", "--timeframe", "1h"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   borsapp-postgres:
