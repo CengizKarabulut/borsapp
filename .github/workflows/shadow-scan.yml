@@ -3,6 +3,17 @@ name: Shadow scan
 on:
   workflow_dispatch:
     inputs:
+      scope:
+        description: Manual scan scope
+        required: true
+        default: symbol
+        type: choice
+        options: [symbol, due-universe]
+      symbol:
+        description: BIST symbol for a safe single-symbol smoke scan
+        required: true
+        default: ASELS
+        type: string
       timeframe:
         description: Canonical timeframe
         required: true
@@ -55,9 +66,17 @@ jobs:
       - name: Run requested or scheduled shadow scans
         if: ${{ env.DATABASE_URL != '' }}
         shell: bash
+        env:
+          MANUAL_SCOPE: ${{ inputs.scope }}
+          MANUAL_SYMBOL: ${{ inputs.symbol }}
+          MANUAL_TIMEFRAME: ${{ inputs.timeframe }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            borsapp scan-due --timeframe "${{ inputs.timeframe }}"
+            if [ "$MANUAL_SCOPE" = "symbol" ]; then
+              borsapp scan-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME"
+            else
+              borsapp scan-due --timeframe "$MANUAL_TIMEFRAME"
+            fi
           else
             for timeframe in 15m 30m 45m 1h 2h 4h 1d; do
               borsapp scan-due --timeframe "$timeframe"

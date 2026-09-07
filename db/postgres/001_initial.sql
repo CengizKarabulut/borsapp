@@ -59,7 +59,9 @@ CREATE TABLE IF NOT EXISTS data_snapshots (
     snapshot_id TEXT PRIMARY KEY,
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     timeframe TEXT NOT NULL,
+    frame_start_time TIMESTAMPTZ,
     through_bar_time TIMESTAMPTZ NOT NULL,
+    bar_count INTEGER CHECK (bar_count IS NULL OR bar_count > 0),
     source TEXT NOT NULL,
     price_basis TEXT NOT NULL,
     series_revision BIGINT NOT NULL,
@@ -69,6 +71,10 @@ CREATE TABLE IF NOT EXISTS data_snapshots (
     is_provisional BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE data_snapshots
+    ADD COLUMN IF NOT EXISTS frame_start_time TIMESTAMPTZ;
+ALTER TABLE data_snapshots
+    ADD COLUMN IF NOT EXISTS bar_count INTEGER;
 
 CREATE TABLE IF NOT EXISTS canonical_bars (
     snapshot_id TEXT NOT NULL REFERENCES data_snapshots(snapshot_id) ON DELETE CASCADE,
@@ -83,6 +89,35 @@ CREATE TABLE IF NOT EXISTS canonical_bars (
     CHECK (close_time > open_time),
     CHECK (volume >= 0)
 );
+
+-- Snapshot başına aynı pencereyi kopyalamak yerine her canonical barı seri içinde
+-- bir kez saklar. Eski canonical_bars tablosu geriye dönük kayıtlar için korunur.
+CREATE TABLE IF NOT EXISTS canonical_market_bars (
+    instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    timeframe TEXT NOT NULL,
+    source TEXT NOT NULL,
+    price_basis TEXT NOT NULL,
+    series_revision BIGINT NOT NULL,
+    open_time TIMESTAMPTZ NOT NULL,
+    close_time TIMESTAMPTZ NOT NULL,
+    open DOUBLE PRECISION NOT NULL,
+    high DOUBLE PRECISION NOT NULL,
+    low DOUBLE PRECISION NOT NULL,
+    close DOUBLE PRECISION NOT NULL,
+    volume DOUBLE PRECISION NOT NULL,
+    content_hash TEXT NOT NULL,
+    first_observed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (
+        instrument_id, timeframe, source, price_basis,
+        series_revision, close_time
+    ),
+    CHECK (close_time > open_time),
+    CHECK (volume >= 0)
+);
+CREATE INDEX IF NOT EXISTS ix_canonical_market_bars_range
+    ON canonical_market_bars(
+        instrument_id, timeframe, series_revision, close_time DESC
+    );
 
 CREATE TABLE IF NOT EXISTS scan_cycles (
     cycle_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

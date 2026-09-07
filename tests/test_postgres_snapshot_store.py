@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -21,9 +22,10 @@ class FakeContext:
 
 
 class FakeCursor(FakeContext):
-    def __init__(self) -> None:
+    def __init__(self, conflict: tuple[object, ...] | None = None) -> None:
         self.executed: list[tuple[str, tuple[object, ...]]] = []
         self.executed_many: list[tuple[str, list[tuple[object, ...]]]] = []
+        self.conflict = conflict
 
     def execute(self, query: str, params: tuple[object, ...]) -> None:
         self.executed.append((query, params))
@@ -31,10 +33,15 @@ class FakeCursor(FakeContext):
     def executemany(self, query: str, params: list[tuple[object, ...]]) -> None:
         self.executed_many.append((query, params))
 
+    def fetchone(self) -> tuple[object, ...] | None:
+        conflict = self.conflict
+        self.conflict = None
+        return conflict
+
 
 class FakeConnection:
-    def __init__(self) -> None:
-        self.cursor_instance = FakeCursor()
+    def __init__(self, conflict: tuple[object, ...] | None = None) -> None:
+        self.cursor_instance = FakeCursor(conflict)
         self.transactions = 0
 
     def transaction(self) -> FakeContext:
@@ -76,11 +83,23 @@ class PostgresSnapshotStoreTests(unittest.TestCase):
         PostgresSnapshotStore(connection).save(frame())
 
         self.assertEqual(connection.transactions, 1)
-        self.assertEqual(len(connection.cursor_instance.executed), 1)
-        self.assertEqual(len(connection.cursor_instance.executed_many), 1)
-        bar_rows = connection.cursor_instance.executed_many[0][1]
+        self.assertEqual(len(connection.cursor_instance.executed), 3)
+        self.assertEqual(len(connection.cursor_instance.executed_many), 0)
+        bar_rows = json.loads(connection.cursor_instance.executed[0][1][0])
         self.assertEqual(len(bar_rows), 1)
-        self.assertEqual(bar_rows[0][0], "snapshot-1")
+        self.assertEqual(bar_rows[0]["instrument_id"], "instrument-1")
+        self.assertEqual(bar_rows[0]["timeframe"], "15m")
+        snapshot_params = connection.cursor_instance.executed[2][1]
+        self.assertEqual(snapshot_params[5], 1)
+        self.assertIn("canonical_market_bars", snapshot_params[10])
+
+    def test_changed_bar_requires_new_series_revision(self) -> None:
+        connection = FakeConnection(("2026-09-07T10:15:00+03:00",))
+
+        with self.assertRaisesRegex(ValueError, "series_revision artırılmalıdır"):
+            PostgresSnapshotStore(connection).save(frame())
+
+        self.assertEqual(len(connection.cursor_instance.executed), 2)
 
 
 if __name__ == "__main__":

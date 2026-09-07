@@ -77,9 +77,19 @@ olarak `ENABLE_SCHEDULED_SCANS=true` verilerek açılır. `DATABASE_URL` yoksa
 başarıyla ve hiçbir şey yapmadan çıkar. Workflow `DELIVERY_MODE=shadow` değerini
 zorlar ve doğrudan Telegram yayını yapmaz.
 
+Manuel çalıştırmada varsayılan kapsam `symbol`, sembol `ASELS`'tir; bu seçenek
+tek hisselik güvenli smoke testidir. `due-universe` kapsamı seçilirse ilgili
+timeframe için zamanı gelen bütün BIST hisseleri taranır.
+
 Bu iki zamanlama anahtarı varsayılan olarak kapalıdır. Böylece tüm BIST üzerinde
 tam frame kopyaları henüz seyreltilmeden ücretsiz Neon kotası kendiliğinden
 tüketilmez. `BIST universe sync` bu kapılardan bağımsız olarak günlük çalışır.
+
+Canonical OHLCV barları snapshot başına tekrar edilmez. Aynı enstrüman,
+timeframe, kaynak, fiyat bazı, seri revizyonu ve kapanış zamanı için tek satır
+tutulur; snapshot yalnız pencere başlangıcı, sonu ve bar sayısını taşır. Kaynak
+aynı `series_revision` altında geçmiş bir barı değiştirirse sistem sessizce
+üzerine yazmak yerine hata verir ve revizyonun artırılmasını ister.
 
 Üretimde uzun yaşayan Docker worker tercih edilir. GitHub Actions, shadow ve
 yedek catch-up için uygundur; tek merkezi Telegram listener/publisher olarak
