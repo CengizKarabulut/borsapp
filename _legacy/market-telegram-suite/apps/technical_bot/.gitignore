@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+.venv/
+*.py[cod]
+.env
+reports/*.png
+reports/*.json
+!reports/.gitkeep
+
+
+# Test/geçici kart çıktıları
+analyst_card.png

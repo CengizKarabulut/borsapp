@@ -1,0 +1,8 @@
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.8
+pillow>=10.0
+plotly>=5.22
+requests>=2.31
+borsapy>=0.11.0
+yfinance>=0.2.65

@@ -1,0 +1,96 @@
+name: Research Telegram Send
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: BIST sembolü
+        required: true
+        default: ZGYO
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/technical_bot
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/technical_bot/requirements.txt
+      - name: Bağımlılıkları yükle
+        run: python -m pip install --requirement requirements.txt
+      - name: Araştırma paketini üret ve doğrulanmış topic'e gönder
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TECHNICAL_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_MESSAGE_THREAD_ID: ${{ secrets.TECHNICAL_TOPIC_ID }}
+          TICKER: ${{ github.event.inputs.ticker }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from src.fundamental_card import render_fundamental_card
+          from src.moving_average_card import render_moving_average_card
+          from src.research_card import render_research_card
+          from src.research_chart import render_research_chart
+          from src.research_risk import build_research_report
+          from src.research_telegram import send_research_bundle
+          from src.research_theme import apply_white_theme
+
+          apply_white_theme()
+          ticker = os.environ['TICKER'].strip().upper().removesuffix('.IS')
+          target = Path('reports/telegram-send') / ticker
+          target.mkdir(parents=True, exist_ok=True)
+
+          report = build_research_report(ticker)
+          summary = render_research_card(report, target / f'{ticker}_arastirma.png')
+          fundamental = render_fundamental_card(report.fundamental, target / f'{ticker}_temel.png')
+          ma_image, ma_snapshot = render_moving_average_card(ticker, target / f'{ticker}_ortalamalar.png')
+          technical = render_research_chart(ticker, report, target / f'{ticker}_teknik_yapi.png')
+          responses = send_research_bundle(summary, fundamental, ma_image, technical, report)
+
+          if len(responses) < 5:
+              raise SystemExit(f'Expected four visuals plus commentary, got {len(responses)} messages')
+          if any('photo' not in response['result'] for response in responses[:4]):
+              raise SystemExit('Telegram order violation: first four messages must be visuals')
+          if any('text' not in response['result'] for response in responses[4:]):
+              raise SystemExit('Telegram order violation: commentary must follow all visuals')
+
+          verification = []
+          for index, response in enumerate(responses, start=1):
+              result = response['result']
+              verification.append(
+                  {
+                      'sequence': index,
+                      'kind': 'photo' if 'photo' in result else 'text',
+                      'message_id': result['message_id'],
+                      'message_thread_id': result.get('message_thread_id'),
+                      'chat_id': result.get('chat', {}).get('id'),
+                  }
+              )
+          payload = report.to_dict()
+          payload['moving_averages'] = ma_snapshot
+          payload['telegram_verification'] = verification
+          (target / f'{ticker}_delivery.json').write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2, default=str) + '\n',
+              encoding='utf-8',
+          )
+          print('TELEGRAM_DELIVERY_VERIFIED=' + json.dumps(verification, ensure_ascii=False))
+          PY
+      - name: Doğrulanmış çıktıları sakla
+        uses: actions/upload-artifact@v7
+        with:
+          name: research-telegram-${{ github.run_id }}
+          path: apps/technical_bot/reports/telegram-send/**
+          if-no-files-found: error
+          retention-days: 7

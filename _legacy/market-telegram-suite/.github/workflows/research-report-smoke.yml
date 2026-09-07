@@ -1,0 +1,209 @@
+name: Research Report Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/technical_bot/src/research_*.py'
+      - 'apps/technical_bot/src/fundamental_*.py'
+      - 'apps/technical_bot/src/financial_intelligence_card.py'
+      - 'apps/technical_bot/src/valuation_peer_card.py'
+      - 'apps/technical_bot/src/bot_runner_fundamental.py'
+      - 'apps/technical_bot/src/original_indicators.py'
+      - 'apps/technical_bot/src/moving_average_card.py'
+      - 'apps/technical_bot/src/turkish_text.py'
+      - 'apps/technical_bot/tests/test_research_*.py'
+      - 'apps/technical_bot/tests/test_original_indicators.py'
+      - '.github/workflows/research-report-smoke.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/technical_bot/src/research_*.py'
+      - 'apps/technical_bot/src/fundamental_*.py'
+      - 'apps/technical_bot/src/financial_intelligence_card.py'
+      - 'apps/technical_bot/src/valuation_peer_card.py'
+      - 'apps/technical_bot/src/bot_runner_fundamental.py'
+      - 'apps/technical_bot/src/original_indicators.py'
+      - 'apps/technical_bot/src/moving_average_card.py'
+      - 'apps/technical_bot/src/turkish_text.py'
+      - 'apps/technical_bot/tests/test_research_*.py'
+      - 'apps/technical_bot/tests/test_original_indicators.py'
+      - '.github/workflows/research-report-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  live-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/technical_bot
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/technical_bot/requirements.txt
+      - name: Bağımlılıkları yükle
+        run: python -m pip install --requirement requirements.txt
+      - name: GARAN ZGYO ASELS canlı altı-kart araştırma paketlerini üret
+        run: |
+          python - <<'PY'
+          import math
+          from pathlib import Path
+
+          import matplotlib.image as mpimg
+
+          from src.research_commentary_rich import commentary_messages, compose_research_commentary
+          from src.research_contracts import PEER_MULTIPLES, VALUATION_MULTIPLES
+          from src.research_pipeline import build_research_bundle
+
+          root = Path('reports/research-smoke')
+          root.mkdir(parents=True, exist_ok=True)
+
+          required_technical_terms = (
+              'Günlük', 'haftalık', 'aylık', 'AlphaTrend', 'Bollinger',
+              'RSI', 'SMI', 'MACD', 'OBV', 'RVOL20', 'ATR', 'Elliott',
+          )
+
+          for ticker in ('GARAN', 'ZGYO', 'ASELS'):
+              target = root / ticker
+              bundle = build_research_bundle(ticker, target)
+              report = bundle.report
+              ma_snapshot = bundle.moving_averages
+              commentary = compose_research_commentary(report)
+              messages = commentary_messages(report)
+
+              if report.price is None or report.price <= 0:
+                  raise SystemExit(f'{ticker}: current price is missing')
+              if report.research_score is None:
+                  raise SystemExit(f'{ticker}: research score is missing')
+              if report.coverage < 0.40:
+                  raise SystemExit(f'{ticker}: research coverage too low: {report.coverage:.0%}')
+              if any(zone.midpoint >= report.price for zone in report.supports):
+                  raise SystemExit(f'{ticker}: support above/equal current price')
+              if any(zone.midpoint <= report.price for zone in report.resistances):
+                  raise SystemExit(f'{ticker}: resistance below/equal current price')
+              if any(zone.status == 'TARİHSEL / UZAK SEVİYE' for zone in (*report.supports, *report.resistances)):
+                  raise SystemExit(f'{ticker}: stale/far level leaked into actionable output')
+              if len(report.dimensions) != 5:
+                  raise SystemExit(f'{ticker}: expected five research dimensions')
+              if len(ma_snapshot['rows']) != 9 or len(ma_snapshot['summaries']) != 3:
+                  raise SystemExit(f'{ticker}: moving-average table is incomplete')
+              if len(commentary) != 9:
+                  raise SystemExit(f'{ticker}: expected nine analyst commentary sections')
+              if any(len(paragraph) < 80 for _, paragraph in commentary):
+                  raise SystemExit(f'{ticker}: analyst commentary paragraph is unexpectedly short')
+              if any(len(message) > 3900 for message in messages):
+                  raise SystemExit(f'{ticker}: Telegram commentary message exceeds safe length')
+              if len(bundle.visuals) != 6:
+                  raise SystemExit(f'{ticker}: expected six research visuals, got {len(bundle.visuals)}')
+
+              expected_suffixes = (
+                  '_arastirma.png',
+                  '_temel.png',
+                  '_finansal_oranlar.png',
+                  '_degerleme_rakipler.png',
+                  '_ortalamalar.png',
+                  '_teknik_yapi.png',
+              )
+              if tuple(path.name.removeprefix(ticker) for path in bundle.visuals) != expected_suffixes:
+                  raise SystemExit(f'{ticker}: six-card visual order/names changed: {[p.name for p in bundle.visuals]}')
+
+              technical_paragraph = dict(commentary).get('TEKNİK YAPI NE DİYOR?', '')
+              for term in required_technical_terms:
+                  if term not in technical_paragraph:
+                      raise SystemExit(f'{ticker}: rich technical commentary missing {term}')
+
+              for image in bundle.visuals:
+                  if image.stat().st_size < 10_000:
+                      raise SystemExit(f'{ticker}: unexpectedly small image {image.name}')
+                  pixels = mpimg.imread(image)
+                  corner = pixels[2, 2, :3]
+                  if float(corner.min()) < 0.94:
+                      raise SystemExit(f'{ticker}: image background is not white: {image.name} {corner}')
+
+              beneish = (report.financial.get('forensic_scores') or {}).get('beneish_m') or {}
+              beneish_coverage = float(beneish.get('coverage') or 0.0)
+              if not 0.0 <= beneish_coverage <= 1.0:
+                  raise SystemExit(f'{ticker}: invalid Beneish coverage {beneish_coverage}')
+              if beneish.get('value') is not None:
+                  if beneish_coverage != 1.0 or len(beneish.get('components') or {}) != 8:
+                      raise SystemExit(f'{ticker}: Beneish value produced without complete eight-component evidence')
+
+              if ticker == 'ZGYO':
+                  if report.profile != 'GYO':
+                      raise SystemExit(f'ZGYO: expected GYO profile, got {report.profile}')
+
+                  valuation_metrics = report.valuation.get('metrics') or {}
+                  for key in VALUATION_MULTIPLES:
+                      item = valuation_metrics.get(key)
+                      value = item.get('value') if isinstance(item, dict) else None
+                      if value is not None and (float(value) <= 0 or float(value) >= 10_000):
+                          raise SystemExit(f'ZGYO: valuation sentinel leaked for {key}: {value}')
+
+                  for peer in (report.valuation.get('peer_analysis') or {}).get('peers', ()):
+                      for key in PEER_MULTIPLES:
+                          value = peer.get(key)
+                          if value is not None and (float(value) <= 0 or float(value) >= 10_000):
+                              raise SystemExit(f'ZGYO: peer sentinel leaked for {peer.get("symbol")} {key}: {value}')
+
+                  financial_metrics = report.financial.get('metrics') or {}
+                  raw_non_comparable = report.financial.get('non_comparable_metrics') or {}
+                  for key in ('operating_margin', 'operating_margin_quarterly', 'net_margin', 'net_margin_quarterly'):
+                      displayed = financial_metrics.get(key)
+                      if displayed is not None and abs(float(displayed)) > 500:
+                          raise SystemExit(f'ZGYO: non-comparable margin leaked to card metric {key}: {displayed}')
+                      if key in raw_non_comparable:
+                          if abs(float(raw_non_comparable[key])) <= 500 or displayed is not None:
+                              raise SystemExit(f'ZGYO: invalid non-comparable margin bucket for {key}')
+
+                  market_cap = financial_metrics.get('market_cap')
+                  net_income = financial_metrics.get('net_income_ttm')
+                  fcf = financial_metrics.get('fcf_ttm')
+                  earnings_item = valuation_metrics.get('earnings_yield') or {}
+                  fcf_item = valuation_metrics.get('fcf_yield') or {}
+                  if market_cap is not None and float(market_cap) > 0 and net_income is not None:
+                      expected = float(net_income) / float(market_cap) * 100.0
+                      actual = earnings_item.get('value')
+                      if actual is None or not math.isclose(float(actual), expected, rel_tol=1e-9, abs_tol=1e-9):
+                          raise SystemExit(f'ZGYO: raw earnings yield was overwritten: expected={expected} actual={actual}')
+                  if market_cap is not None and float(market_cap) > 0 and fcf is not None:
+                      expected = float(fcf) / float(market_cap) * 100.0
+                      actual = fcf_item.get('value')
+                      if actual is None or not math.isclose(float(actual), expected, rel_tol=1e-9, abs_tol=1e-9):
+                          raise SystemExit(f'ZGYO: raw FCF yield was overwritten: expected={expected} actual={actual}')
+
+              print(
+                  ticker,
+                  'profile=', report.profile,
+                  'score=', report.research_score,
+                  'coverage=', report.coverage,
+                  'balance=', report.financial.get('balance_label'),
+                  'quality=', report.financial.get('earnings_quality_label'),
+                  'beneish=', beneish.get('value'), beneish_coverage,
+                  'debt=', report.financial.get('debt_direction'),
+                  'valuation=', report.valuation.get('score'), report.valuation.get('scope'),
+                  'technical=', report.technical.get('score'), report.technical.get('structure', {}).get('state'),
+                  'commentary_sections=', len(commentary),
+                  'commentary_messages=', len(messages),
+                  'visuals=', [path.name for path in bundle.visuals],
+                  'ma=', ma_snapshot['summaries'],
+                  'main_risk=', None if report.main_risk is None else (report.main_risk.name, report.main_risk.score),
+                  'supports=', [(z.low, z.high, z.score, z.status) for z in report.supports],
+                  'resistances=', [(z.low, z.high, z.score, z.status) for z in report.resistances],
+              )
+          PY
+      - name: Smoke çıktılarını sakla
+        uses: actions/upload-artifact@v7
+        with:
+          name: research-report-smoke-${{ github.run_id }}
+          path: apps/technical_bot/reports/research-smoke/
+          if-no-files-found: error
+          retention-days: 7

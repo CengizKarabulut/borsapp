@@ -1,0 +1,634 @@
+//@version=6
+indicator("Technical Status Dashboard", shorttitle = "TechDash", overlay = true, max_bars_back = 600)
+
+// =============================================================================
+// 1. INPUTS
+// =============================================================================
+
+groupView = "01 — Görünüm"
+showMA       = input.bool(true,  "SMA / EMA tablosu", group = groupView)
+showMomentum = input.bool(true,  "Momentum tablosu", group = groupView)
+showTrend    = input.bool(true,  "Trend / konum tablosu", group = groupView)
+showVol      = input.bool(true,  "Volatilite / hacim tablosu", group = groupView)
+viewMode     = input.string("Detay", "Görünüm", options = ["Kompakt", "Detay", "Tanısal"], group = groupView)
+textSizeIn   = input.string("Küçük", "Yazı boyutu", options = ["Çok küçük", "Küçük", "Normal"], group = groupView)
+priceTolPct  = input.float(0.02, "Fiyat/MA yakınlık toleransı (%)", minval = 0.0, step = 0.01, group = groupView)
+oscTol       = input.float(0.01, "Osilatör yatay toleransı", minval = 0.0, step = 0.01, group = groupView)
+nearGapRatio = input.float(0.25, "Kesişime yakın normalize fark", minval = 0.01, step = 0.05, group = groupView)
+gapLookback  = input.int(50, "Fark normalizasyon uzunluğu", minval = 10, group = groupView)
+
+groupMACD = "02 — MACD"
+macdFast   = input.int(12, "Hızlı", minval = 1, group = groupMACD)
+macdSlow   = input.int(26, "Yavaş", minval = 2, group = groupMACD)
+macdSignal = input.int(9,  "Signal", minval = 1, group = groupMACD)
+
+groupRSI = "03 — RSI"
+rsiLen    = input.int(14, "RSI uzunluğu", minval = 1, group = groupRSI)
+rsiMaType = input.string("SMA", "RSI yumuşatma türü", options = ["SMA", "EMA", "RMA", "WMA"], group = groupRSI)
+
+groupStochRsi = "04 — Stochastic RSI"
+stochRsiLen = input.int(14, "RSI uzunluğu", minval = 1, group = groupStochRsi)
+stochLen    = input.int(14, "Stochastic uzunluğu", minval = 1, group = groupStochRsi)
+stochKSmooth = input.int(3, "K yumuşatma", minval = 1, group = groupStochRsi)
+stochDSmooth = input.int(3, "D yumuşatma", minval = 1, group = groupStochRsi)
+
+groupSMI = "05 — SMI"
+smiLengthK   = input.int(10, "%K uzunluğu", minval = 1, maxval = 15000, group = groupSMI)
+smiLengthD   = input.int(3,  "%D uzunluğu", minval = 1, maxval = 4999, group = groupSMI)
+smiLengthEMA = input.int(3,  "SMI EMA uzunluğu", minval = 1, maxval = 4999, group = groupSMI)
+
+groupBB = "06 — Bollinger Bands"
+bbLen      = input.int(20, "Uzunluk", minval = 1, group = groupBB)
+bbMult     = input.float(2.0, "Standart sapma", minval = 0.1, step = 0.1, group = groupBB)
+bbLookback = input.int(100, "Bandwidth percentile uzunluğu", minval = 20, group = groupBB)
+
+groupDMI = "07 — ADX / DMI"
+diLen  = input.int(14, "DI uzunluğu", minval = 1, group = groupDMI)
+adxLen = input.int(14, "ADX yumuşatma", minval = 1, group = groupDMI)
+
+groupST = "08 — Supertrend"
+stAtrLen = input.int(10, "ATR uzunluğu", minval = 1, group = groupST)
+stFactor = input.float(3.0, "Faktör", minval = 0.1, step = 0.1, group = groupST)
+
+groupATR = "09 — ATR"
+atrLen      = input.int(14, "ATR ve referans MA uzunluğu", minval = 1, group = groupATR)
+atrPctLen   = input.int(252, "ATR percentile uzunluğu", minval = 20, group = groupATR)
+
+groupVWAP = "10 — VWAP"
+vwapAnchor = input.string("Seans", "Sabitleme", options = ["Seans", "Hafta", "Ay", "Çeyrek", "Yıl"], group = groupVWAP)
+
+groupIchi = "11 — Ichimoku"
+ichiTenkan = input.int(9,  "Tenkan", minval = 1, group = groupIchi)
+ichiKijun  = input.int(26, "Kijun", minval = 1, group = groupIchi)
+ichiSpanB  = input.int(52, "Senkou B", minval = 1, group = groupIchi)
+ichiDisp   = input.int(26, "Öteleme", minval = 1, group = groupIchi)
+
+groupMFI = "12 — MFI"
+mfiLen    = input.int(14, "MFI ve yumuşatma uzunluğu", minval = 1, group = groupMFI)
+mfiMaType = input.string("SMA", "MFI yumuşatma türü", options = ["SMA", "EMA", "RMA", "WMA"], group = groupMFI)
+
+groupCCI = "13 — CCI"
+cciLen    = input.int(20, "CCI ve yumuşatma uzunluğu", minval = 1, group = groupCCI)
+cciMaType = input.string("SMA", "CCI yumuşatma türü", options = ["SMA", "EMA", "RMA", "WMA"], group = groupCCI)
+
+groupPSAR = "14 — Parabolic SAR"
+sarStart = input.float(0.02, "Başlangıç", minval = 0.001, step = 0.001, group = groupPSAR)
+sarInc   = input.float(0.02, "Artış", minval = 0.001, step = 0.001, group = groupPSAR)
+sarMax   = input.float(0.20, "Maksimum", minval = 0.01, step = 0.01, group = groupPSAR)
+
+groupVol = "15 — Hacim"
+volMaLen = input.int(20, "Hacim SMA uzunluğu", minval = 1, group = groupVol)
+
+// =============================================================================
+// 2. COLORS AND COMMON HELPERS
+// =============================================================================
+
+color C_HEADER  = color.rgb(34, 43, 58)
+color C_SUB     = color.rgb(51, 65, 85)
+color C_POS     = color.rgb(22, 101, 52)
+color C_POSWEAK = color.rgb(21, 128, 61)
+color C_NEG     = color.rgb(153, 27, 27)
+color C_RECOVER = color.rgb(180, 83, 9)
+color C_NEUTRAL = color.rgb(71, 85, 105)
+color C_WARN    = color.rgb(161, 98, 7)
+color C_VOLUP   = color.rgb(107, 33, 168)
+color C_VOLDOWN = color.rgb(30, 64, 175)
+color C_BG      = color.new(color.rgb(15, 23, 42), 5)
+color C_TEXT    = color.white
+
+f_text_size() =>
+    textSizeIn == "Çok küçük" ? size.tiny : textSizeIn == "Normal" ? size.normal : size.small
+
+f_ma(float source, int length, string maType) =>
+    switch maType
+        "EMA" => ta.ema(source, length)
+        "RMA" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        => ta.sma(source, length)
+
+f_num(float value) =>
+    na(value) ? "—" : str.tostring(value, "#.##")
+
+f_price(float value) =>
+    na(value) ? "—" : str.tostring(value, format.mintick)
+
+f_pct(float value) =>
+    na(value) ? "—" : (value > 0 ? "+" : "") + str.tostring(value, "#.##") + "%"
+
+f_dir(float value, float tolerance) =>
+    na(value) or na(value[1]) ? "—" : value - value[1] > tolerance ? "↑ Yükseliyor" : value - value[1] < -tolerance ? "↓ Düşüyor" : "→ Yatay"
+
+f_slope5(float value) =>
+    na(value[5]) ? na : ta.linreg(value, 5, 0) - ta.linreg(value, 5, 1)
+
+f_diag(float value) =>
+    "Δ1 " + f_num(value - value[1]) + " | Δ3 " + f_num(value - value[3]) + "\nSlope5 " + f_num(f_slope5(value))
+
+f_min_age(int a, int b) =>
+    na(a) ? b : na(b) ? a : math.min(a, b)
+
+f_age_text(int age) =>
+    na(age) ? "—" : age == 0 ? "Bu bar" : str.tostring(age) + " bar önce"
+
+f_cross_event(bool crossUp, bool crossDown, string zone) =>
+    string confirm = barstate.isconfirmed ? "TEYİTLİ" : "CANLI"
+    int upAge = ta.barssince(crossUp)
+    int dnAge = ta.barssince(crossDown)
+    int age = f_min_age(upAge, dnAge)
+    string lastDir = na(age) ? "—" : (na(dnAge) or (not na(upAge) and upAge < dnAge)) ? "Son ↑" : "Son ↓"
+    crossUp ? confirm + " ↑\n" + zone : crossDown ? confirm + " ↓\n" + zone : lastDir + " | " + f_age_text(age)
+
+f_gap_state(float mainLine, float signalLine, float avgGap) =>
+    float gap = mainLine - signalLine
+    float absGap = math.abs(gap)
+    bool narrowing = absGap < absGap[1]
+    bool narrowing2 = narrowing and absGap[1] < absGap[2]
+    bool near = narrowing2 and not na(avgGap) and avgGap > 0 and absGap / avgGap <= nearGapRatio
+    near ? (gap < 0 ? "↑ Kesişime yakın" : "↓ Kesişime yakın") :
+      gap > 0 ? (narrowing ? "Pozitif fark daralıyor" : "Pozitif fark açılıyor") :
+      gap < 0 ? (narrowing ? "Negatif fark daralıyor" : "Negatif fark açılıyor") : "Çizgiler eşit"
+
+f_relation(float mainLine, float signalLine) =>
+    na(mainLine) or na(signalLine) ? "—" : mainLine > signalLine ? "Ana > Sinyal" : mainLine < signalLine ? "Ana < Sinyal" : "Ana = Sinyal"
+
+f_rel_color(float mainLine, float signalLine) =>
+    na(mainLine) or na(signalLine) ? C_NEUTRAL : mainLine > signalLine ? C_POS : mainLine < signalLine ? C_NEG : C_NEUTRAL
+
+f_zone_20_80(float value) =>
+    na(value) ? "—" : value >= 80 ? "80 üzeri" : value <= 20 ? "20 altı" : value >= 50 ? "50–80" : "20–50"
+
+f_zone_rsi(float value) =>
+    na(value) ? "—" : value >= 70 ? "Aşırı alım" : value >= 60 ? "Güçlü pozitif" : value >= 50 ? "Pozitif" : value > 40 ? "Negatif" : value > 30 ? "Güçlü negatif" : "Aşırı satım"
+
+f_zone_smi(float value) =>
+    na(value) ? "—" : value > 40 ? "+40 üzeri" : value > 0 ? "0 / +40" : value >= -40 ? "-40 / 0" : "-40 altı"
+
+f_zone_cci(float value) =>
+    na(value) ? "—" : value > 100 ? "+100 üzeri" : value > 0 ? "0 / +100" : value >= -100 ? "-100 / 0" : "-100 altı"
+
+f_zone_cross_20_80(float value) =>
+    value < 20 ? "20 altında" : value < 50 ? "20–50" : value < 80 ? "50–80" : "80 üzerinde"
+
+f_zone_cross_rsi(float value) =>
+    value < 30 ? "30 altında" : value < 50 ? "30–50" : value < 70 ? "50–70" : "70 üzerinde"
+
+f_zone_cross_smi(float value) =>
+    value < -40 ? "-40 altında" : value < 0 ? "-40–0" : value < 40 ? "0–40" : "+40 üzerinde"
+
+f_zone_cross_cci(float value) =>
+    value < -100 ? "-100 altında" : value < 0 ? "-100–0" : value < 100 ? "0–100" : "+100 üzerinde"
+
+f_cell(table id, int column, int row, string value, color bg) =>
+    table.cell(id, column, row, value, text_color = C_TEXT, bgcolor = bg, text_size = f_text_size(), text_halign = text.align_left)
+
+f_header(table id, int column, int row, string value) =>
+    table.cell(id, column, row, value, text_color = C_TEXT, bgcolor = C_HEADER, text_size = f_text_size(), text_halign = text.align_center)
+
+f_compact_value(string compactText, string detailText, string diagnosticText) =>
+    viewMode == "Kompakt" ? compactText : viewMode == "Tanısal" ? diagnosticText : detailText
+
+// =============================================================================
+// 3. SMA / EMA — 15 PERIODS (50 INCLUDED)
+// =============================================================================
+
+f_ma_calc(int length) =>
+    float smaValue = ta.sma(close, length)
+    float emaValue = ta.ema(close, length)
+    bool priceSmaUp = ta.crossover(close, smaValue)
+    bool priceSmaDn = ta.crossunder(close, smaValue)
+    bool priceEmaUp = ta.crossover(close, emaValue)
+    bool priceEmaDn = ta.crossunder(close, emaValue)
+    bool emaSmaUp = ta.crossover(emaValue, smaValue)
+    bool emaSmaDn = ta.crossunder(emaValue, smaValue)
+    int smaAge = f_min_age(ta.barssince(priceSmaUp), ta.barssince(priceSmaDn))
+    int emaAge = f_min_age(ta.barssince(priceEmaUp), ta.barssince(priceEmaDn))
+    int pairAge = f_min_age(ta.barssince(emaSmaUp), ta.barssince(emaSmaDn))
+    [smaValue, emaValue, priceSmaUp, priceSmaDn, priceEmaUp, priceEmaDn, emaSmaUp, emaSmaDn, smaAge, emaAge, pairAge]
+
+[sma5,   ema5,   psu5,   psd5,   peu5,   ped5,   esu5,   esd5,   psa5,   pea5,   esa5]   = f_ma_calc(5)
+[sma8,   ema8,   psu8,   psd8,   peu8,   ped8,   esu8,   esd8,   psa8,   pea8,   esa8]   = f_ma_calc(8)
+[sma10,  ema10,  psu10,  psd10,  peu10,  ped10,  esu10,  esd10,  psa10,  pea10,  esa10]  = f_ma_calc(10)
+[sma13,  ema13,  psu13,  psd13,  peu13,  ped13,  esu13,  esd13,  psa13,  pea13,  esa13]  = f_ma_calc(13)
+[sma20,  ema20,  psu20,  psd20,  peu20,  ped20,  esu20,  esd20,  psa20,  pea20,  esa20]  = f_ma_calc(20)
+[sma21,  ema21,  psu21,  psd21,  peu21,  ped21,  esu21,  esd21,  psa21,  pea21,  esa21]  = f_ma_calc(21)
+[sma34,  ema34,  psu34,  psd34,  peu34,  ped34,  esu34,  esd34,  psa34,  pea34,  esa34]  = f_ma_calc(34)
+[sma50,  ema50,  psu50,  psd50,  peu50,  ped50,  esu50,  esd50,  psa50,  pea50,  esa50]  = f_ma_calc(50)
+[sma55,  ema55,  psu55,  psd55,  peu55,  ped55,  esu55,  esd55,  psa55,  pea55,  esa55]  = f_ma_calc(55)
+[sma89,  ema89,  psu89,  psd89,  peu89,  ped89,  esu89,  esd89,  psa89,  pea89,  esa89]  = f_ma_calc(89)
+[sma100, ema100, psu100, psd100, peu100, ped100, esu100, esd100, psa100, pea100, esa100] = f_ma_calc(100)
+[sma144, ema144, psu144, psd144, peu144, ped144, esu144, esd144, psa144, pea144, esa144] = f_ma_calc(144)
+[sma200, ema200, psu200, psd200, peu200, ped200, esu200, esd200, psa200, pea200, esa200] = f_ma_calc(200)
+[sma233, ema233, psu233, psd233, peu233, ped233, esu233, esd233, psa233, pea233, esa233] = f_ma_calc(233)
+[sma377, ema377, psu377, psd377, peu377, ped377, esu377, esd377, psa377, pea377, esa377] = f_ma_calc(377)
+
+int smaAboveCount = (close > sma5 ? 1 : 0) + (close > sma8 ? 1 : 0) + (close > sma10 ? 1 : 0) + (close > sma13 ? 1 : 0) + (close > sma20 ? 1 : 0) + (close > sma21 ? 1 : 0) + (close > sma34 ? 1 : 0) + (close > sma50 ? 1 : 0) + (close > sma55 ? 1 : 0) + (close > sma89 ? 1 : 0) + (close > sma100 ? 1 : 0) + (close > sma144 ? 1 : 0) + (close > sma200 ? 1 : 0) + (close > sma233 ? 1 : 0) + (close > sma377 ? 1 : 0)
+int emaAboveCount = (close > ema5 ? 1 : 0) + (close > ema8 ? 1 : 0) + (close > ema10 ? 1 : 0) + (close > ema13 ? 1 : 0) + (close > ema20 ? 1 : 0) + (close > ema21 ? 1 : 0) + (close > ema34 ? 1 : 0) + (close > ema50 ? 1 : 0) + (close > ema55 ? 1 : 0) + (close > ema89 ? 1 : 0) + (close > ema100 ? 1 : 0) + (close > ema144 ? 1 : 0) + (close > ema200 ? 1 : 0) + (close > ema233 ? 1 : 0) + (close > ema377 ? 1 : 0)
+int smaRisingCount = (sma5 > sma5[1] ? 1 : 0) + (sma8 > sma8[1] ? 1 : 0) + (sma10 > sma10[1] ? 1 : 0) + (sma13 > sma13[1] ? 1 : 0) + (sma20 > sma20[1] ? 1 : 0) + (sma21 > sma21[1] ? 1 : 0) + (sma34 > sma34[1] ? 1 : 0) + (sma50 > sma50[1] ? 1 : 0) + (sma55 > sma55[1] ? 1 : 0) + (sma89 > sma89[1] ? 1 : 0) + (sma100 > sma100[1] ? 1 : 0) + (sma144 > sma144[1] ? 1 : 0) + (sma200 > sma200[1] ? 1 : 0) + (sma233 > sma233[1] ? 1 : 0) + (sma377 > sma377[1] ? 1 : 0)
+int emaRisingCount = (ema5 > ema5[1] ? 1 : 0) + (ema8 > ema8[1] ? 1 : 0) + (ema10 > ema10[1] ? 1 : 0) + (ema13 > ema13[1] ? 1 : 0) + (ema20 > ema20[1] ? 1 : 0) + (ema21 > ema21[1] ? 1 : 0) + (ema34 > ema34[1] ? 1 : 0) + (ema50 > ema50[1] ? 1 : 0) + (ema55 > ema55[1] ? 1 : 0) + (ema89 > ema89[1] ? 1 : 0) + (ema100 > ema100[1] ? 1 : 0) + (ema144 > ema144[1] ? 1 : 0) + (ema200 > ema200[1] ? 1 : 0) + (ema233 > ema233[1] ? 1 : 0) + (ema377 > ema377[1] ? 1 : 0)
+
+// =============================================================================
+// 4. MOMENTUM INDICATORS
+// =============================================================================
+
+// MACD
+[macdLine, macdSignalLine, macdHist] = ta.macd(close, macdFast, macdSlow, macdSignal)
+bool macdCrossUp = ta.crossover(macdLine, macdSignalLine)
+bool macdCrossDn = ta.crossunder(macdLine, macdSignalLine)
+bool macdZeroUp = ta.crossover(macdLine, 0)
+bool macdZeroDn = ta.crossunder(macdLine, 0)
+float macdGapAvg = ta.sma(math.abs(macdLine - macdSignalLine), gapLookback)
+string macdHistState = macdHist < 0 ? (macdHist > macdHist[1] ? "Düşüş momentumu azalıyor" : macdHist < macdHist[1] ? "Düşüş momentumu artıyor" : "Değişim yok") : macdHist > 0 ? (macdHist > macdHist[1] ? "Yükseliş momentumu artıyor" : macdHist < macdHist[1] ? "Yükseliş momentumu azalıyor" : "Değişim yok") : "Histogram sıfırda"
+color macdHistColor = macdHist < 0 ? (macdHist > macdHist[1] ? C_RECOVER : C_NEG) : macdHist > 0 ? (macdHist > macdHist[1] ? C_POS : C_POSWEAK) : C_NEUTRAL
+string macdCrossZone = macdLine < 0 ? "Sıfır altında" : "Sıfır üzerinde"
+string macdEvent = f_cross_event(macdCrossUp, macdCrossDn, macdCrossZone)
+
+// RSI and same-length smoothing line
+float rsi = ta.rsi(close, rsiLen)
+float rsiMA = f_ma(rsi, rsiLen, rsiMaType)
+bool rsiCrossUp = ta.crossover(rsi, rsiMA)
+bool rsiCrossDn = ta.crossunder(rsi, rsiMA)
+float rsiGapAvg = ta.sma(math.abs(rsi - rsiMA), gapLookback)
+string rsiEvent = f_cross_event(rsiCrossUp, rsiCrossDn, f_zone_cross_rsi(rsi))
+string rsiLevelEvent = ta.crossover(rsi, 30) ? "30 seviyesi ↑" : ta.crossunder(rsi, 30) ? "30 seviyesi ↓" : ta.crossover(rsi, 50) ? "50 seviyesi ↑" : ta.crossunder(rsi, 50) ? "50 seviyesi ↓" : ta.crossover(rsi, 70) ? "70 seviyesi ↑" : ta.crossunder(rsi, 70) ? "70 seviyesi ↓" : ""
+
+// Stochastic RSI (normal Stochastic intentionally excluded)
+float stochBaseRsi = ta.rsi(close, stochRsiLen)
+float stochRsiLow = ta.lowest(stochBaseRsi, stochLen)
+float stochRsiHigh = ta.highest(stochBaseRsi, stochLen)
+float stochRsiRange = stochRsiHigh - stochRsiLow
+float stochRsiRaw = stochRsiRange == 0 ? na : 100 * (stochBaseRsi - stochRsiLow) / stochRsiRange
+float stochK = ta.sma(stochRsiRaw, stochKSmooth)
+float stochD = ta.sma(stochK, stochDSmooth)
+bool stochCrossUp = ta.crossover(stochK, stochD)
+bool stochCrossDn = ta.crossunder(stochK, stochD)
+float stochGapAvg = ta.sma(math.abs(stochK - stochD), gapLookback)
+string stochEvent = f_cross_event(stochCrossUp, stochCrossDn, f_zone_cross_20_80(stochK))
+string stochLevelEvent = ta.crossover(stochK, 20) ? "K 20 seviyesi ↑" : ta.crossunder(stochK, 20) ? "K 20 seviyesi ↓" : ta.crossover(stochK, 50) ? "K 50 seviyesi ↑" : ta.crossunder(stochK, 50) ? "K 50 seviyesi ↓" : ta.crossover(stochK, 80) ? "K 80 seviyesi ↑" : ta.crossunder(stochK, 80) ? "K 80 seviyesi ↓" : ""
+
+// SMI — William Blau formula supplied by the user
+f_ema_ema(float source, int length) => ta.ema(ta.ema(source, length), length)
+float smiHighest = ta.highest(high, smiLengthK)
+float smiLowest = ta.lowest(low, smiLengthK)
+float smiHLRange = smiHighest - smiLowest
+float smiRelative = close - (smiHighest + smiLowest) / 2
+float smiDenominator = f_ema_ema(smiHLRange, smiLengthD)
+float smi = smiDenominator == 0 ? na : 200 * f_ema_ema(smiRelative, smiLengthD) / smiDenominator
+float smiEMA = ta.ema(smi, smiLengthEMA)
+bool smiCrossUp = ta.crossover(smi, smiEMA)
+bool smiCrossDn = ta.crossunder(smi, smiEMA)
+float smiGapAvg = ta.sma(math.abs(smi - smiEMA), gapLookback)
+string smiEvent = f_cross_event(smiCrossUp, smiCrossDn, f_zone_cross_smi(smi))
+string smiLevelEvent = ta.crossover(smi, -40) ? "-40 seviyesi ↑" : ta.crossunder(smi, -40) ? "-40 seviyesi ↓" : ta.crossover(smi, 0) ? "0 seviyesi ↑" : ta.crossunder(smi, 0) ? "0 seviyesi ↓" : ta.crossover(smi, 40) ? "+40 seviyesi ↑" : ta.crossunder(smi, 40) ? "+40 seviyesi ↓" : ""
+
+// MFI and same-length smoothing line
+float mfi = ta.mfi(hlc3, mfiLen)
+float mfiMA = f_ma(mfi, mfiLen, mfiMaType)
+bool mfiCrossUp = ta.crossover(mfi, mfiMA)
+bool mfiCrossDn = ta.crossunder(mfi, mfiMA)
+float mfiGapAvg = ta.sma(math.abs(mfi - mfiMA), gapLookback)
+string mfiEvent = f_cross_event(mfiCrossUp, mfiCrossDn, f_zone_cross_20_80(mfi))
+string mfiLevelEvent = ta.crossover(mfi, 20) ? "20 seviyesi ↑" : ta.crossunder(mfi, 20) ? "20 seviyesi ↓" : ta.crossover(mfi, 50) ? "50 seviyesi ↑" : ta.crossunder(mfi, 50) ? "50 seviyesi ↓" : ta.crossover(mfi, 80) ? "80 seviyesi ↑" : ta.crossunder(mfi, 80) ? "80 seviyesi ↓" : ""
+
+// CCI and same-length smoothing line
+float cci = ta.cci(hlc3, cciLen)
+float cciMA = f_ma(cci, cciLen, cciMaType)
+bool cciCrossUp = ta.crossover(cci, cciMA)
+bool cciCrossDn = ta.crossunder(cci, cciMA)
+float cciGapAvg = ta.sma(math.abs(cci - cciMA), gapLookback)
+string cciEvent = f_cross_event(cciCrossUp, cciCrossDn, f_zone_cross_cci(cci))
+string cciLevelEvent = ta.crossover(cci, -100) ? "-100 seviyesi ↑" : ta.crossunder(cci, -100) ? "-100 seviyesi ↓" : ta.crossover(cci, 0) ? "0 seviyesi ↑" : ta.crossunder(cci, 0) ? "0 seviyesi ↓" : ta.crossover(cci, 100) ? "+100 seviyesi ↑" : ta.crossunder(cci, 100) ? "+100 seviyesi ↓" : ""
+
+// =============================================================================
+// 5. TREND, LOCATION, VOLATILITY AND VOLUME
+// =============================================================================
+
+// Bollinger Bands
+[bbBasis, bbUpper, bbLower] = ta.bb(close, bbLen, bbMult)
+float bbWidth = bbBasis == 0 ? na : (bbUpper - bbLower) / bbBasis * 100
+float bbPctB = bbUpper == bbLower ? na : (close - bbLower) / (bbUpper - bbLower)
+float bbRank = ta.percentrank(bbWidth, bbLookback)
+string bbWidthState = na(bbRank) ? "—" : bbRank <= 10 ? "Aşırı daralma" : bbRank <= 20 ? "Dar bant" : bbRank >= 90 ? "Aşırı genişleme" : bbRank >= 80 ? "Geniş bant" : "Normal bant"
+string bbPos = close > bbUpper ? "Üst bant üzerinde" : close < bbLower ? "Alt bant altında" : close >= bbBasis ? "Orta–üst bant" : "Alt–orta bant"
+bool bbUpperBreak = ta.crossover(close, bbUpper)
+bool bbUpperReturn = ta.crossunder(close, bbUpper)
+bool bbMidUp = ta.crossover(close, bbBasis)
+bool bbMidDn = ta.crossunder(close, bbBasis)
+bool bbLowerBreak = ta.crossunder(close, bbLower)
+bool bbLowerReturn = ta.crossover(close, bbLower)
+string bbEvent = bbUpperBreak ? "Üst bant yukarı kesildi" : bbUpperReturn ? "Üst bant içine dönüldü" : bbMidUp ? "Orta bant yukarı kesildi" : bbMidDn ? "Orta bant aşağı kesildi" : bbLowerBreak ? "Alt bant aşağı kesildi" : bbLowerReturn ? "Alt bant içine dönüldü" : "Son olay: " + f_age_text(f_min_age(ta.barssince(bbMidUp or bbUpperBreak or bbLowerReturn), ta.barssince(bbMidDn or bbUpperReturn or bbLowerBreak)))
+
+// ADX / DMI
+[plusDI, minusDI, adx] = ta.dmi(diLen, adxLen)
+bool diCrossUp = ta.crossover(plusDI, minusDI)
+bool diCrossDn = ta.crossunder(plusDI, minusDI)
+float diGapAvg = ta.sma(math.abs(plusDI - minusDI), gapLookback)
+string adxZone = adx < 20 ? "Zayıf" : adx < 25 ? "Oluşuyor" : adx < 40 ? "Güçlü" : adx < 50 ? "Çok güçlü" : "Aşırı güçlü"
+string dmiEvent = f_cross_event(diCrossUp, diCrossDn, "DI kesişimi")
+
+// Supertrend
+[supertrend, stDirection] = ta.supertrend(stFactor, stAtrLen)
+bool stTurnUp = stDirection < 0 and stDirection[1] > 0
+bool stTurnDn = stDirection > 0 and stDirection[1] < 0
+string stEvent = f_cross_event(stTurnUp, stTurnDn, "Yön değişimi")
+float stDistPct = supertrend == 0 ? na : (close - supertrend) / supertrend * 100
+
+// ATR with same-length reference and 252-bar percentile
+float atr = ta.atr(atrLen)
+float atrMA = ta.sma(atr, atrLen)
+float atrPct = close == 0 ? na : atr / close * 100
+float atrRank = ta.percentrank(atrPct, atrPctLen)
+string atrState = na(atrRank) ? "—" : atrRank <= 10 ? "Çok düşük" : atrRank <= 30 ? "Düşük" : atrRank >= 90 ? "Çok yüksek" : atrRank >= 70 ? "Yüksek" : "Normal"
+
+// VWAP
+bool vwapAnchorEvent = switch vwapAnchor
+    "Hafta" => timeframe.change("1W")
+    "Ay" => timeframe.change("1M")
+    "Çeyrek" => timeframe.change("3M")
+    "Yıl" => timeframe.change("12M")
+    => timeframe.change("1D")
+float vwap = ta.vwap(hlc3, vwapAnchorEvent)
+bool vwapCrossUp = ta.crossover(close, vwap)
+bool vwapCrossDn = ta.crossunder(close, vwap)
+float vwapDist = vwap == 0 ? na : (close - vwap) / vwap * 100
+string vwapEvent = f_cross_event(vwapCrossUp, vwapCrossDn, "Fiyat / VWAP")
+
+// Ichimoku calculated explicitly to keep visible and future cloud values distinct
+float tenkan = (ta.highest(high, ichiTenkan) + ta.lowest(low, ichiTenkan)) / 2
+float kijun = (ta.highest(high, ichiKijun) + ta.lowest(low, ichiKijun)) / 2
+float futureSpanA = (tenkan + kijun) / 2
+float futureSpanB = (ta.highest(high, ichiSpanB) + ta.lowest(low, ichiSpanB)) / 2
+float visibleSpanA = futureSpanA[ichiDisp]
+float visibleSpanB = futureSpanB[ichiDisp]
+float visibleCloudTop = math.max(visibleSpanA, visibleSpanB)
+float visibleCloudBottom = math.min(visibleSpanA, visibleSpanB)
+string ichiPricePos = na(visibleCloudTop) ? "—" : close > visibleCloudTop ? "Bulut üzerinde" : close < visibleCloudBottom ? "Bulut altında" : "Bulut içinde"
+bool tkCrossUp = ta.crossover(tenkan, kijun)
+bool tkCrossDn = ta.crossunder(tenkan, kijun)
+float tkGapAvg = ta.sma(math.abs(tenkan - kijun), gapLookback)
+string tkEvent = f_cross_event(tkCrossUp, tkCrossDn, ichiPricePos)
+string futureCloud = futureSpanA > futureSpanB ? "Gelecek bulut A>B" : futureSpanA < futureSpanB ? "Gelecek bulut A<B" : "Gelecek bulut eşit"
+string chikouState = na(close[ichiDisp]) ? "—" : close > close[ichiDisp] ? "Chikou geçmiş fiyat üstü" : close < close[ichiDisp] ? "Chikou geçmiş fiyat altı" : "Chikou geçmiş fiyat eşit"
+
+// Parabolic SAR
+float psar = ta.sar(sarStart, sarInc, sarMax)
+bool psarTurnUp = ta.crossunder(psar, close)
+bool psarTurnDn = ta.crossover(psar, close)
+float psarDist = psar == 0 ? na : (close - psar) / psar * 100
+string psarEvent = f_cross_event(psarTurnUp, psarTurnDn, "SAR yön değişimi")
+
+// OBV — raw, no arbitrary smoothing length
+float safeVolume = nz(volume, 0)
+float obv = ta.cum(close > close[1] ? safeVolume : close < close[1] ? -safeVolume : 0)
+string obvPriceState = close > close[1] and obv > obv[1] ? "Fiyat↑ / OBV↑ uyumlu" : close < close[1] and obv < obv[1] ? "Fiyat↓ / OBV↓ uyumlu" : close > close[1] and obv < obv[1] ? "Fiyat↑ / OBV↓ teyit zayıf" : close < close[1] and obv > obv[1] ? "Fiyat↓ / OBV↑ satış teyidi zayıf" : "Karışık / yatay"
+
+// Raw volume
+float volMA = ta.sma(volume, volMaLen)
+float volRatio = volMA == 0 ? na : volume / volMA
+string volState = na(volRatio) ? "—" : volRatio < 0.5 ? "Çok düşük" : volRatio < 0.8 ? "Düşük" : volRatio <= 1.2 ? "Normal" : volRatio <= 2 ? "Yüksek" : "Çok yüksek"
+string priceVolState = close > close[1] and volume > volume[1] ? "Fiyat↑ / Hacim↑" : close > close[1] and volume < volume[1] ? "Fiyat↑ / Hacim↓" : close < close[1] and volume > volume[1] ? "Fiyat↓ / Hacim↑" : close < close[1] and volume < volume[1] ? "Fiyat↓ / Hacim↓" : "Karışık / yatay"
+
+// =============================================================================
+// 6. TABLES
+// =============================================================================
+
+var table maTable = table.new(position.top_left, 10, 19, border_width = 1, frame_color = C_HEADER, border_color = color.new(color.gray, 60))
+var table momentumTable = table.new(position.top_right, 7, 7, border_width = 1, frame_color = C_HEADER, border_color = color.new(color.gray, 60))
+var table trendTable = table.new(position.bottom_left, 7, 6, border_width = 1, frame_color = C_HEADER, border_color = color.new(color.gray, 60))
+var table volTable = table.new(position.bottom_right, 7, 5, border_width = 1, frame_color = C_HEADER, border_color = color.new(color.gray, 60))
+
+f_ma_row(table id, int row, int length, float smaValue, float emaValue, bool smaUp, bool smaDn, bool emaUp, bool emaDn, bool pairUp, bool pairDn, int smaAge, int emaAge, int pairAge) =>
+    float smaDist = smaValue == 0 ? na : (close - smaValue) / smaValue * 100
+    float emaDist = emaValue == 0 ? na : (close - emaValue) / emaValue * 100
+    string smaPos = math.abs(smaDist) <= priceTolPct ? "Yakın" : close > smaValue ? "Üstünde" : "Altında"
+    string emaPos = math.abs(emaDist) <= priceTolPct ? "Yakın" : close > emaValue ? "Üstünde" : "Altında"
+    string confirm = barstate.isconfirmed ? "TEYİTLİ" : "CANLI"
+    string smaEvt = smaUp ? confirm + " ↑" : smaDn ? confirm + " ↓" : f_age_text(smaAge)
+    string emaEvt = emaUp ? confirm + " ↑" : emaDn ? confirm + " ↓" : f_age_text(emaAge)
+    string pairEvt = pairUp ? "EMA↑SMA" : pairDn ? "EMA↓SMA" : (emaValue > smaValue ? "EMA>SMA" : "EMA<SMA") + " | " + f_age_text(pairAge)
+    f_cell(id, 0, row, str.tostring(length), C_SUB)
+    f_cell(id, 1, row, f_price(smaValue), C_BG)
+    f_cell(id, 2, row, smaPos + "\n" + f_pct(smaDist), close >= smaValue ? C_POS : C_NEG)
+    f_cell(id, 3, row, f_dir(smaValue, syminfo.mintick * 0.01), smaValue >= smaValue[1] ? C_POS : C_NEG)
+    f_cell(id, 4, row, smaEvt, smaUp ? C_POS : smaDn ? C_NEG : C_NEUTRAL)
+    f_cell(id, 5, row, f_price(emaValue), C_BG)
+    f_cell(id, 6, row, emaPos + "\n" + f_pct(emaDist), close >= emaValue ? C_POS : C_NEG)
+    f_cell(id, 7, row, f_dir(emaValue, syminfo.mintick * 0.01), emaValue >= emaValue[1] ? C_POS : C_NEG)
+    f_cell(id, 8, row, emaEvt, emaUp ? C_POS : emaDn ? C_NEG : C_NEUTRAL)
+    f_cell(id, 9, row, pairEvt, emaValue >= smaValue ? C_POS : C_NEG)
+
+if barstate.islast
+    // -------------------------------------------------------------------------
+    // MA TABLE
+    // -------------------------------------------------------------------------
+    if showMA
+        f_header(maTable, 0, 0, "Periyot")
+        f_header(maTable, 1, 0, "SMA")
+        f_header(maTable, 2, 0, "Fiyat/SMA")
+        f_header(maTable, 3, 0, "SMA yön")
+        f_header(maTable, 4, 0, "SMA olay")
+        f_header(maTable, 5, 0, "EMA")
+        f_header(maTable, 6, 0, "Fiyat/EMA")
+        f_header(maTable, 7, 0, "EMA yön")
+        f_header(maTable, 8, 0, "EMA olay")
+        f_header(maTable, 9, 0, "EMA/SMA")
+        f_ma_row(maTable, 1, 5,   sma5,   ema5,   psu5,   psd5,   peu5,   ped5,   esu5,   esd5,   psa5,   pea5,   esa5)
+        f_ma_row(maTable, 2, 8,   sma8,   ema8,   psu8,   psd8,   peu8,   ped8,   esu8,   esd8,   psa8,   pea8,   esa8)
+        f_ma_row(maTable, 3, 10,  sma10,  ema10,  psu10,  psd10,  peu10,  ped10,  esu10,  esd10,  psa10,  pea10,  esa10)
+        f_ma_row(maTable, 4, 13,  sma13,  ema13,  psu13,  psd13,  peu13,  ped13,  esu13,  esd13,  psa13,  pea13,  esa13)
+        f_ma_row(maTable, 5, 20,  sma20,  ema20,  psu20,  psd20,  peu20,  ped20,  esu20,  esd20,  psa20,  pea20,  esa20)
+        f_ma_row(maTable, 6, 21,  sma21,  ema21,  psu21,  psd21,  peu21,  ped21,  esu21,  esd21,  psa21,  pea21,  esa21)
+        f_ma_row(maTable, 7, 34,  sma34,  ema34,  psu34,  psd34,  peu34,  ped34,  esu34,  esd34,  psa34,  pea34,  esa34)
+        f_ma_row(maTable, 8, 50,  sma50,  ema50,  psu50,  psd50,  peu50,  ped50,  esu50,  esd50,  psa50,  pea50,  esa50)
+        f_ma_row(maTable, 9, 55,  sma55,  ema55,  psu55,  psd55,  peu55,  ped55,  esu55,  esd55,  psa55,  pea55,  esa55)
+        f_ma_row(maTable, 10, 89, sma89,  ema89,  psu89,  psd89,  peu89,  ped89,  esu89,  esd89,  psa89,  pea89,  esa89)
+        f_ma_row(maTable, 11, 100, sma100, ema100, psu100, psd100, peu100, ped100, esu100, esd100, psa100, pea100, esa100)
+        f_ma_row(maTable, 12, 144, sma144, ema144, psu144, psd144, peu144, ped144, esu144, esd144, psa144, pea144, esa144)
+        f_ma_row(maTable, 13, 200, sma200, ema200, psu200, psd200, peu200, ped200, esu200, esd200, psa200, pea200, esa200)
+        f_ma_row(maTable, 14, 233, sma233, ema233, psu233, psd233, peu233, ped233, esu233, esd233, psa233, pea233, esa233)
+        f_ma_row(maTable, 15, 377, sma377, ema377, psu377, psd377, peu377, ped377, esu377, esd377, psa377, pea377, esa377)
+        f_cell(maTable, 0, 16, "ÖZET", C_HEADER)
+        f_cell(maTable, 1, 16, "SMA üstü\n" + str.tostring(smaAboveCount) + "/15", smaAboveCount >= 8 ? C_POS : C_NEG)
+        f_cell(maTable, 2, 16, "SMA yükselen\n" + str.tostring(smaRisingCount) + "/15", smaRisingCount >= 8 ? C_POS : C_NEG)
+        f_cell(maTable, 3, 16, "SMA düşen\n" + str.tostring(15 - smaRisingCount) + "/15", C_NEUTRAL)
+        f_cell(maTable, 4, 16, "Fiyat\n" + f_price(close), C_SUB)
+        f_cell(maTable, 5, 16, "EMA üstü\n" + str.tostring(emaAboveCount) + "/15", emaAboveCount >= 8 ? C_POS : C_NEG)
+        f_cell(maTable, 6, 16, "EMA yükselen\n" + str.tostring(emaRisingCount) + "/15", emaRisingCount >= 8 ? C_POS : C_NEG)
+        f_cell(maTable, 7, 16, "EMA düşen\n" + str.tostring(15 - emaRisingCount) + "/15", C_NEUTRAL)
+        f_cell(maTable, 8, 16, barstate.isconfirmed ? "Mum\nTEYİTLİ" : "Mum\nCANLI", barstate.isconfirmed ? C_POS : C_WARN)
+        f_cell(maTable, 9, 16, syminfo.ticker + "\n" + timeframe.period, C_SUB)
+        // Reserved diagnostic rows; used only in diagnostic view.
+        f_cell(maTable, 0, 17, viewMode == "Tanısal" ? "Kısa grup" : "", C_HEADER)
+        f_cell(maTable, 1, 17, viewMode == "Tanısal" ? "5–34\nSMA üstü: " + str.tostring((close>sma5?1:0)+(close>sma8?1:0)+(close>sma10?1:0)+(close>sma13?1:0)+(close>sma20?1:0)+(close>sma21?1:0)+(close>sma34?1:0)) + "/7" : "", C_BG)
+        f_cell(maTable, 2, 17, viewMode == "Tanısal" ? "5–34\nEMA üstü: " + str.tostring((close>ema5?1:0)+(close>ema8?1:0)+(close>ema10?1:0)+(close>ema13?1:0)+(close>ema20?1:0)+(close>ema21?1:0)+(close>ema34?1:0)) + "/7" : "", C_BG)
+        for col = 3 to 9
+            f_cell(maTable, col, 17, "", C_BG)
+        for col = 0 to 9
+            f_cell(maTable, col, 18, "", C_BG)
+    else
+        table.clear(maTable, 0, 0, 9, 18)
+
+    // -------------------------------------------------------------------------
+    // MOMENTUM TABLE
+    // -------------------------------------------------------------------------
+    if showMomentum
+        f_header(momentumTable, 0, 0, "Gösterge")
+        f_header(momentumTable, 1, 0, "Değerler")
+        f_header(momentumTable, 2, 0, "Bölge")
+        f_header(momentumTable, 3, 0, "Çizgiler")
+        f_header(momentumTable, 4, 0, "Değişim")
+        f_header(momentumTable, 5, 0, "Fark")
+        f_header(momentumTable, 6, 0, "Kesişim / olay")
+
+        f_cell(momentumTable, 0, 1, "MACD", C_SUB)
+        f_cell(momentumTable, 1, 1, "M " + f_num(macdLine) + "\nS " + f_num(macdSignalLine) + "\nH " + f_num(macdHist), C_BG)
+        f_cell(momentumTable, 2, 1, macdLine >= 0 ? "MACD sıfır üstü" : "MACD sıfır altı", macdLine >= 0 ? C_POS : C_NEG)
+        f_cell(momentumTable, 3, 1, f_relation(macdLine, macdSignalLine), f_rel_color(macdLine, macdSignalLine))
+        f_cell(momentumTable, 4, 1, f_compact_value(macdHistState, macdHistState + "\nΔH " + f_num(macdHist-macdHist[1]), macdHistState + "\n" + f_diag(macdHist)), macdHistColor)
+        f_cell(momentumTable, 5, 1, f_gap_state(macdLine, macdSignalLine, macdGapAvg), C_NEUTRAL)
+        f_cell(momentumTable, 6, 1, macdEvent + (macdZeroUp ? "\nMACD sıfır ↑" : macdZeroDn ? "\nMACD sıfır ↓" : ""), macdCrossUp ? C_POS : macdCrossDn ? C_NEG : C_NEUTRAL)
+
+        f_cell(momentumTable, 0, 2, "RSI", C_SUB)
+        f_cell(momentumTable, 1, 2, "RSI " + f_num(rsi) + "\nMA" + str.tostring(rsiLen) + " " + f_num(rsiMA), C_BG)
+        f_cell(momentumTable, 2, 2, f_zone_rsi(rsi), rsi >= 50 ? C_POS : C_NEG)
+        f_cell(momentumTable, 3, 2, f_relation(rsi, rsiMA) + "\n" + f_dir(rsi, oscTol), f_rel_color(rsi, rsiMA))
+        f_cell(momentumTable, 4, 2, f_compact_value(f_dir(rsi, oscTol), "Δ1 " + f_num(rsi-rsi[1]) + " | Δ3 " + f_num(rsi-rsi[3]), f_diag(rsi)), rsi >= rsi[1] ? C_POS : C_NEG)
+        f_cell(momentumTable, 5, 2, f_gap_state(rsi, rsiMA, rsiGapAvg), C_NEUTRAL)
+        f_cell(momentumTable, 6, 2, rsiEvent + (rsiLevelEvent == "" ? "" : "\n" + rsiLevelEvent), rsiCrossUp ? C_POS : rsiCrossDn ? C_NEG : C_NEUTRAL)
+
+        f_cell(momentumTable, 0, 3, "STOCH RSI", C_SUB)
+        f_cell(momentumTable, 1, 3, "K " + f_num(stochK) + "\nD " + f_num(stochD), C_BG)
+        f_cell(momentumTable, 2, 3, f_zone_20_80(stochK), stochK >= 50 ? C_POS : C_NEG)
+        f_cell(momentumTable, 3, 3, f_relation(stochK, stochD) + "\nK " + f_dir(stochK, oscTol), f_rel_color(stochK, stochD))
+        f_cell(momentumTable, 4, 3, f_compact_value(f_dir(stochK, oscTol), "KΔ1 " + f_num(stochK-stochK[1]) + "\nDΔ1 " + f_num(stochD-stochD[1]), f_diag(stochK)), stochK >= stochK[1] ? C_POS : C_NEG)
+        f_cell(momentumTable, 5, 3, f_gap_state(stochK, stochD, stochGapAvg), C_NEUTRAL)
+        f_cell(momentumTable, 6, 3, stochEvent + (stochLevelEvent == "" ? "" : "\n" + stochLevelEvent), stochCrossUp ? C_POS : stochCrossDn ? C_NEG : C_NEUTRAL)
+
+        f_cell(momentumTable, 0, 4, "SMI", C_SUB)
+        f_cell(momentumTable, 1, 4, "SMI " + f_num(smi) + "\nEMA " + f_num(smiEMA), C_BG)
+        f_cell(momentumTable, 2, 4, f_zone_smi(smi), smi >= 0 ? C_POS : C_NEG)
+        f_cell(momentumTable, 3, 4, f_relation(smi, smiEMA) + "\n" + f_dir(smi, oscTol), f_rel_color(smi, smiEMA))
+        f_cell(momentumTable, 4, 4, f_compact_value(f_dir(smi, oscTol), "Δ1 " + f_num(smi-smi[1]) + " | Δ3 " + f_num(smi-smi[3]), f_diag(smi)), smi >= smi[1] ? C_POS : C_NEG)
+        f_cell(momentumTable, 5, 4, f_gap_state(smi, smiEMA, smiGapAvg), C_NEUTRAL)
+        f_cell(momentumTable, 6, 4, smiEvent + (smiLevelEvent == "" ? "" : "\n" + smiLevelEvent), smiCrossUp ? C_POS : smiCrossDn ? C_NEG : C_NEUTRAL)
+
+        f_cell(momentumTable, 0, 5, "MFI", C_SUB)
+        f_cell(momentumTable, 1, 5, "MFI " + f_num(mfi) + "\nMA" + str.tostring(mfiLen) + " " + f_num(mfiMA), C_BG)
+        f_cell(momentumTable, 2, 5, f_zone_20_80(mfi), mfi >= 50 ? C_POS : C_NEG)
+        f_cell(momentumTable, 3, 5, f_relation(mfi, mfiMA) + "\n" + f_dir(mfi, oscTol), f_rel_color(mfi, mfiMA))
+        f_cell(momentumTable, 4, 5, f_compact_value(f_dir(mfi, oscTol), "Δ1 " + f_num(mfi-mfi[1]) + " | Δ3 " + f_num(mfi-mfi[3]), f_diag(mfi)), mfi >= mfi[1] ? C_POS : C_NEG)
+        f_cell(momentumTable, 5, 5, f_gap_state(mfi, mfiMA, mfiGapAvg), C_NEUTRAL)
+        f_cell(momentumTable, 6, 5, mfiEvent + (mfiLevelEvent == "" ? "" : "\n" + mfiLevelEvent), mfiCrossUp ? C_POS : mfiCrossDn ? C_NEG : C_NEUTRAL)
+
+        f_cell(momentumTable, 0, 6, "CCI", C_SUB)
+        f_cell(momentumTable, 1, 6, "CCI " + f_num(cci) + "\nMA" + str.tostring(cciLen) + " " + f_num(cciMA), C_BG)
+        f_cell(momentumTable, 2, 6, f_zone_cci(cci), cci >= 0 ? C_POS : C_NEG)
+        f_cell(momentumTable, 3, 6, f_relation(cci, cciMA) + "\n" + f_dir(cci, oscTol), f_rel_color(cci, cciMA))
+        f_cell(momentumTable, 4, 6, f_compact_value(f_dir(cci, oscTol), "Δ1 " + f_num(cci-cci[1]) + " | Δ3 " + f_num(cci-cci[3]), f_diag(cci)), cci >= cci[1] ? C_POS : C_NEG)
+        f_cell(momentumTable, 5, 6, f_gap_state(cci, cciMA, cciGapAvg), C_NEUTRAL)
+        f_cell(momentumTable, 6, 6, cciEvent + (cciLevelEvent == "" ? "" : "\n" + cciLevelEvent), cciCrossUp ? C_POS : cciCrossDn ? C_NEG : C_NEUTRAL)
+    else
+        table.clear(momentumTable, 0, 0, 6, 6)
+
+    // -------------------------------------------------------------------------
+    // TREND / LOCATION TABLE
+    // -------------------------------------------------------------------------
+    if showTrend
+        f_header(trendTable, 0, 0, "Gösterge")
+        f_header(trendTable, 1, 0, "Değerler")
+        f_header(trendTable, 2, 0, "Konum")
+        f_header(trendTable, 3, 0, "Yön")
+        f_header(trendTable, 4, 0, "Kuvvet / fark")
+        f_header(trendTable, 5, 0, "Olay")
+        f_header(trendTable, 6, 0, "Tanısal")
+
+        f_cell(trendTable, 0, 1, "ADX / DMI", C_SUB)
+        f_cell(trendTable, 1, 1, "ADX " + f_num(adx) + "\n+DI " + f_num(plusDI) + " | -DI " + f_num(minusDI), C_BG)
+        f_cell(trendTable, 2, 1, plusDI > minusDI ? "+DI üstün" : "-DI üstün", plusDI > minusDI ? C_POS : C_NEG)
+        f_cell(trendTable, 3, 1, f_dir(adx, oscTol), adx >= adx[1] ? C_POS : C_RECOVER)
+        f_cell(trendTable, 4, 1, adxZone + "\n" + f_gap_state(plusDI, minusDI, diGapAvg), C_NEUTRAL)
+        f_cell(trendTable, 5, 1, dmiEvent, diCrossUp ? C_POS : diCrossDn ? C_NEG : C_NEUTRAL)
+        f_cell(trendTable, 6, 1, viewMode == "Tanısal" ? f_diag(adx) : "DI fark " + f_num(plusDI-minusDI), C_BG)
+
+        f_cell(trendTable, 0, 2, "SUPERTREND", C_SUB)
+        f_cell(trendTable, 1, 2, f_price(supertrend), C_BG)
+        f_cell(trendTable, 2, 2, stDirection < 0 ? "Fiyat tarafı: üst" : "Fiyat tarafı: alt", stDirection < 0 ? C_POS : C_NEG)
+        f_cell(trendTable, 3, 2, f_dir(supertrend, syminfo.mintick * 0.01), stDirection < 0 ? C_POS : C_NEG)
+        f_cell(trendTable, 4, 2, "Uzaklık " + f_pct(stDistPct), C_NEUTRAL)
+        f_cell(trendTable, 5, 2, stEvent, stTurnUp ? C_POS : stTurnDn ? C_NEG : C_NEUTRAL)
+        f_cell(trendTable, 6, 2, "Yön yaşı " + f_age_text(f_min_age(ta.barssince(stTurnUp), ta.barssince(stTurnDn))), C_BG)
+
+        f_cell(trendTable, 0, 3, "VWAP", C_SUB)
+        f_cell(trendTable, 1, 3, f_price(vwap) + "\n" + vwapAnchor, C_BG)
+        f_cell(trendTable, 2, 3, close >= vwap ? "Fiyat üzerinde" : "Fiyat altında", close >= vwap ? C_POS : C_NEG)
+        f_cell(trendTable, 3, 3, f_dir(vwap, syminfo.mintick * 0.01), vwap >= vwap[1] ? C_POS : C_NEG)
+        f_cell(trendTable, 4, 3, "Uzaklık " + f_pct(vwapDist), C_NEUTRAL)
+        f_cell(trendTable, 5, 3, vwapEvent, vwapCrossUp ? C_POS : vwapCrossDn ? C_NEG : C_NEUTRAL)
+        f_cell(trendTable, 6, 3, viewMode == "Tanısal" ? f_diag(vwap) : "", C_BG)
+
+        f_cell(trendTable, 0, 4, "ICHIMOKU", C_SUB)
+        f_cell(trendTable, 1, 4, "T " + f_price(tenkan) + "\nK " + f_price(kijun), C_BG)
+        f_cell(trendTable, 2, 4, ichiPricePos, close >= visibleCloudTop ? C_POS : close <= visibleCloudBottom ? C_NEG : C_WARN)
+        f_cell(trendTable, 3, 4, tenkan > kijun ? "Tenkan > Kijun" : "Tenkan < Kijun", tenkan > kijun ? C_POS : C_NEG)
+        f_cell(trendTable, 4, 4, futureCloud + "\n" + f_gap_state(tenkan, kijun, tkGapAvg), C_NEUTRAL)
+        f_cell(trendTable, 5, 4, tkEvent, tkCrossUp ? C_POS : tkCrossDn ? C_NEG : C_NEUTRAL)
+        f_cell(trendTable, 6, 4, chikouState, C_BG)
+
+        f_cell(trendTable, 0, 5, "PARABOLIC SAR", C_SUB)
+        f_cell(trendTable, 1, 5, f_price(psar), C_BG)
+        f_cell(trendTable, 2, 5, psar < close ? "SAR fiyat altında" : "SAR fiyat üzerinde", psar < close ? C_POS : C_NEG)
+        f_cell(trendTable, 3, 5, f_dir(psar, syminfo.mintick * 0.01), psar < close ? C_POS : C_NEG)
+        f_cell(trendTable, 4, 5, "Uzaklık " + f_pct(psarDist), C_NEUTRAL)
+        f_cell(trendTable, 5, 5, psarEvent, psarTurnUp ? C_POS : psarTurnDn ? C_NEG : C_NEUTRAL)
+        f_cell(trendTable, 6, 5, "Yön yaşı " + f_age_text(f_min_age(ta.barssince(psarTurnUp), ta.barssince(psarTurnDn))), C_BG)
+    else
+        table.clear(trendTable, 0, 0, 6, 5)
+
+    // -------------------------------------------------------------------------
+    // VOLATILITY / VOLUME TABLE
+    // -------------------------------------------------------------------------
+    if showVol
+        f_header(volTable, 0, 0, "Gösterge")
+        f_header(volTable, 1, 0, "Değerler")
+        f_header(volTable, 2, 0, "Konum")
+        f_header(volTable, 3, 0, "Değişim")
+        f_header(volTable, 4, 0, "Dağılım")
+        f_header(volTable, 5, 0, "Olay / uyum")
+        f_header(volTable, 6, 0, "Tanısal")
+
+        f_cell(volTable, 0, 1, "BOLLINGER", C_SUB)
+        f_cell(volTable, 1, 1, "U " + f_price(bbUpper) + "\nM " + f_price(bbBasis) + "\nL " + f_price(bbLower), C_BG)
+        f_cell(volTable, 2, 1, bbPos + "\n%B " + f_num(bbPctB), close >= bbBasis ? C_POS : C_NEG)
+        f_cell(volTable, 3, 1, bbWidth >= bbWidth[1] ? "Bantlar genişliyor" : "Bantlar daralıyor", bbWidth >= bbWidth[1] ? C_VOLUP : C_VOLDOWN)
+        f_cell(volTable, 4, 1, bbWidthState + "\nRank %" + f_num(bbRank), bbRank >= 80 ? C_VOLUP : bbRank <= 20 ? C_VOLDOWN : C_NEUTRAL)
+        f_cell(volTable, 5, 1, bbEvent, C_NEUTRAL)
+        f_cell(volTable, 6, 1, viewMode == "Tanısal" ? "Width " + f_num(bbWidth) + "%\n" + f_diag(bbWidth) : "Width " + f_num(bbWidth) + "%", C_BG)
+
+        f_cell(volTable, 0, 2, "ATR", C_SUB)
+        f_cell(volTable, 1, 2, "ATR " + f_num(atr) + "\nATR% " + f_num(atrPct), C_BG)
+        f_cell(volTable, 2, 2, "ATR/MA " + f_num(atrMA == 0 ? na : atr/atrMA), C_NEUTRAL)
+        f_cell(volTable, 3, 2, f_dir(atr, syminfo.mintick * 0.01), atr >= atr[1] ? C_VOLUP : C_VOLDOWN)
+        f_cell(volTable, 4, 2, atrState + "\nPercentile %" + f_num(atrRank), atrRank >= 70 ? C_VOLUP : atrRank <= 30 ? C_VOLDOWN : C_NEUTRAL)
+        f_cell(volTable, 5, 2, "Yön belirtmez", C_WARN)
+        f_cell(volTable, 6, 2, viewMode == "Tanısal" ? f_diag(atrPct) : "", C_BG)
+
+        f_cell(volTable, 0, 3, "OBV", C_SUB)
+        f_cell(volTable, 1, 3, str.tostring(obv, format.volume), C_BG)
+        f_cell(volTable, 2, 3, f_dir(obv, 0), obv >= obv[1] ? C_POS : C_NEG)
+        f_cell(volTable, 3, 3, "Δ1 " + str.tostring(obv-obv[1], format.volume) + "\nΔ3 " + str.tostring(obv-obv[3], format.volume), C_NEUTRAL)
+        f_cell(volTable, 4, 3, "Kümülatif hacim yönü", C_NEUTRAL)
+        f_cell(volTable, 5, 3, obvPriceState, C_BG)
+        f_cell(volTable, 6, 3, viewMode == "Tanısal" ? "Slope5 " + str.tostring(f_slope5(obv), format.volume) : "", C_BG)
+
+        f_cell(volTable, 0, 4, "HACİM", C_SUB)
+        f_cell(volTable, 1, 4, str.tostring(volume, format.volume) + "\nSMA " + str.tostring(volMA, format.volume), C_BG)
+        f_cell(volTable, 2, 4, volState, volRatio >= 1.2 ? C_VOLUP : volRatio < 0.8 ? C_VOLDOWN : C_NEUTRAL)
+        f_cell(volTable, 3, 4, volume >= volume[1] ? "Hacim artıyor" : "Hacim azalıyor", volume >= volume[1] ? C_VOLUP : C_VOLDOWN)
+        f_cell(volTable, 4, 4, "Oran " + f_num(volRatio) + "x", C_NEUTRAL)
+        f_cell(volTable, 5, 4, priceVolState, C_BG)
+        f_cell(volTable, 6, 4, viewMode == "Tanısal" ? "Δ1 " + str.tostring(volume-volume[1], format.volume) : "", C_BG)
+    else
+        table.clear(volTable, 0, 0, 6, 4)
+
+
+
+

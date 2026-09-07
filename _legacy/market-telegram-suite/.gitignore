@@ -1,0 +1,15 @@
+# Monorepo çalışma çıktıları
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.venv/
+apps/chart_bot/out/
+apps/chart_bot/state/
+apps/technical_bot/reports/**/*.png
+apps/technical_bot/reports/telegram_offset.json
+apps/technical_bot/reports/scan_schedule.json
+apps/technical_bot/reports/bot_settings.json
+apps/technical_bot/reports/watchlist.json
+apps/technical_bot/reports/screener.json
+apps/technical_bot/reports/bist_universe.json
+apps/technical_bot/reports/scan_state.json

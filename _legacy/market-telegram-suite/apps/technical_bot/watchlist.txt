@@ -1,0 +1,6 @@
+# Her satıra bir BIST sembolü yazın. Yorumlar # ile başlar.
+THYAO
+ASELS
+TUPRS
+AKBNK
+EREGL

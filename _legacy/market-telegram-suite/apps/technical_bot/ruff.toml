@@ -1,0 +1,14 @@
+# The project keeps Ruff's normal rule selection. These narrow exceptions cover
+# provider-normalisation idioms, imported PR #13 card finite checks and
+# import-heavy unittest fixtures; functional behaviour is tested separately by
+# CI/live smoke workflows.
+
+[lint]
+ignore = ["FURB188", "FURB192"]
+
+[lint.per-file-ignores]
+"src/financial_intelligence_card.py" = ["PLR0124"]
+"src/valuation_peer_card.py" = ["PLR0124"]
+"src/research_extensions.py" = ["RUF046"]
+"tests/test_fundamental_analysis.py" = ["I001"]
+"tests/test_research_engine.py" = ["I001"]
