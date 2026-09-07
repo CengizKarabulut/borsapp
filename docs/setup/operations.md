@@ -8,12 +8,22 @@
 4. Runtime bağımlılıklarını kurun: `python -m pip install -e ".[runtime]"`.
 5. Ayarları doğrulayın: `borsapp --env-file .env config-check`.
 6. Şemayı kurun: `borsapp --env-file .env db-init`.
-7. Pilot sembolü ekleyin:
-   `borsapp --env-file .env instrument-register ASELS`.
-8. Bildirimsiz pilot çalıştırın:
+7. BIST Tüm evrenini önce önizleyin:
+   `borsapp --env-file .env universe-sync`.
+8. Sayıları doğruladıktan sonra eşitlemeyi uygulayın:
+   `borsapp --env-file .env universe-sync --apply`.
+9. Bildirimsiz pilot çalıştırın:
    `borsapp --env-file .env scan-symbol ASELS --timeframe 1h`.
-9. Shadow servislerini başlatın:
+10. Shadow servislerini başlatın:
    `docker compose --profile runtime up -d --build`.
+
+`BIST_ALL`, borsapy üzerinden BIST Tüm (`XUTUM`) endeksinin güncel
+bileşenlerinden oluşur. `universe-sync` varsayılan olarak yalnız önizleme yapar;
+`--apply` atomik uygular. Kaynak 300'den az üye döndürürse veya mevcut evreni
+yüzde 10'dan fazla küçültmeye çalışırsa işlem güvenlik nedeniyle durur. Doğrulanmış
+olağanüstü toplu değişikliklerde ayrıca `--allow-large-removal` gerekir. Hafta içi
+09:30 İstanbul saatindeki `BIST universe sync` GitHub işi aynı güvenlik kapılarıyla
+güncel üyeliği uygular ve her çalışmayı `universe_sync_runs` tablosuna kaydeder.
 
 `scan-worker`, XIST işlem günlerini `exchange-calendars` üzerinden alır. Her
 timeframe için watermark tutar; servis durmuşsa kaçırılmış kapanışları yeniden
@@ -57,7 +67,11 @@ kullanılmaz.
 ## Kullanıcının sağlaması gereken altyapı
 
 - Kalıcı PostgreSQL sunucusu ve `DATABASE_URL`/`COMPOSE_DATABASE_URL` değeri.
-- Başlangıç universe sembollerinin `instrument-register` ile eklenmesi.
+- İlk `BIST_ALL` eşitlemesinin önizlenip uygulanması; daha sonra günlük iş otomatik yürür.
 - Shadow farkları kabul edildikten sonra bilinçli canlıya geçiş kararı.
+
+`borsapy`, kendi dokümantasyonuna göre kişisel/eğitim amaçlı kullanıma yöneliktir.
+Uygulama ticari olarak kullanılacaksa Borsa İstanbul veri lisansı ayrıca
+değerlendirilmelidir.
 
 Telegram topic ve GitHub değişkenleri dışında uygulama koduna secret yazılmaz.

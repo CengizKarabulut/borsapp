@@ -66,6 +66,7 @@ Kullanıcı kurulumları:
 - [x] `signal.macd_positive_cross` dikey dilimi
 - [x] `ma.near_zone` state makinesi ve persistence dilimi
 - [x] XIST tatil takvimi + watermark/catch-up worker
+- [x] BIST Tüm (XUTUM) kaynaklı, güvenlik frenli `BIST_ALL` universe eşitlemesi
 - [ ] MA Research seviye üreticisinin yeni feature store'a taşınması
 - [ ] Kalan legacy scanner ailelerinin parity ile taşınması
 

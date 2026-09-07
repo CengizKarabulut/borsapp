@@ -28,6 +28,13 @@ from market_intelligence.features.momentum import MacdProvider, RsiProvider
 from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
 from market_intelligence.features.volume import RelativeVolume20Provider
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
+from market_intelligence.market_data.adapters.borsapy_universe import (
+    BorsapyBistUniverseProvider,
+)
+from market_intelligence.market_data.universe import (
+    build_universe_sync_plan,
+    validate_universe_sync_plan,
+)
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
 )
@@ -100,6 +107,22 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("symbol")
     register.add_argument("--provider-symbol")
     register.add_argument("--universe", default="BIST_ALL")
+
+    universe_sync = subparsers.add_parser(
+        "universe-sync",
+        help="Borsapy XUTUM bileşenlerini BIST_ALL evreniyle güvenli eşitle",
+    )
+    universe_sync.add_argument("--universe", default="BIST_ALL")
+    universe_sync.add_argument(
+        "--apply",
+        action="store_true",
+        help="Önizlenen değişiklikleri atomik olarak uygula.",
+    )
+    universe_sync.add_argument(
+        "--allow-large-removal",
+        action="store_true",
+        help="Yüzde 10'dan büyük üyelik daralmasını bilinçli olarak onayla.",
+    )
 
     scan = subparsers.add_parser(
         "scan-symbol",
@@ -319,6 +342,47 @@ def _register_instrument(
         f"Enstrüman hazır: {instrument.symbol} · provider={instrument.provider_symbol} "
         f"· id={instrument.instrument_id}"
     )
+    return 0
+
+
+def _sync_universe(
+    settings: ApplicationSettings,
+    *,
+    universe: str,
+    apply: bool,
+    allow_large_removal: bool,
+) -> int:
+    universe_id = universe.strip().upper()
+    if universe_id != "BIST_ALL":
+        raise ValueError("Bu sürümde otomatik eşitleme yalnız BIST_ALL destekler")
+    evaluation_time = datetime.now(settings.runtime.timezone)
+    provider = BorsapyBistUniverseProvider()
+    members = provider.list_members(universe_id)
+    with _connect(settings.runtime.database_url) as connection:
+        repository = PostgresRuntimeRepository(connection)
+        current = repository.list_universe(universe_id, as_of=evaluation_time.date())
+        plan = build_universe_sync_plan(
+            universe_id=universe_id,
+            source=provider.source,
+            as_of=evaluation_time.date(),
+            members=members,
+            current_symbols=tuple(item.symbol for item in current),
+        )
+        validate_universe_sync_plan(
+            plan,
+            allow_large_removal=allow_large_removal,
+        )
+        summary = (
+            f"Universe önizleme: {plan.universe_id} · kaynak={plan.source} · "
+            f"mevcut={plan.current_count} · gözlenen={plan.observed_count} · "
+            f"eklenecek={len(plan.additions)} · çıkarılacak={len(plan.removals)}"
+        )
+        print(summary)
+        if not apply:
+            print("Değişiklik uygulanmadı. Uygulamak için --apply kullanın.")
+            return 0
+        sync_run_id = repository.apply_universe_sync(plan)
+    print(f"Universe eşitlemesi uygulandı: sync_run_id={sync_run_id}")
     return 0
 
 
@@ -569,6 +633,13 @@ def main(argv: list[str] | None = None) -> int:
                 symbol=args.symbol,
                 provider_symbol=args.provider_symbol,
                 universe=args.universe,
+            )
+        if args.command == "universe-sync":
+            return _sync_universe(
+                settings,
+                universe=args.universe,
+                apply=args.apply,
+                allow_large_removal=args.allow_large_removal,
             )
         if args.command == "scan-symbol":
             return _scan_symbol(

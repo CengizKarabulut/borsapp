@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
+from market_intelligence.market_data.universe import UniverseSyncPlan
 from market_intelligence.persistence.postgres.scan_store import PostgresConnection
 
 FIND_INSTRUMENT_SQL = """
@@ -34,6 +35,43 @@ INSERT_UNIVERSE_SQL = """
 INSERT INTO universe_memberships (instrument_id, universe_id, valid_from)
 VALUES (%s, %s, %s)
 ON CONFLICT (instrument_id, universe_id, valid_from) DO NOTHING
+"""
+
+FIND_ACTIVE_MEMBERSHIP_SQL = """
+SELECT valid_from
+FROM universe_memberships
+WHERE instrument_id = %s AND universe_id = %s
+  AND valid_from <= %s
+  AND (valid_to IS NULL OR valid_to >= %s)
+ORDER BY valid_from DESC
+LIMIT 1
+"""
+
+UPDATE_INSTRUMENT_NAME_SQL = """
+UPDATE instruments
+SET name = %s
+WHERE instrument_id = %s AND name IS DISTINCT FROM %s
+"""
+
+DELETE_SAME_DAY_MEMBERSHIP_SQL = """
+DELETE FROM universe_memberships
+WHERE instrument_id = %s AND universe_id = %s AND valid_from = %s
+"""
+
+CLOSE_MEMBERSHIP_SQL = """
+UPDATE universe_memberships
+SET valid_to = %s
+WHERE instrument_id = %s AND universe_id = %s
+  AND valid_from < %s
+  AND (valid_to IS NULL OR valid_to >= %s)
+"""
+
+INSERT_UNIVERSE_SYNC_RUN_SQL = """
+INSERT INTO universe_sync_runs (
+    universe_id, source, effective_date, observed_count, current_count,
+    addition_count, removal_count, unchanged_count, content_hash
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+RETURNING sync_run_id
 """
 
 START_CYCLE_SQL = """
@@ -197,6 +235,117 @@ class PostgresRuntimeRepository:
             market,
             asset_class,
         )
+
+    def apply_universe_sync(self, plan: UniverseSyncPlan) -> str:
+        """Apply a previously validated point-in-time universe plan atomically."""
+
+        list_params = (plan.universe_id,) + (plan.as_of,) * 8
+        expected_current = (
+            ({member.symbol for member in plan.members} - set(plan.additions))
+            | set(plan.removals)
+        )
+        with self.connection.transaction():
+            with self.connection.cursor() as cursor:
+                cursor.execute(LIST_UNIVERSE_SQL, list_params)
+                current_rows = cursor.fetchall()
+                current_by_symbol = {str(row[1]).upper(): str(row[0]) for row in current_rows}
+                if set(current_by_symbol) != expected_current:
+                    raise RuntimeError(
+                        "Universe üyeliği önizlemeden sonra değişti; yeniden önizleyin"
+                    )
+
+                for member in plan.members:
+                    cursor.execute(
+                        FIND_INSTRUMENT_SQL,
+                        (
+                            "borsapy",
+                            member.provider_symbol,
+                            plan.as_of,
+                            plan.as_of,
+                            plan.as_of,
+                            plan.as_of,
+                        ),
+                    )
+                    row = cursor.fetchone()
+                    if row:
+                        instrument_id = str(row[0])
+                    else:
+                        cursor.execute(
+                            INSERT_INSTRUMENT_SQL,
+                            (
+                                member.asset_class,
+                                member.market,
+                                member.name,
+                                plan.as_of,
+                            ),
+                        )
+                        inserted = cursor.fetchone()
+                        if not inserted:
+                            raise RuntimeError("instruments instrument_id döndürmedi")
+                        instrument_id = str(inserted[0])
+                        cursor.execute(
+                            INSERT_SYMBOL_SQL,
+                            (instrument_id, "canonical", member.symbol, plan.as_of),
+                        )
+                        cursor.execute(
+                            INSERT_SYMBOL_SQL,
+                            (
+                                instrument_id,
+                                "borsapy",
+                                member.provider_symbol,
+                                plan.as_of,
+                            ),
+                        )
+                    cursor.execute(
+                        UPDATE_INSTRUMENT_NAME_SQL,
+                        (member.name, instrument_id, member.name),
+                    )
+                    cursor.execute(
+                        FIND_ACTIVE_MEMBERSHIP_SQL,
+                        (instrument_id, plan.universe_id, plan.as_of, plan.as_of),
+                    )
+                    if not cursor.fetchone():
+                        cursor.execute(
+                            INSERT_UNIVERSE_SQL,
+                            (instrument_id, plan.universe_id, plan.as_of),
+                        )
+
+                previous_day = plan.as_of - timedelta(days=1)
+                for symbol in plan.removals:
+                    instrument_id = current_by_symbol[symbol]
+                    cursor.execute(
+                        DELETE_SAME_DAY_MEMBERSHIP_SQL,
+                        (instrument_id, plan.universe_id, plan.as_of),
+                    )
+                    cursor.execute(
+                        CLOSE_MEMBERSHIP_SQL,
+                        (
+                            previous_day,
+                            instrument_id,
+                            plan.universe_id,
+                            plan.as_of,
+                            plan.as_of,
+                        ),
+                    )
+
+                cursor.execute(
+                    INSERT_UNIVERSE_SYNC_RUN_SQL,
+                    (
+                        plan.universe_id,
+                        plan.source,
+                        plan.as_of,
+                        plan.observed_count,
+                        plan.current_count,
+                        len(plan.additions),
+                        len(plan.removals),
+                        plan.unchanged_count,
+                        plan.content_hash,
+                    ),
+                )
+                sync_row = cursor.fetchone()
+                if not sync_row:
+                    raise RuntimeError("universe_sync_runs sync_run_id döndürmedi")
+        return str(sync_row[0])
 
     def start_cycle(
         self,

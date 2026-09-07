@@ -9,6 +9,12 @@ from market_intelligence.market_data.providers import (
     ProviderFrame,
     TimestampKind,
 )
+from market_intelligence.market_data.universe import (
+    UniverseMember,
+    UniverseSyncPlan,
+    build_universe_sync_plan,
+    validate_universe_sync_plan,
+)
 
 __all__ = [
     "CanonicalBar",
@@ -19,4 +25,8 @@ __all__ = [
     "ProviderBar",
     "ProviderFrame",
     "TimestampKind",
+    "UniverseMember",
+    "UniverseSyncPlan",
+    "build_universe_sync_plan",
+    "validate_universe_sync_plan",
 ]

@@ -29,6 +29,22 @@ CREATE TABLE IF NOT EXISTS universe_memberships (
     PRIMARY KEY (instrument_id, universe_id, valid_from)
 );
 
+CREATE TABLE IF NOT EXISTS universe_sync_runs (
+    sync_run_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    universe_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    effective_date DATE NOT NULL,
+    observed_count INTEGER NOT NULL CHECK (observed_count >= 0),
+    current_count INTEGER NOT NULL CHECK (current_count >= 0),
+    addition_count INTEGER NOT NULL CHECK (addition_count >= 0),
+    removal_count INTEGER NOT NULL CHECK (removal_count >= 0),
+    unchanged_count INTEGER NOT NULL CHECK (unchanged_count >= 0),
+    content_hash TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_universe_sync_runs_history
+    ON universe_sync_runs(universe_id, effective_date DESC, applied_at DESC);
+
 CREATE TABLE IF NOT EXISTS corporate_actions (
     action_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
