@@ -1,0 +1,6041 @@
+{
+  "schema_version": 1,
+  "root": "C:\\Users\\Cengiz KARABULUT\\Documents\\Codex\\2026-09-07\\cengizkarabulut-taramabot-cengizkarabulut-ma-reaction-scanner\\work\\borsapp\\_legacy",
+  "summary": {
+    "adx": 19,
+    "alma": 2,
+    "atr": 62,
+    "bollinger": 6,
+    "cci": 11,
+    "donchian": 9,
+    "ema": 75,
+    "kama": 2,
+    "keltner": 5,
+    "macd": 51,
+    "obv": 16,
+    "parabolic": 4,
+    "rsi": 89,
+    "rvol": 23,
+    "sar": 7,
+    "sma": 19,
+    "smi": 47,
+    "stoch": 9,
+    "supertrend": 9,
+    "vwap": 15,
+    "wma": 15
+  },
+  "candidates": [
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 201,
+      "kind": "definition",
+      "name": "_wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "series": null,
+        "period": null
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 210,
+      "kind": "definition",
+      "name": "_kama",
+      "indicator_tokens": [
+        "kama"
+      ],
+      "parameters": {
+        "series": null,
+        "period": null
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 228,
+      "kind": "definition",
+      "name": "_alma",
+      "indicator_tokens": [
+        "alma"
+      ],
+      "parameters": {
+        "series": null,
+        "period": null
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 251,
+      "kind": "call",
+      "name": "_wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 256,
+      "kind": "call",
+      "name": "_kama",
+      "indicator_tokens": [
+        "kama"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 258,
+      "kind": "call",
+      "name": "_alma",
+      "indicator_tokens": [
+        "alma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 261,
+      "kind": "call",
+      "name": "_wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "2.0 * _wma(close, half) - _wma(close, period)",
+        "arg_1": "root"
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 261,
+      "kind": "call",
+      "name": "_wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "line": 261,
+      "kind": "call",
+      "name": "_wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "half"
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_levels.py",
+      "line": 76,
+      "kind": "definition",
+      "name": "test_bounce_is_scale_invariant_because_it_is_measured_in_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_levels.py",
+      "line": 114,
+      "kind": "definition",
+      "name": "test_non_positive_atr_touches_are_skipped",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 23,
+      "kind": "definition",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 27,
+      "kind": "definition",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 31,
+      "kind": "definition",
+      "name": "wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 90,
+      "kind": "definition",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 177,
+      "kind": "definition",
+      "name": "bollinger",
+      "indicator_tokens": [
+        "bollinger"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 20,
+        "mult": 2.0,
+        "ma_type": "SMA"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 217,
+      "kind": "definition",
+      "name": "supertrend",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 10,
+        "mult": 3.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 327,
+      "kind": "definition",
+      "name": "vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "df": null,
+        "anchor": "auto",
+        "interval": "1d",
+        "window": 14,
+        "mult": 2.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 425,
+      "kind": "definition",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 14,
+        "signal_length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 447,
+      "kind": "definition",
+      "name": "macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "df": null,
+        "fast": 12,
+        "slow": 26,
+        "signal": 9,
+        "oscillator_ma": "EMA",
+        "signal_ma": "EMA"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 533,
+      "kind": "definition",
+      "name": "stoch_rsi",
+      "indicator_tokens": [
+        "rsi",
+        "stoch"
+      ],
+      "parameters": {
+        "df": null,
+        "rsi_length": 14,
+        "stoch_length": 14,
+        "k_smooth": 3,
+        "d_smooth": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 557,
+      "kind": "definition",
+      "name": "adx_dmi",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "df": null,
+        "di_length": 14,
+        "adx_length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 584,
+      "kind": "definition",
+      "name": "parabolic_sar",
+      "indicator_tokens": [
+        "parabolic",
+        "sar"
+      ],
+      "parameters": {
+        "df": null,
+        "af_start": 0.02,
+        "af_step": 0.02,
+        "af_max": 0.2
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 643,
+      "kind": "definition",
+      "name": "cci",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 20
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 675,
+      "kind": "definition",
+      "name": "atr_bands",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 681,
+      "kind": "definition",
+      "name": "keltner",
+      "indicator_tokens": [
+        "keltner"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 20,
+        "atr_length": 10,
+        "mult": 2.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 694,
+      "kind": "definition",
+      "name": "donchian",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 20
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 706,
+      "kind": "definition",
+      "name": "obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "df": null,
+        "signal_length": 14,
+        "ma_type": "SMA + Bollinger Bands",
+        "bb_mult": 2.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 297,
+      "kind": "definition",
+      "name": "donchian",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "length": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 303,
+      "kind": "call",
+      "name": "donchian",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "arg_0": "tenkan"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 304,
+      "kind": "call",
+      "name": "donchian",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "arg_0": "kijun"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 306,
+      "kind": "call",
+      "name": "donchian",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "arg_0": "senkou_b"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 415,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "vol",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 476,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "ema(relative, d_length)",
+        "arg_1": "d_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 477,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "ema(price_range, d_length)",
+        "arg_1": "d_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 544,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "raw",
+        "arg_1": "k_smooth"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 545,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "k",
+        "arg_1": "d_smooth"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 646,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "tp",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 677,
+      "kind": "call",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 689,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "df['Close']",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 183,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 222,
+      "kind": "call",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 437,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "value",
+        "arg_1": "signal_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 476,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "relative",
+        "arg_1": "d_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 477,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "price_range",
+        "arg_1": "d_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 479,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "value",
+        "arg_1": "ema_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 540,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": "rsi_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 651,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "value",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 690,
+      "kind": "call",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": "atr_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 719,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "value",
+        "arg_1": "signal_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 185,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 667,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "hl2",
+        "arg_1": "fast"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 667,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "hl2",
+        "arg_1": "slow"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 721,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "value",
+        "arg_1": "signal_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 189,
+      "kind": "call",
+      "name": "wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "line": 725,
+      "kind": "call",
+      "name": "wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "value",
+        "arg_1": "signal_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 155,
+      "kind": "definition",
+      "name": "_supertrend_overlays",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 190,
+      "kind": "definition",
+      "name": "_vwap_overlays",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 273,
+      "kind": "definition",
+      "name": "_rsi_panel",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 293,
+      "kind": "definition",
+      "name": "_macd_panel",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 315,
+      "kind": "definition",
+      "name": "_smi_panel",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 352,
+      "kind": "definition",
+      "name": "_adx_panel",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 400,
+      "kind": "definition",
+      "name": "_rvol_panel",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 416,
+      "kind": "definition",
+      "name": "_sar_overlays",
+      "indicator_tokens": [
+        "sar"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 423,
+      "kind": "definition",
+      "name": "_keltner_overlays",
+      "indicator_tokens": [
+        "keltner"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 432,
+      "kind": "definition",
+      "name": "_donchian_overlays",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 449,
+      "kind": "definition",
+      "name": "_cci_panel",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 518,
+      "kind": "definition",
+      "name": "_atr_panel",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 525,
+      "kind": "definition",
+      "name": "_obv_panel",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "s": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 601,
+      "kind": "call",
+      "name": "_supertrend_overlays",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 603,
+      "kind": "call",
+      "name": "_vwap_overlays",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 604,
+      "kind": "call",
+      "name": "_sar_overlays",
+      "indicator_tokens": [
+        "sar"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 605,
+      "kind": "call",
+      "name": "_keltner_overlays",
+      "indicator_tokens": [
+        "keltner"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 606,
+      "kind": "call",
+      "name": "_donchian_overlays",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 612,
+      "kind": "call",
+      "name": "_rsi_panel",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 613,
+      "kind": "call",
+      "name": "_macd_panel",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 614,
+      "kind": "call",
+      "name": "_smi_panel",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 616,
+      "kind": "call",
+      "name": "_adx_panel",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 619,
+      "kind": "call",
+      "name": "_rvol_panel",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 620,
+      "kind": "call",
+      "name": "_cci_panel",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 626,
+      "kind": "call",
+      "name": "_atr_panel",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "line": 627,
+      "kind": "call",
+      "name": "_obv_panel",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "s"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 277,
+      "kind": "definition",
+      "name": "_scaled_obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "series": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 302,
+      "kind": "call",
+      "name": "ind.bollinger",
+      "indicator_tokens": [
+        "bollinger"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": 20,
+        "arg_2": 2.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 304,
+      "kind": "call",
+      "name": "ind.macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": 12,
+        "arg_2": 26,
+        "arg_3": 9
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 306,
+      "kind": "call",
+      "name": "ind.rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": 14,
+        "arg_2": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 307,
+      "kind": "call",
+      "name": "ind.obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 308,
+      "kind": "call",
+      "name": "ind.atr_bands",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 310,
+      "kind": "call",
+      "name": "ind.adx_dmi",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": 14,
+        "arg_2": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 405,
+      "kind": "call",
+      "name": "ax_macd.bar",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "hist",
+        "color": "hist_colors",
+        "width": 0.72,
+        "alpha": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 406,
+      "kind": "call",
+      "name": "ax_macd.plot",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "macd['MACD']",
+        "color": "BLUE",
+        "linewidth": 1.05
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 407,
+      "kind": "call",
+      "name": "ax_macd.plot",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "macd['MACD_signal']",
+        "color": "AMBER",
+        "linewidth": 1.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 408,
+      "kind": "call",
+      "name": "ax_macd.axhline",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "color": "SLATE",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 412,
+      "kind": "call",
+      "name": "ax_smi.plot",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "smi['SMI']",
+        "color": "BLUE",
+        "linewidth": 1.1
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 413,
+      "kind": "call",
+      "name": "ax_smi.plot",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "smi['SMI_signal']",
+        "color": "AMBER",
+        "linewidth": 1.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 414,
+      "kind": "call",
+      "name": "ax_smi.axhline",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": 40,
+        "color": "DOWN",
+        "linestyle": "--",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 415,
+      "kind": "call",
+      "name": "ax_smi.axhline",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": -40,
+        "color": "UP",
+        "linestyle": "--",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 416,
+      "kind": "call",
+      "name": "ax_smi.axhline",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "color": "SLATE",
+        "linewidth": 0.6
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 417,
+      "kind": "call",
+      "name": "ax_smi.set_ylim",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": -120,
+        "arg_1": 120
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 422,
+      "kind": "call",
+      "name": "ax_rsi.plot",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "rsi['RSI']",
+        "color": "BLUE",
+        "linewidth": 1.1
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 423,
+      "kind": "call",
+      "name": "ax_rsi.plot",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "rsi['RSI_ma']",
+        "color": "AMBER",
+        "linewidth": 0.95
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 424,
+      "kind": "call",
+      "name": "ax_rsi.axhline",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 70,
+        "color": "DOWN",
+        "linestyle": "--",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 425,
+      "kind": "call",
+      "name": "ax_rsi.axhline",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 50,
+        "color": "SLATE",
+        "linestyle": ":",
+        "linewidth": 0.6
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 426,
+      "kind": "call",
+      "name": "ax_rsi.axhline",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 30,
+        "color": "UP",
+        "linestyle": "--",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 427,
+      "kind": "call",
+      "name": "rsi.get",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "RSI_div_bull_points"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 428,
+      "kind": "call",
+      "name": "rsi.get",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "RSI_div_bear_points"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 435,
+      "kind": "call",
+      "name": "ax_rsi.set_ylim",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": 100
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 439,
+      "kind": "call",
+      "name": "_scaled_obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "obv['OBV']"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 440,
+      "kind": "call",
+      "name": "ax_obv.plot",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "obv_line",
+        "color": "CYAN",
+        "linewidth": 1.1
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 441,
+      "kind": "call",
+      "name": "ax_obv.plot",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "obv['OBV_ma'] / divisor",
+        "color": "AMBER",
+        "linewidth": 0.9
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 446,
+      "kind": "call",
+      "name": "ax_atr.plot",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "atr['ATR_pct']",
+        "color": "DOWN",
+        "linewidth": 1.1
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 452,
+      "kind": "call",
+      "name": "ax_rvol.bar",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "rvol",
+        "color": "rv_colors",
+        "width": 0.72,
+        "alpha": 0.75
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 453,
+      "kind": "call",
+      "name": "ax_rvol.axhline",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": 1.0,
+        "color": "SLATE",
+        "linestyle": "--",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 454,
+      "kind": "call",
+      "name": "ax_rvol.axhline",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": 2.0,
+        "color": "DOWN",
+        "linestyle": "--",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 461,
+      "kind": "call",
+      "name": "ax_adx.plot",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "adx['ADX']",
+        "color": "PURPLE",
+        "linewidth": 1.15
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 462,
+      "kind": "call",
+      "name": "ax_adx.plot",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "adx['DI_plus']",
+        "color": "UP",
+        "linewidth": 0.85
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 463,
+      "kind": "call",
+      "name": "ax_adx.plot",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "x",
+        "arg_1": "adx['DI_minus']",
+        "color": "DOWN",
+        "linewidth": 0.85
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 464,
+      "kind": "call",
+      "name": "ax_adx.axhline",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": 25,
+        "color": "SLATE",
+        "linestyle": "--",
+        "linewidth": 0.7
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 410,
+      "kind": "call",
+      "name": "ax_macd.get_xticklabels",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 431,
+      "kind": "call",
+      "name": "ax_rsi.scatter",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "idx",
+        "arg_1": "bull.iloc[idx]",
+        "s": 24,
+        "color": "UP",
+        "marker": "^",
+        "zorder": 5
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 434,
+      "kind": "call",
+      "name": "ax_rsi.scatter",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "idx",
+        "arg_1": "bear.iloc[idx]",
+        "s": 24,
+        "color": "DOWN",
+        "marker": "v",
+        "zorder": 5
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 437,
+      "kind": "call",
+      "name": "ax_rsi.get_xticklabels",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 448,
+      "kind": "call",
+      "name": "ax_atr.get_xticklabels",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 457,
+      "kind": "call",
+      "name": "ax_rvol.set_ylim",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "max(3.0, float(finite_rv.quantile(0.98)) * 1.15)"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 459,
+      "kind": "call",
+      "name": "ax_rvol.get_xticklabels",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "line": 117,
+      "kind": "call",
+      "name": "ind.rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 47,
+      "kind": "definition",
+      "name": "test_ema_matches_pandas",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 52,
+      "kind": "definition",
+      "name": "test_atr_positive",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 74,
+      "kind": "definition",
+      "name": "test_bollinger_ordering",
+      "indicator_tokens": [
+        "bollinger"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 83,
+      "kind": "definition",
+      "name": "test_rsi_bounds_and_extremes",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 91,
+      "kind": "definition",
+      "name": "test_macd_histogram_identity",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 102,
+      "kind": "definition",
+      "name": "test_adx_bounds",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 108,
+      "kind": "definition",
+      "name": "test_supertrend_direction_and_side",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 125,
+      "kind": "definition",
+      "name": "test_vwap_between_low_and_high_range",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 133,
+      "kind": "definition",
+      "name": "test_volume_rvol",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 159,
+      "kind": "definition",
+      "name": "test_sar_flips_and_sits_on_correct_side",
+      "indicator_tokens": [
+        "sar"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 168,
+      "kind": "definition",
+      "name": "test_cci_zero_mean_ish",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 180,
+      "kind": "definition",
+      "name": "test_keltner_ordering_and_atr_basis",
+      "indicator_tokens": [
+        "atr",
+        "keltner"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 186,
+      "kind": "definition",
+      "name": "test_donchian_contains_price",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 192,
+      "kind": "definition",
+      "name": "test_obv_direction_matches_price",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 207,
+      "kind": "definition",
+      "name": "test_atr_pct_is_relative",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 225,
+      "kind": "definition",
+      "name": "test_auto_vwap_daily_uses_current_month_and_ordered_bands",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 235,
+      "kind": "definition",
+      "name": "test_smi_cmf_and_obv_smoothing_are_finite",
+      "indicator_tokens": [
+        "obv",
+        "smi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 245,
+      "kind": "definition",
+      "name": "test_stoch_rsi_keeps_lines_but_excludes_divergence_series",
+      "indicator_tokens": [
+        "rsi",
+        "stoch"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 48,
+      "kind": "call",
+      "name": "ind.ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "self.df['Close']",
+        "arg_1": 20
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 75,
+      "kind": "call",
+      "name": "ind.bollinger",
+      "indicator_tokens": [
+        "bollinger"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 92,
+      "kind": "call",
+      "name": "ind.macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 97,
+      "kind": "call",
+      "name": "ind.stoch_rsi",
+      "indicator_tokens": [
+        "rsi",
+        "stoch"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 103,
+      "kind": "call",
+      "name": "ind.adx_dmi",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 109,
+      "kind": "call",
+      "name": "ind.supertrend",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 126,
+      "kind": "call",
+      "name": "ind.vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "self.df",
+        "anchor": "rolling",
+        "window": 20
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 160,
+      "kind": "call",
+      "name": "ind.parabolic_sar",
+      "indicator_tokens": [
+        "parabolic",
+        "sar"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 169,
+      "kind": "call",
+      "name": "ind.cci",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 181,
+      "kind": "call",
+      "name": "ind.keltner",
+      "indicator_tokens": [
+        "keltner"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 187,
+      "kind": "call",
+      "name": "ind.donchian",
+      "indicator_tokens": [
+        "donchian"
+      ],
+      "parameters": {
+        "arg_0": "self.df",
+        "arg_1": 20
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 193,
+      "kind": "call",
+      "name": "ind.obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 208,
+      "kind": "call",
+      "name": "ind.atr_bands",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 226,
+      "kind": "call",
+      "name": "ind.vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "self.df",
+        "anchor": "auto",
+        "interval": "1d"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 238,
+      "kind": "call",
+      "name": "ind.obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 246,
+      "kind": "call",
+      "name": "ind.stoch_rsi",
+      "indicator_tokens": [
+        "rsi",
+        "stoch"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 53,
+      "kind": "call",
+      "name": "ind.atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "self.df",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 137,
+      "kind": "call",
+      "name": "rvol.mean",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 84,
+      "kind": "call",
+      "name": "ind.rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "self.df"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 172,
+      "kind": "call",
+      "name": "cci.mean",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 89,
+      "kind": "call",
+      "name": "ind.rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "rising"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "line": 173,
+      "kind": "call",
+      "name": "cci.rolling",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "arg_0": 14,
+        "min_periods": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_render.py",
+      "line": 546,
+      "kind": "definition",
+      "name": "test_rvol_panel_uses_cap",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_render.py",
+      "line": 549,
+      "kind": "call",
+      "name": "_rvol_panel",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": "self.series"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/decision_context.py",
+      "line": 98,
+      "kind": "definition",
+      "name": "_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "series": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/decision_context.py",
+      "line": 133,
+      "kind": "call",
+      "name": "_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/intervals.py",
+      "line": 123,
+      "kind": "definition",
+      "name": "key_ema_periods",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "available": null,
+        "preferred": [
+          21,
+          55,
+          233
+        ]
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/market_context.py",
+      "line": 63,
+      "kind": "definition",
+      "name": "_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "data": null,
+        "mask": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/market_context.py",
+      "line": 118,
+      "kind": "call",
+      "name": "_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "data",
+        "arg_1": "previous_mask"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/market_context.py",
+      "line": 77,
+      "kind": "call",
+      "name": "_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "data",
+        "arg_1": "pd.Series(index.year == latest.year, index=data.index)"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/market_context.py",
+      "line": 78,
+      "kind": "call",
+      "name": "_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "data",
+        "arg_1": "pd.Series((index.year == latest.year) & ((index.month - 1) // 3 == (latest.month - 1) // 3), index=data.index)"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/market_context.py",
+      "line": 82,
+      "kind": "call",
+      "name": "_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "data",
+        "arg_1": "pd.Series((index.year == latest.year) & (index.month == latest.month), index=data.index)"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/market_context.py",
+      "line": 108,
+      "kind": "call",
+      "name": "_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "data",
+        "arg_1": "pd.Series(index >= anchor, index=data.index)"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 36,
+      "kind": "definition",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "values": null,
+        "length": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 90,
+      "kind": "definition",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "frame": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 122,
+      "kind": "definition",
+      "name": "rsi_divergences",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "frame": null,
+        "rsi_values": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 216,
+      "kind": "definition",
+      "name": "smi",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "frame": null,
+        "length_k": 10,
+        "length_d": 3,
+        "length_ema": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 237,
+      "kind": "definition",
+      "name": "macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "frame": null,
+        "fast": 12,
+        "slow": 26,
+        "signal_length": 9
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 251,
+      "kind": "definition",
+      "name": "obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "frame": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 258,
+      "kind": "definition",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "frame": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 262,
+      "kind": "definition",
+      "name": "bollinger",
+      "indicator_tokens": [
+        "bollinger"
+      ],
+      "parameters": {
+        "frame": null,
+        "length": 20,
+        "mult": 2.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 230,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "tv_ema(relative, length_d)",
+        "arg_1": "length_d"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 231,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "tv_ema(high_low_range, length_d)",
+        "arg_1": "length_d"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 233,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "value",
+        "arg_1": "length_ema"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 244,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "fast"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 245,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "slow"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 247,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "line",
+        "arg_1": "signal_length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 349,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 352,
+      "kind": "call",
+      "name": "rsi_divergences",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": "out['RSI14']",
+        "left": 5,
+        "right": 5,
+        "range_lower": 5,
+        "range_upper": 60,
+        "include_hidden": "include_hidden_divergence"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 361,
+      "kind": "call",
+      "name": "smi",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": 10,
+        "arg_2": 3,
+        "arg_3": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 362,
+      "kind": "call",
+      "name": "macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": 12,
+        "arg_2": 26,
+        "arg_3": 9
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 363,
+      "kind": "call",
+      "name": "obv",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "out"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 364,
+      "kind": "call",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 365,
+      "kind": "call",
+      "name": "bollinger",
+      "indicator_tokens": [
+        "bollinger"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": 20,
+        "arg_2": 2.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 133,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 230,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "relative",
+        "arg_1": "length_d"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 231,
+      "kind": "call",
+      "name": "tv_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "high_low_range",
+        "arg_1": "length_d"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "line": 305,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 197,
+      "kind": "definition",
+      "name": "_draw_rsi_divergences",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "ax": null,
+        "points": null,
+        "start": null,
+        "end": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 408,
+      "kind": "call",
+      "name": "macd_ax.bar",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "hist",
+        "width": 0.82,
+        "color": "hist_colours",
+        "alpha": 1.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 409,
+      "kind": "call",
+      "name": "macd_ax.plot",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['MACD']",
+        "color": "MACD_BLUE",
+        "linewidth": 1.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 410,
+      "kind": "call",
+      "name": "macd_ax.plot",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['MACD_SIGNAL']",
+        "color": "MACD_ORANGE",
+        "linewidth": 1.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 411,
+      "kind": "call",
+      "name": "macd_ax.axhline",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "color": "#787B8680",
+        "linewidth": 0.65
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 415,
+      "kind": "call",
+      "name": "smi_ax.fill_between",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": -40,
+        "arg_2": 40,
+        "color": "PINE_BLUE",
+        "alpha": 0.1,
+        "zorder": 0.2
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 436,
+      "kind": "call",
+      "name": "smi_ax.plot",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['SMI']",
+        "color": "PINE_BLUE",
+        "linewidth": 1.0,
+        "zorder": 4
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 437,
+      "kind": "call",
+      "name": "smi_ax.plot",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['SMI_SIGNAL']",
+        "color": "PINE_ORANGE",
+        "linewidth": 1.0,
+        "zorder": 4
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 438,
+      "kind": "call",
+      "name": "smi_ax.axhline",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": 40,
+        "color": "PINE_GRAY",
+        "linewidth": 0.6
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 439,
+      "kind": "call",
+      "name": "smi_ax.axhline",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": -40,
+        "color": "PINE_GRAY",
+        "linewidth": 0.6
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 440,
+      "kind": "call",
+      "name": "smi_ax.axhline",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "color": "PINE_GRAY",
+        "linewidth": 0.5,
+        "alpha": 0.5
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 441,
+      "kind": "call",
+      "name": "smi_ax.set_ylim",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": -120,
+        "arg_1": 120
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 445,
+      "kind": "call",
+      "name": "rsi_ax.fill_between",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": 30,
+        "arg_2": 70,
+        "color": "RSI_PURPLE",
+        "alpha": 0.1,
+        "zorder": 0.2
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 466,
+      "kind": "call",
+      "name": "rsi_ax.plot",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['RSI14']",
+        "color": "RSI_PURPLE",
+        "linewidth": 1.15,
+        "zorder": 4
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 467,
+      "kind": "call",
+      "name": "rsi_ax.plot",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['RSI_MA14']",
+        "color": "PINE_YELLOW",
+        "linewidth": 0.9,
+        "zorder": 4
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 468,
+      "kind": "call",
+      "name": "rsi_ax.axhline",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 70,
+        "color": "PINE_GRAY",
+        "linewidth": 0.6
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 469,
+      "kind": "call",
+      "name": "rsi_ax.axhline",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 50,
+        "color": "PINE_GRAY",
+        "linewidth": 0.55,
+        "alpha": 0.5
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 470,
+      "kind": "call",
+      "name": "rsi_ax.axhline",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 30,
+        "color": "PINE_GRAY",
+        "linewidth": 0.6
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 471,
+      "kind": "call",
+      "name": "rsi_ax.set_ylim",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": 100
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 472,
+      "kind": "call",
+      "name": "_draw_rsi_divergences",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "rsi_ax",
+        "arg_1": "divergences",
+        "arg_2": "view.index[0]",
+        "arg_3": "view.index[-1]"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 475,
+      "kind": "call",
+      "name": "obv_ax.plot",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['OBV']",
+        "color": "OBV_BLUE",
+        "linewidth": 1.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 478,
+      "kind": "call",
+      "name": "atr_ax.plot",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "view.index",
+        "arg_1": "view['ATR14']",
+        "color": "ATR_RED",
+        "linewidth": 1.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 480,
+      "kind": "call",
+      "name": "atr_ax.xaxis.set_major_locator",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "mdates.AutoDateLocator(minticks=7, maxticks=10)"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "line": 481,
+      "kind": "call",
+      "name": "atr_ax.xaxis.set_major_formatter",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "mdates.DateFormatter('%d.%m.%y')"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_technical.py",
+      "line": 135,
+      "kind": "definition",
+      "name": "_wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "series": null,
+        "period": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_technical.py",
+      "line": 144,
+      "kind": "call",
+      "name": "_wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/scan_card.py",
+      "line": 155,
+      "kind": "definition",
+      "name": "_rvol_text",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "item": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/scan_card.py",
+      "line": 534,
+      "kind": "call",
+      "name": "_rvol_text",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": "item"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/scan_card.py",
+      "line": 858,
+      "kind": "call",
+      "name": "_rvol_text",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": "item"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/semantic_features.py",
+      "line": 136,
+      "kind": "definition",
+      "name": "_ema_slope_atr",
+      "indicator_tokens": [
+        "atr",
+        "ema"
+      ],
+      "parameters": {
+        "data": null,
+        "period": null,
+        "bars": 5
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/semantic_features.py",
+      "line": 293,
+      "kind": "definition",
+      "name": "_rvol_series",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "data": null,
+        "length": 20
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/semantic_features.py",
+      "line": 300,
+      "kind": "call",
+      "name": "_rvol_series",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": "data"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/semantic_features.py",
+      "line": 162,
+      "kind": "call",
+      "name": "_ema_slope_atr",
+      "indicator_tokens": [
+        "atr",
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "data",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/semantic_features.py",
+      "line": 302,
+      "kind": "call",
+      "name": "rvol_series.tail",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/semantic_features.py",
+      "line": 303,
+      "kind": "call",
+      "name": "rvol_series.tail",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "arg_0": 5
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 278,
+      "kind": "definition",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 282,
+      "kind": "definition",
+      "name": "wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 312,
+      "kind": "definition",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "series": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 337,
+      "kind": "definition",
+      "name": "adx_dmi",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "data": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 356,
+      "kind": "definition",
+      "name": "supertrend",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "data": null,
+        "length": 10,
+        "factor": 3.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 386,
+      "kind": "definition",
+      "name": "parabolic_sar",
+      "indicator_tokens": [
+        "parabolic",
+        "sar"
+      ],
+      "parameters": {
+        "data": null,
+        "start": 0.02,
+        "increment": 0.02,
+        "maximum": 0.2
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 433,
+      "kind": "definition",
+      "name": "auto_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "data": null,
+        "interval": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 478,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 482,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "out['MACD']",
+        "arg_1": 9
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 486,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 497,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "ema(relative, 3)",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 498,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "ema(price_range, 3)",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 500,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "out['SMI']",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 514,
+      "kind": "call",
+      "name": "adx_dmi",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 516,
+      "kind": "call",
+      "name": "supertrend",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": 10,
+        "arg_2": 3.0
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 538,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "out['OBV']",
+        "arg_1": 20
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 550,
+      "kind": "call",
+      "name": "auto_anchored_vwap",
+      "indicator_tokens": [
+        "vwap"
+      ],
+      "parameters": {
+        "arg_0": "out",
+        "arg_1": "interval"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 571,
+      "kind": "call",
+      "name": "parabolic_sar",
+      "indicator_tokens": [
+        "parabolic",
+        "sar"
+      ],
+      "parameters": {
+        "arg_0": "out"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 471,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 481,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 12
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 481,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 26
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 497,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "relative",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 498,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "price_range",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 473,
+      "kind": "call",
+      "name": "wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 487,
+      "kind": "call",
+      "name": "stoch_rsi.rolling",
+      "indicator_tokens": [
+        "rsi",
+        "stoch"
+      ],
+      "parameters": {
+        "arg_0": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 488,
+      "kind": "call",
+      "name": "stoch_rsi.rolling",
+      "indicator_tokens": [
+        "rsi",
+        "stoch"
+      ],
+      "parameters": {
+        "arg_0": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 1102,
+      "kind": "call",
+      "name": "key_ema_periods",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "list(data.attrs.get('ma_periods', MA_PERIODS))",
+        "arg_1": "KEY_EMA_PERIODS"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 349,
+      "kind": "call",
+      "name": "atr_value.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "line": 350,
+      "kind": "call",
+      "name": "atr_value.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/structure_hierarchy.py",
+      "line": 66,
+      "kind": "definition",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "frame": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/structure_hierarchy.py",
+      "line": 236,
+      "kind": "call",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/structure_hierarchy.py",
+      "line": 83,
+      "kind": "call",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_decision_context.py",
+      "line": 44,
+      "kind": "definition",
+      "name": "test_flat_mtf_rsi_is_neutral",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_divergence.py",
+      "line": 34,
+      "kind": "definition",
+      "name": "test_stoch_rsi_is_excluded_from_divergence_scan",
+      "indicator_tokens": [
+        "rsi",
+        "stoch"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "line": 73,
+      "kind": "definition",
+      "name": "test_rsi_flat_rising_and_falling_edge_cases",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "line": 100,
+      "kind": "definition",
+      "name": "test_status_contains_thirteen_sma_ema_wma_rows",
+      "indicator_tokens": [
+        "ema",
+        "sma",
+        "wma"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "line": 124,
+      "kind": "definition",
+      "name": "test_cci_matches_tradingview_formula",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "line": 151,
+      "kind": "definition",
+      "name": "test_cci_smoothing_uses_tradingview_default_length",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "line": 77,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "flat"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "line": 78,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "rising"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "line": 79,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "falling"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_intervals.py",
+      "line": 130,
+      "kind": "call",
+      "name": "key_ema_periods",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": [
+          5,
+          8,
+          10,
+          13,
+          20,
+          21,
+          34,
+          50,
+          55,
+          89,
+          100
+        ]
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_intervals.py",
+      "line": 129,
+      "kind": "call",
+      "name": "key_ema_periods",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "MA_PERIODS"
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_original_indicators.py",
+      "line": 60,
+      "kind": "definition",
+      "name": "test_wilder_rsi_reaches_expected_extremes",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_original_indicators.py",
+      "line": 65,
+      "kind": "call",
+      "name": "rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_original_indicators.py",
+      "line": 75,
+      "kind": "call",
+      "name": "rsi_divergences",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame",
+        "arg_1": "osc",
+        "left": 2,
+        "right": 2,
+        "range_lower": 5,
+        "range_upper": 60
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_screener.py",
+      "line": 263,
+      "kind": "definition",
+      "name": "test_ranking_uses_weighted_score_not_raw_rvol",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_screener.py",
+      "line": 343,
+      "kind": "definition",
+      "name": "test_trend_and_extreme_rsi_require_participation",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_screener.py",
+      "line": 390,
+      "kind": "definition",
+      "name": "test_half_finished_hourly_bar_doubles_rvol",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_setup_recognition.py",
+      "line": 117,
+      "kind": "definition",
+      "name": "test_low_rvol_is_expected_behaviour_inside_squeeze",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_state_change.py",
+      "line": 70,
+      "kind": "definition",
+      "name": "test_small_rvol_move_is_ignored_but_large_one_is_not",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_watchlist_scan.py",
+      "line": 19,
+      "kind": "definition",
+      "name": "test_condition_requires_both_squeeze_and_rvol",
+      "indicator_tokens": [
+        "rvol"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 35,
+      "kind": "call",
+      "name": "_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "c",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 36,
+      "kind": "call",
+      "name": "_adx",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": 14,
+        "arg_2": 14
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 37,
+      "kind": "call",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 42,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 33,
+      "kind": "call",
+      "name": "macd.ewm",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "span": 9,
+        "adjust": false,
+        "min_periods": 9
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 45,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 56,
+      "kind": "call",
+      "name": "atr_ok.astype",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "int"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 57,
+      "kind": "call",
+      "name": "atr.notna",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "line": 57,
+      "kind": "call",
+      "name": "rsi.notna",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 71,
+      "kind": "definition",
+      "name": "wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 117,
+      "kind": "definition",
+      "name": "calc_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 129,
+      "kind": "definition",
+      "name": "calc_adx",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 143,
+      "kind": "definition",
+      "name": "calc_smi",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 154,
+      "kind": "definition",
+      "name": "supertrend_direction",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "df": null,
+        "length": null,
+        "factor": null
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 131,
+      "kind": "call",
+      "name": "calc_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 155,
+      "kind": "call",
+      "name": "calc_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 200,
+      "kind": "call",
+      "name": "calc_smi",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 201,
+      "kind": "call",
+      "name": "calc_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 202,
+      "kind": "call",
+      "name": "calc_adx",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 333,
+      "kind": "call",
+      "name": "supertrend_direction",
+      "indicator_tokens": [
+        "supertrend"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": "settings.supertrend_atr_len",
+        "arg_2": "settings.supertrend_factor"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 385,
+      "kind": "call",
+      "name": "calc_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": 20
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 136,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 137,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 195,
+      "kind": "call",
+      "name": "wma",
+      "indicator_tokens": [
+        "wma"
+      ],
+      "parameters": {
+        "arg_0": "c",
+        "arg_1": "n"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 411,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 198,
+      "kind": "call",
+      "name": "macd.ewm",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "span": 9,
+        "adjust": false
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 211,
+      "kind": "call",
+      "name": "obv.ewm",
+      "indicator_tokens": [
+        "obv"
+      ],
+      "parameters": {
+        "span": 20,
+        "adjust": false
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 345,
+      "kind": "call",
+      "name": "rsi.ewm",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "span": 5,
+        "adjust": false
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 348,
+      "kind": "call",
+      "name": "cci_dev.replace",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 349,
+      "kind": "call",
+      "name": "cci.ewm",
+      "indicator_tokens": [
+        "cci"
+      ],
+      "parameters": {
+        "span": 5,
+        "adjust": false
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 350,
+      "kind": "call",
+      "name": "rsi.rolling",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "settings.oscillator_len"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 351,
+      "kind": "call",
+      "name": "rsi.rolling",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "settings.oscillator_len"
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 353,
+      "kind": "call",
+      "name": "stoch_raw.rolling",
+      "indicator_tokens": [
+        "stoch"
+      ],
+      "parameters": {
+        "arg_0": 3
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 353,
+      "kind": "call",
+      "name": "stoch_k.rolling",
+      "indicator_tokens": [
+        "stoch"
+      ],
+      "parameters": {
+        "arg_0": 3
+      }
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "line": 151,
+      "kind": "call",
+      "name": "smi.ewm",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "span": 3,
+        "adjust": false
+      }
+    },
+    {
+      "path": "taramabot/exit_engine.py",
+      "line": 24,
+      "kind": "definition",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "frame": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/exit_engine.py",
+      "line": 112,
+      "kind": "call",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 30,
+      "kind": "definition",
+      "name": "calc_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "df": null,
+        "length": null
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 45,
+      "kind": "definition",
+      "name": "calc_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "close": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 62,
+      "kind": "definition",
+      "name": "calc_adx",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "df": null,
+        "length": null
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 162,
+      "kind": "definition",
+      "name": "_ema_not_overextended",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 182,
+      "kind": "definition",
+      "name": "_rsi_not_too_hot",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 81,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 82,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 257,
+      "kind": "call",
+      "name": "_ema_not_overextended",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 170,
+      "kind": "call",
+      "name": "calc_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 178,
+      "kind": "call",
+      "name": "calc_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 188,
+      "kind": "call",
+      "name": "calc_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "df['close'].astype(float)",
+        "arg_1": "period"
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 273,
+      "kind": "call",
+      "name": "_rsi_not_too_hot",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/filters.py",
+      "line": 113,
+      "kind": "call",
+      "name": "calc_adx",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 48,
+      "kind": "definition",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "df": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 61,
+      "kind": "definition",
+      "name": "_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "close": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 72,
+      "kind": "definition",
+      "name": "_adx",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "df": null,
+        "di_len": 14,
+        "adx_smooth": 14
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 140,
+      "kind": "call",
+      "name": "_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "c",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 145,
+      "kind": "call",
+      "name": "_adx",
+      "indicator_tokens": [
+        "adx"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": 14,
+        "arg_2": 14
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 150,
+      "kind": "call",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "df",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 83,
+      "kind": "call",
+      "name": "atr_di.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 84,
+      "kind": "call",
+      "name": "atr_di.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 172,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 188,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 191,
+      "kind": "call",
+      "name": "atr.replace",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": 0,
+        "arg_1": "np.nan"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 127,
+      "kind": "call",
+      "name": "macd.ewm",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "span": 9,
+        "adjust": false,
+        "min_periods": 9
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 222,
+      "kind": "call",
+      "name": "rsi_ideal.astype",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "int"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 267,
+      "kind": "call",
+      "name": "atr_pct_ok.astype",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "int"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 271,
+      "kind": "call",
+      "name": "atr.notna",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 271,
+      "kind": "call",
+      "name": "rsi.notna",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {}
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 222,
+      "kind": "call",
+      "name": "macd_above_zero.astype",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "int"
+      }
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "line": 222,
+      "kind": "call",
+      "name": "macd_above_signal.astype",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "int"
+      }
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "line": 42,
+      "kind": "call",
+      "name": "check_smi_macd_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "line": 49,
+      "kind": "call",
+      "name": "check_rsi_signal",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "line": 53,
+      "kind": "call",
+      "name": "check_rsi_macd_scan_signal",
+      "indicator_tokens": [
+        "macd",
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "line": 55,
+      "kind": "call",
+      "name": "check_ema_scan_signal",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "line": 57,
+      "kind": "call",
+      "name": "check_macd_positive_cross_signal",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "line": 59,
+      "kind": "call",
+      "name": "check_h8_smi_macd_positive_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "line": 61,
+      "kind": "call",
+      "name": "check_i9_smi_macd_positive_full_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 17,
+      "kind": "definition",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 27,
+      "kind": "definition",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "series": null,
+        "length": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 32,
+      "kind": "definition",
+      "name": "calc_smi",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 65,
+      "kind": "definition",
+      "name": "calc_macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 86,
+      "kind": "definition",
+      "name": "calc_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "series": null,
+        "length": "RSI_PERIOD"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 106,
+      "kind": "definition",
+      "name": "check_smi_macd_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 176,
+      "kind": "definition",
+      "name": "check_rsi_signal",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 285,
+      "kind": "definition",
+      "name": "check_rsi_macd_scan_signal",
+      "indicator_tokens": [
+        "macd",
+        "rsi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 340,
+      "kind": "definition",
+      "name": "check_ema_scan_signal",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 399,
+      "kind": "definition",
+      "name": "check_macd_positive_cross_signal",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 439,
+      "kind": "definition",
+      "name": "check_h8_smi_macd_positive_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 478,
+      "kind": "definition",
+      "name": "check_i9_smi_macd_positive_full_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "df": null
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 24,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "ema(series, length)",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 60,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "smi",
+        "arg_1": "lengthEMA"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 76,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "macd",
+        "arg_1": "MACD_SIGNAL"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 124,
+      "kind": "call",
+      "name": "calc_smi",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 125,
+      "kind": "call",
+      "name": "calc_macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 187,
+      "kind": "call",
+      "name": "calc_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "RSI_PERIOD"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 230,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "SMA_5"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 231,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "SMA_8"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 232,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "SMA_21"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 233,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "SMA_50"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 234,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "SMA_55"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 235,
+      "kind": "call",
+      "name": "sma",
+      "indicator_tokens": [
+        "sma"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "SMA_200"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 238,
+      "kind": "call",
+      "name": "calc_macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 296,
+      "kind": "call",
+      "name": "calc_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "NEW_RSI_PERIOD"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 297,
+      "kind": "call",
+      "name": "calc_macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 351,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "EMA_5"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 352,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "EMA_8"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 353,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "EMA_13"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 354,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "EMA_21"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 355,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "EMA_55"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 356,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": "EMA_200"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 409,
+      "kind": "call",
+      "name": "calc_rsi",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 410,
+      "kind": "call",
+      "name": "calc_macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 446,
+      "kind": "call",
+      "name": "calc_smi",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 447,
+      "kind": "call",
+      "name": "calc_macd",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 485,
+      "kind": "call",
+      "name": "check_h8_smi_macd_positive_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 24,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "series",
+        "arg_1": "length"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 75,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "df['close']",
+        "arg_1": "MACD_FAST"
+      }
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "line": 75,
+      "kind": "call",
+      "name": "ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "df['close']",
+        "arg_1": "MACD_SLOW"
+      }
+    },
+    {
+      "path": "taramabot/mtf_15m_edge.py",
+      "line": 38,
+      "kind": "definition",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "series": null,
+        "span": null
+      }
+    },
+    {
+      "path": "taramabot/mtf_15m_edge.py",
+      "line": 50,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 21
+      }
+    },
+    {
+      "path": "taramabot/mtf_15m_edge.py",
+      "line": 51,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 55
+      }
+    },
+    {
+      "path": "taramabot/multi_timeframe_context.py",
+      "line": 89,
+      "kind": "definition",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "frame": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/multi_timeframe_context.py",
+      "line": 119,
+      "kind": "call",
+      "name": "_atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/production_4h.py",
+      "line": 123,
+      "kind": "call",
+      "name": "check_smi_macd_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/production_4h.py",
+      "line": 124,
+      "kind": "call",
+      "name": "smi.get",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "full_buy_signal"
+      }
+    },
+    {
+      "path": "taramabot/production_4h.py",
+      "line": 156,
+      "kind": "call",
+      "name": "smi.get",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "details",
+        "arg_1": {}
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 287,
+      "kind": "call",
+      "name": "check_smi_macd_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 289,
+      "kind": "call",
+      "name": "check_rsi_signal",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 293,
+      "kind": "call",
+      "name": "check_rsi_macd_scan_signal",
+      "indicator_tokens": [
+        "macd",
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 295,
+      "kind": "call",
+      "name": "check_ema_scan_signal",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 297,
+      "kind": "call",
+      "name": "check_macd_positive_cross_signal",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 299,
+      "kind": "call",
+      "name": "check_h8_smi_macd_positive_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 301,
+      "kind": "call",
+      "name": "check_i9_smi_macd_positive_full_signal",
+      "indicator_tokens": [
+        "macd",
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "df"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 425,
+      "kind": "call",
+      "name": "rsi_signals.append",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "result"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 433,
+      "kind": "call",
+      "name": "rsi_macd_signals.append",
+      "indicator_tokens": [
+        "macd",
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "result"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 437,
+      "kind": "call",
+      "name": "ema_signals.append",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "result"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 441,
+      "kind": "call",
+      "name": "macd_cross_signals.append",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": "result"
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 417,
+      "kind": "call",
+      "name": "smi_res.get",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "passes_full_filter",
+        "arg_1": true
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 420,
+      "kind": "call",
+      "name": "smi_res.get",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "passes_early_filter",
+        "arg_1": true
+      }
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "line": 421,
+      "kind": "call",
+      "name": "smi_signals.append",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "result"
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 39,
+      "kind": "definition",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "series": null,
+        "span": null
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 43,
+      "kind": "definition",
+      "name": "_rsi_indicator",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "close": null,
+        "length": null
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 54,
+      "kind": "definition",
+      "name": "_rsi_filter",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "close": null,
+        "length": null
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 65,
+      "kind": "definition",
+      "name": "_atr_filter",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "frame": null,
+        "length": 14
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 147,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 5
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 148,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 8
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 149,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 13
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 150,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 21
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 151,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 55
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 152,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 200
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 155,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "macd",
+        "arg_1": 9
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 166,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "_ema(relative10, 3)",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 169,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "smi",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 175,
+      "kind": "call",
+      "name": "_rsi_indicator",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 7
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 176,
+      "kind": "call",
+      "name": "_rsi_indicator",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 177,
+      "kind": "call",
+      "name": "_rsi_filter",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 7
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 178,
+      "kind": "call",
+      "name": "_rsi_filter",
+      "indicator_tokens": [
+        "rsi"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 179,
+      "kind": "call",
+      "name": "_atr_filter",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "data",
+        "arg_1": 14
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 154,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 12
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 154,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "close",
+        "arg_1": 26
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 166,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "relative10",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 167,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "_ema(width10, 3)",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 158,
+      "kind": "call",
+      "name": "macd.shift",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": 1
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 158,
+      "kind": "call",
+      "name": "macd_signal.shift",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": 1
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 159,
+      "kind": "call",
+      "name": "macd.shift",
+      "indicator_tokens": [
+        "macd"
+      ],
+      "parameters": {
+        "arg_0": 1
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 167,
+      "kind": "call",
+      "name": "_ema",
+      "indicator_tokens": [
+        "ema"
+      ],
+      "parameters": {
+        "arg_0": "width10",
+        "arg_1": 3
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 171,
+      "kind": "call",
+      "name": "smi.shift",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": 1
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 171,
+      "kind": "call",
+      "name": "smi_ref.shift",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": 1
+      }
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "line": 172,
+      "kind": "call",
+      "name": "smi.shift",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": 1
+      }
+    },
+    {
+      "path": "taramabot/tests/test_risk_engine.py",
+      "line": 85,
+      "kind": "definition",
+      "name": "test_oos_validated_smi_profiles_are_locked",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "taramabot/tests/test_risk_engine.py",
+      "line": 101,
+      "kind": "definition",
+      "name": "test_oos_validated_rsi_macd_profile_is_locked",
+      "indicator_tokens": [
+        "macd",
+        "rsi"
+      ],
+      "parameters": {
+        "self": null
+      }
+    },
+    {
+      "path": "taramabot/trade_backtester.py",
+      "line": 115,
+      "kind": "call",
+      "name": "atr",
+      "indicator_tokens": [
+        "atr"
+      ],
+      "parameters": {
+        "arg_0": "frame"
+      }
+    },
+    {
+      "path": "taramabot/verify_daily_g_parity.py",
+      "line": 44,
+      "kind": "call",
+      "name": "smi.get",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "full_buy_signal"
+      }
+    },
+    {
+      "path": "taramabot/verify_daily_g_parity.py",
+      "line": 45,
+      "kind": "call",
+      "name": "smi.get",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "passes_full_filter",
+        "arg_1": true
+      }
+    },
+    {
+      "path": "taramabot/verify_daily_g_parity.py",
+      "line": 57,
+      "kind": "call",
+      "name": "smi.get",
+      "indicator_tokens": [
+        "smi"
+      ],
+      "parameters": {
+        "arg_0": "details",
+        "arg_1": {}
+      }
+    }
+  ],
+  "notice": "İsim tabanlı statik aday haritasıdır; formül parity kanıtı değildir."
+}

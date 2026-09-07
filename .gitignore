@@ -1,0 +1,26 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Çalışma zamanı durumu Git'e yazılmaz.
+data/
+reports/
+out/
+*.sqlite
+*.sqlite3
+*.db
+*.parquet
+
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

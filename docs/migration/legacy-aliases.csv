@@ -1,0 +1,10 @@
+source_repo,legacy_id,legacy_label,new_id,direction,status,evidence
+taramabot,M-1,MACD Pozitif Kesişim,,legacy_to_new,unverified,
+taramabot,S-M-1,SMI MACD Momentum,,legacy_to_new,unverified,
+taramabot,S-M-V-1,SMI MACD Güçlü Onay,,legacy_to_new,unverified,
+taramabot,E-V-1,EMA Trend ve Hacim,,legacy_to_new,unverified,
+taramabot,R-M-V-1,RSI MACD ve Hacim,,legacy_to_new,unverified,
+taramabot,A-M-V-1,SMA MACD ve Hacim,,legacy_to_new,unverified,
+taramabot,S-M-V-2,SMI MACD Full,,legacy_to_new,unverified,
+taramabot,S-M-2,SMI MACD Erken,,legacy_to_new,unverified,
+taramabot,R-V-1,RSI Momentum,,legacy_to_new,unverified,

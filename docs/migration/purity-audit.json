@@ -1,0 +1,4555 @@
+{
+  "schema_version": 1,
+  "root": "C:\\Users\\Cengiz KARABULUT\\Documents\\Codex\\2026-09-07\\cengizkarabulut-taramabot-cengizkarabulut-ma-reaction-scanner\\work\\borsapp\\_legacy",
+  "summary": {
+    "IMPURE": 36,
+    "PURE": 125,
+    "WRAPPABLE": 94
+  },
+  "files": [
+    {
+      "path": "ma-reaction-scanner/scanner/__init__.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/asset_universe.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "ASSET_LABELS",
+          "line": 31,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_ALIASES",
+          "line": 148,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_STOCK_RESOLVERS",
+          "line": 158,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_FIXED_SECTOR_UNIVERSES",
+          "line": 169,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_CRYPTO",
+          "line": 175,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_COMMODITIES",
+          "line": 187,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/bist_classification.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "MAIN_INDEX_NAMES",
+          "line": 17,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SECTOR_INDEX_NAMES",
+          "line": 24,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/bist_data_fetcher.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "httpx",
+          "line": 34,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 42,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "MIN_COMPONENTS",
+          "line": 52,
+          "severity": "low"
+        },
+        {
+          "category": "network_call",
+          "detail": "httpx.Client",
+          "line": 133,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "httpx.Client",
+          "line": 193,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 252,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 271,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 293,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 308,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_calibration.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_core.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "__all__",
+          "line": 9,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_data.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 21,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "yfinance",
+          "line": 26,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "DIRECT_INTERVALS",
+          "line": 32,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BASE_INTERVAL",
+          "line": 33,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "YF_PERIODS",
+          "line": 34,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BP_PERIODS",
+          "line": 35,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 74,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 325,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 337,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_engine.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "_QUALITY_RANK",
+          "line": 736,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_levels.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_notify.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "httpx",
+          "line": 11,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_FOOTER",
+          "line": 30,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 579,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 580,
+          "severity": "medium"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 607,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "httpx.Client",
+          "line": 608,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_relative.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_scan.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "_LEVEL_CONFIG_JSON_TYPES",
+          "line": 67,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_SINGLE_TABLE_COLUMNS",
+          "line": 364,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 1014,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/ma_watchlist.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "_WATCH_COLUMNS",
+          "line": 269,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/sector_resolver.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 42,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "yfinance",
+          "line": 49,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 161,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 402,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/stock_metadata.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/telegram_table_image.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/scanner/tickers.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "INDEX_MAP",
+          "line": 21,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "INSTRUMENT_GROUPS",
+          "line": 45,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 200,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 214,
+          "severity": "medium"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 231,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "ma-reaction-scanner/tests/__init__.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_asset_universe.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_bist_data_fetcher.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_data_regressions.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_calibration.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_data.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_engine.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_levels.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_notify.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_relative.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_scan.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_ma_watchlist.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "ma-reaction-scanner/tests/test_stock_metadata.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/__init__.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/bist_symbols.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 73,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/bot.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "OWN_COMMANDS",
+          "line": 69,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SHARED_COMMANDS",
+          "line": 70,
+          "severity": "low"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_message",
+          "line": 111,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_document",
+          "line": 122,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_message",
+          "line": 126,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_message",
+          "line": 130,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_message",
+          "line": 159,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_message",
+          "line": 167,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_message",
+          "line": 176,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_message",
+          "line": 238,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/bot_runner.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 34,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 72,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/candlestick_patterns.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/cli.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "delivery",
+          "detail": "send_document",
+          "line": 225,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "send_document",
+          "line": 232,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/compose.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/data_sources.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "OHLCV_COLUMNS",
+          "line": 27,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_CRYPTO_ALIASES",
+          "line": 30,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SYNTHETIC_INTERVALS",
+          "line": 102,
+          "severity": "low"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 186,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "yfinance",
+          "line": 193,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/format.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/indicators.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "CATEGORY",
+          "line": 798,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_COMPUTE",
+          "line": 812,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/pipeline.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "INTERVAL_LABELS",
+          "line": 21,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "DEFAULT_BARS",
+          "line": 38,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "DEFAULT_PERIODS",
+          "line": 50,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "INTRADAY",
+          "line": 67,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SESSION_END",
+          "line": 89,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "pd.Timestamp.now",
+          "line": 115,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 301,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/plotspec.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "_OVERLAY_BUILDERS",
+          "line": 597,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_PANEL_BUILDERS",
+          "line": 610,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "REQUIRES",
+          "line": 636,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/render_html.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "_DASH",
+          "line": 21,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/render_png.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "_DASH",
+          "line": 35,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/technical_dashboard.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 552,
+          "severity": "medium"
+        },
+        {
+          "category": "delivery",
+          "detail": "tg.send_document",
+          "line": 598,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/telegram.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 21,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 23,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 55,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_ME",
+          "line": 130,
+          "severity": "low"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.get",
+          "line": 143,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.get",
+          "line": 158,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/theme.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "THEMES",
+          "line": 107,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/src/views.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/__init__.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_bot_runner.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_indicators.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 18,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_render.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "delivery",
+          "detail": "telegram.send_document",
+          "line": 379,
+          "severity": "high"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 500,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 510,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/chart_bot/tests/test_technical_dashboard.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/__init__.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/analyst_card.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "DETAIL_SETTINGS",
+          "line": 377,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/bar_state.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "MARKET_SESSIONS",
+          "line": 9,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 27,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/bot_runner.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 17,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 72,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 73,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 80,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 81,
+          "severity": "medium"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 85,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 85,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 90,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 91,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 94,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 98,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 110,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 111,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.get",
+          "line": 114,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 137,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.get",
+          "line": 138,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 352,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 460,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 461,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 473,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 480,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 484,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 514,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 520,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 521,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 522,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/bot_runner_fundamental.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/bot_settings.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "SETTINGS",
+          "line": 30,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "ALIASES",
+          "line": 38,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/candlestick_patterns.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PATTERN_TR",
+          "line": 143,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/decision_context.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "REGIME_THRESHOLDS",
+          "line": 9,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "LIQUIDITY_THRESHOLDS_TRY",
+          "line": 18,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/divergence.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "INDICATORS",
+          "line": 9,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/financial_intelligence_card.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/fundamental_analysis.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "BANK_SYMBOLS",
+          "line": 19,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "STATEMENT_ALIASES",
+          "line": 34,
+          "severity": "low"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 756,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/fundamental_card.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/fundamental_quality.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/fundamental_telegram.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 9,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 16,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 17,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 18,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 45,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 46,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/intervals.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "INTERVALS",
+          "line": 31,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "RESAMPLE_AGGREGATION",
+          "line": 43,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "RANK_WINDOWS",
+          "line": 171,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/market_context.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/moving_average_card.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 68,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/original_indicators.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/plain_language.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "SETUP_PLAIN",
+          "line": 13,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "INTERVAL_WORDS",
+          "line": 69,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SCAN_SETUP_PLAIN",
+          "line": 165,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_card.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_chart.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 231,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_commentary.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_commentary_advanced.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_commentary_rich.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_contracts.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_engine.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "STATEMENT_ALIASES",
+          "line": 80,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "CRITERIA",
+          "line": 131,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BOUNDS",
+          "line": 141,
+          "severity": "low"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 311,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 410,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 794,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_extensions.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "EXTRA_ALIASES",
+          "line": 13,
+          "severity": "low"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 91,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 122,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_pipeline.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_risk.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_technical.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 250,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_telegram.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 9,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 17,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 18,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 19,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 91,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 92,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 108,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 109,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/research_theme.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/scan_card.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/scan_scheduler.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 45,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/scan_state.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 23,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/screener.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "INTERVAL_ORDER",
+          "line": 33,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "ERROR_KINDS",
+          "line": 46,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "PRICE_LIMIT_BY_MARKET",
+          "line": 127,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "TRADING_DAYS_PER_BAR",
+          "line": 132,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "pd.Timestamp.now",
+          "line": 180,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "pd.Timestamp.now",
+          "line": 180,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "pd.Timestamp.now",
+          "line": 219,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "pd.Timestamp.now",
+          "line": 219,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SCREENS",
+          "line": 259,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SCREEN_WEIGHTS",
+          "line": 308,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/screener_cli.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 62,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 176,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 353,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/semantic_features.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/setup_recognition.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "REGIME_WEIGHTS",
+          "line": 260,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/state_change.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/stock_dashboard.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "yfinance",
+          "line": 20,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "MA_PERIODS",
+          "line": 56,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "MA_TABLE_PERIODS",
+          "line": 57,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "PERIOD_ORDER",
+          "line": 92,
+          "severity": "low"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 165,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 250,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 268,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 899,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "REPORT_DETAIL_LEVELS",
+          "line": 1071,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/structure_hierarchy.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/technical_commentary.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "__all__",
+          "line": 3,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/technical_commentary_v2.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "LITERATURE_BASIS",
+          "line": 421,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/telegram_bot.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 19,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 93,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 104,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 112,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.get",
+          "line": 131,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 132,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/telegram_client.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 7,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 100,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 101,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 102,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 116,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 117,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 128,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 133,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 185,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 186,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 205,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 205,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/turkish_text.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/universe.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "EXCLUDED_TICKERS",
+          "line": 21,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "time.time",
+          "line": 53,
+          "severity": "medium"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 73,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "time.time",
+          "line": 78,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "time.time",
+          "line": 91,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "time.time",
+          "line": 117,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/valuation_models.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "randomness",
+          "detail": "random.Random",
+          "line": 360,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/valuation_peer_card.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "LABELS",
+          "line": 23,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/valuation_policy.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/watch_alerts.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/src/watchlist_scan.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_active_command_routing.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_analyst_card.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "STATUS",
+          "line": 7,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_bar_state.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_bot_runner.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_bot_settings.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_decision_context.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_divergence.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_fundamental_analysis.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PERIODS",
+          "line": 15,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_indicators.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 129,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 180,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 210,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_intervals.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "MA_PERIODS",
+          "line": 14,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_market_context.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_original_indicators.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_plain_language.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "JARGON",
+          "line": 5,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_render_regression.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 16,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 17,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 18,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 19,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 20,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 21,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 22,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 23,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 24,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 25,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 26,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 27,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 28,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 29,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 30,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 31,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 32,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 33,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 34,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.uniform",
+          "line": 35,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 138,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 194,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 225,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_research_commentary.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_research_commentary_advanced.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_research_contracts.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_research_engine.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PERIODS",
+          "line": 24,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_research_extensions.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_research_finalization.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_research_output_contract.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_scan_candidate_priority.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_scan_research_cards.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_scan_scheduler.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_scan_state.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "RESULTS",
+          "line": 8,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_screener.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 24,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "time.time",
+          "line": 153,
+          "severity": "medium"
+        },
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 425,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_screener_cli.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 15,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_semantic_features.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "randomness",
+          "detail": "np.random.default_rng",
+          "line": 102,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_setup_recognition.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_state_change.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_structure_hierarchy.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_technical_commentary.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_telegram.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "STATUS",
+          "line": 16,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_telegram_bot.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_turkish_text.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_valuation_models.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_valuation_policy.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PEER",
+          "line": 5,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_watch_alerts.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "market-telegram-suite/apps/technical_bot/tests/test_watchlist_scan.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/bist_timeframes.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/config.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 10,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 20,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 21,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 22,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 27,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 28,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 29,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SCAN_TIMES",
+          "line": 36,
+          "severity": "low"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 57,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "COMMODITIES",
+          "line": 87,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "CRYPTO",
+          "line": 93,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 185,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/daily_report.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "delivery",
+          "detail": "sender.send_message",
+          "line": 32,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/decision_panel_breakout_diagnostic.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/decision_panel_exit_optimize.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/decision_panel_oos_cost_sensitivity.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "SETUP_CONFIG",
+          "line": 27,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/decision_panel_period_optimize.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "SETUP_COLUMNS",
+          "line": 27,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/decision_panel_profile_compare.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/decision_panel_pullback_v645_research.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "CANDIDATES",
+          "line": 40,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/decision_panel_scan.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/decision_panel_v2.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 22,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 25,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 563,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 563,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 563,
+          "severity": "medium"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 567,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 567,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 601,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/decision_panel_v645_live.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 139,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/decision_panel_v645_parity_check.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/decision_panel_v645_research.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/decision_panel_v645_signal.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/exit_engine.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/fetch_symbols.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 1,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.get",
+          "line": 15,
+          "severity": "high"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 55,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/filters.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/fundamental_data_pipeline.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PEER_ALIASES",
+          "line": 26,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "STATEMENT_ALIASES",
+          "line": 42,
+          "severity": "low"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 108,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 322,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/fundamental_data_pipeline_safe.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/fundamental_peer_refresh.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "CRITERIA",
+          "line": 21,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BOUNDS",
+          "line": 34,
+          "severity": "low"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 57,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "borsapy",
+          "line": 69,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/fundamental_score.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "FACTOR_WEIGHTS",
+          "line": 94,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/historical_daily_refresh.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "tvDatafeed",
+          "line": 19,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 26,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 113,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/historical_decision_panel_v644.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/historical_exit_optimize.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/historical_incremental_refresh.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "tvDatafeed",
+          "line": 19,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 27,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 188,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/historical_period_cost_sensitivity.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/historical_period_refresh.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "tvDatafeed",
+          "line": 19,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 27,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 113,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/historical_profile_sender.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "GROUP_TO_CODE",
+          "line": 23,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "STRATEGY_TO_CODE",
+          "line": 27,
+          "severity": "low"
+        },
+        {
+          "category": "delivery",
+          "detail": "sender.send_message",
+          "line": 394,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/historical_replay.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/indicators.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/individual_scanners/scan_ema.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/individual_scanners/scan_macd_cross.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/individual_scanners/scan_new_scan.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/individual_scanners/scan_rsi.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/individual_scanners/scan_rsi_macd.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/individual_scanners/scan_smi_macd.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/institutional_stock_report.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "FACTOR_LABELS",
+          "line": 20,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/intraday_historical_replay.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/intraday_profile_calibration.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/long_history_cost_sensitivity.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PROFILES",
+          "line": 27,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "VALIDATION_CUT",
+          "line": 102,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "EXPECTED_OOS_TRADES",
+          "line": 114,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/main.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/main_enhanced.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 29,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "PLAN_KEY_BY_GROUP",
+          "line": 31,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "PRIVATE_DISPLAY_CODE",
+          "line": 44,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 149,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 176,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 257,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/main_legacy.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "STRATEGY_NAMES",
+          "line": 29,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "PERIOD_ORDER",
+          "line": 41,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 42,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 51,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 93,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 130,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/market_data_refresh.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "tvDatafeed",
+          "line": 14,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 26,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "PERIOD_INTERVALS",
+          "line": 32,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 184,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 269,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/market_data_store.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "INTRADAY_MINUTES",
+          "line": 18,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 349,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/merge_symbol_profiles.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 78,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 79,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/monthly_symbol_profiles.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 18,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/mtf_15m_edge.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/multi_timeframe_context.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "WEIGHTS",
+          "line": 31,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "INTRADAY_MINUTES",
+          "line": 32,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 36,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/parallel_snapshot_scan.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "FALSE_VALUES",
+          "line": 19,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 26,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 92,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 112,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 145,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/performance_image.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/performance_report.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "tvDatafeed",
+          "line": 16,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 21,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 22,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "STRATEGY_META",
+          "line": 24,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 54,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 399,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/production_4h.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 63,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 212,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/production_4h_visual.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/rebuild_live_snapshot_from_history.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 77,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/report_quality.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "MULTIPLE_LIMITS",
+          "line": 18,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/scanner.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/scanner_enhanced.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/scanner_legacy.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "tvDatafeed",
+          "line": 14,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 30,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 31,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 38,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 48,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 66,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 88,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 130,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 154,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 256,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/scheduler.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 37,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 77,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 90,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 98,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 100,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/screenshot.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "selenium.webdriver.common.by",
+          "line": 14,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "selenium.webdriver.common.keys",
+          "line": 15,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "selenium.webdriver.support.ui",
+          "line": 16,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "selenium.webdriver.support",
+          "line": 17,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_INTERVAL_MAP",
+          "line": 37,
+          "severity": "low"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 63,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/signal_forward_edge.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/signal_parity.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "CODE_TO_STRATEGY",
+          "line": 23,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "INTRADAY_PERIODS",
+          "line": 36,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/state_merge.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 13,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 14,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 64,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/strategy_exit_profiles.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "BASE_PROFILES",
+          "line": 35,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "ALIASES",
+          "line": 125,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/strategy_optimizer.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/symbol_historical_profiles.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PRIMARY_HORIZON",
+          "line": 33,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 250,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/telegram_sender.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/telegram_sender_enhanced.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 57,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/telegram_sender_legacy.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 10,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "PERIOD_ORDER",
+          "line": 26,
+          "severity": "low"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 36,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 85,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "self.send_message",
+          "line": 105,
+          "severity": "high"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 141,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 142,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 330,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 344,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 455,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 572,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 682,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 694,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/telegram_sender_private.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "_DISPLAY_BY_KEY",
+          "line": 17,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/test_decision_panel_snapshot.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 22,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 93,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/test_market_data_store.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_decision_panel_v645.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_fundamental_data_pipeline.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_fundamental_score.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_institutional_stock_report.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_multi_timeframe_context.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_production_4h.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_production_4h_visual.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/tests/test_risk_engine.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/timeframe_forward_edge.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/timeframe_research_summary.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "PERIOD_ORDER",
+          "line": 17,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/trade_backtester.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/trade_ledger.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 30,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/update_symbols.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 12,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 19,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/validate_live_snapshot_integrity.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 111,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/validate_scan_coverage.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 22,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/validate_signal_parity.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "taramabot/verify_daily_g_parity.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "tvDatafeed",
+          "line": 14,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "taramabot/weekly_report.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "delivery",
+          "detail": "sender.send_message",
+          "line": 32,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/investor_takeaway.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "POSITIVE_RECOMMENDATIONS",
+          "line": 17,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "NEUTRAL_RECOMMENDATIONS",
+          "line": 20,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "NEGATIVE_RECOMMENDATIONS",
+          "line": 23,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 11,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 15,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "FOREX_CURRENCIES",
+          "line": 27,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 28,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SOURCE_LABELS",
+          "line": 29,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "SOURCE_PRIORITY",
+          "line": 38,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "RSS_FEEDS",
+          "line": 41,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 52,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 53,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 54,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 55,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 56,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 57,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 58,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 61,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 158,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 203,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "FETCHERS",
+          "line": 429,
+          "severity": "low"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 443,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 452,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 508,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 508,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 515,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 516,
+          "severity": "medium"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 519,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 519,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "send_message",
+          "line": 573,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v10.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 19,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 30,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 31,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 32,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "_SENT_SUMMARY_META",
+          "line": 35,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 83,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 138,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 139,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 140,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 182,
+          "severity": "medium"
+        },
+        {
+          "category": "delivery",
+          "detail": "_send_document",
+          "line": 214,
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v11.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v4.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 12,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 15,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 27,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 30,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 31,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BULLETIN_LABELS",
+          "line": 33,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "TR_MONTHS",
+          "line": 45,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "KAP_SKIP_EXACT",
+          "line": 56,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BULLETIN_FETCHERS",
+          "line": 240,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 390,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 391,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 395,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 396,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 413,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 421,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 471,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 484,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 485,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 486,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 512,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 546,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v5.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 8,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 11,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BROKER_CONFIGS",
+          "line": 21,
+          "severity": "low"
+        },
+        {
+          "category": "delivery",
+          "detail": "base.send_message",
+          "line": 327,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 341,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v6.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 10,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 13,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 29,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "OFFICIAL_LABELS",
+          "line": 31,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "LAYER_INFO",
+          "line": 38,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "RESEARCH_PAGE_CONFIGS",
+          "line": 117,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "assignment",
+          "line": 124,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 595,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 605,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 606,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 607,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "base.send_message",
+          "line": 626,
+          "severity": "high"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 633,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 682,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v7.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 4,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 7,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "NEW_LABELS",
+          "line": 25,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "NEW_LAYER_INFO",
+          "line": 33,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v8.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 16,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 19,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 29,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "BLOCKED_HOSTS",
+          "line": 33,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "GENERIC_TITLES",
+          "line": 49,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "ONE_PER_DAY_TYPES",
+          "line": 54,
+          "severity": "low"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 192,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 379,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 387,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 446,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/news_bot_v9.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 14,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 18,
+          "severity": "high"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 30,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 31,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 32,
+          "severity": "medium"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "KNOWN_RESEARCH_URLS",
+          "line": 42,
+          "severity": "low"
+        },
+        {
+          "category": "environment",
+          "detail": "os.getenv",
+          "line": 53,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 252,
+          "severity": "medium"
+        },
+        {
+          "category": "clock",
+          "detail": "datetime.now",
+          "line": 306,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/research_summary.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "module_mutable",
+          "detail": "TICKER_STOP",
+          "line": 14,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "COMPANY_PATTERNS",
+          "line": 31,
+          "severity": "low"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "KEYWORDS",
+          "line": 45,
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/test_news_bot.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 5,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/test_news_sources.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 6,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/test_news_v10.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "tradingview-haber-botu/test_news_v11.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "tradingview-haber-botu/test_news_v8.py",
+      "classification": "WRAPPABLE",
+      "findings": [
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 5,
+          "severity": "medium"
+        },
+        {
+          "category": "environment",
+          "detail": "os.environ[]",
+          "line": 6,
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "path": "tradingview-haber-botu/test_news_v9.py",
+      "classification": "PURE",
+      "findings": []
+    },
+    {
+      "path": "tradingview-haber-botu/tv_news_bot.py",
+      "classification": "IMPURE",
+      "findings": [
+        {
+          "category": "network_import",
+          "detail": "urllib.parse",
+          "line": 6,
+          "severity": "high"
+        },
+        {
+          "category": "network_import",
+          "detail": "requests",
+          "line": 8,
+          "severity": "high"
+        },
+        {
+          "category": "module_mutable",
+          "detail": "NEWS_API_PARAMS",
+          "line": 14,
+          "severity": "low"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 90,
+          "severity": "medium"
+        },
+        {
+          "category": "file_io",
+          "detail": "open",
+          "line": 132,
+          "severity": "medium"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.get",
+          "line": 152,
+          "severity": "high"
+        },
+        {
+          "category": "delivery",
+          "detail": "api.telegram.org literal",
+          "line": 220,
+          "severity": "high"
+        },
+        {
+          "category": "network_call",
+          "detail": "requests.post",
+          "line": 232,
+          "severity": "high"
+        }
+      ]
+    }
+  ],
+  "notice": "Statik aday raporudur; otomatik silme veya saflık kanıtı değildir."
+}
