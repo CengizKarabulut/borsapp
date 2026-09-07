@@ -1,0 +1,67 @@
+name: MA research refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeframe:
+        description: Canonical research timeframe
+        required: true
+        default: 1d
+        type: choice
+        options: [1h, 4h, 1d]
+  schedule:
+    - cron: "30 15 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: borsapp-ma-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      APP_ENV: shadow
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      DELIVERY_MODE: disabled
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Skip until PostgreSQL is configured
+        if: ${{ env.DATABASE_URL == '' }}
+        run: echo "DATABASE_URL secret is not configured; MA research skipped."
+      - name: Install runtime
+        if: ${{ env.DATABASE_URL != '' }}
+        run: python -m pip install ".[runtime]"
+      - name: Ensure schema and BIST universe
+        if: ${{ env.DATABASE_URL != '' }}
+        run: |
+          borsapp db-init
+          borsapp universe-sync --universe BIST_ALL --apply
+      - name: Refresh observation-only MA research
+        if: ${{ env.DATABASE_URL != '' }}
+        shell: bash
+        run: |
+          timeframe="1d"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            timeframe="${{ inputs.timeframe }}"
+          fi
+          borsapp ma-research-universe --universe BIST_ALL --timeframe "$timeframe" --bars 1000

@@ -257,6 +257,8 @@ CREATE TABLE IF NOT EXISTS ma_research_levels (
     timeframe TEXT NOT NULL,
     ma_type TEXT NOT NULL,
     period INTEGER NOT NULL CHECK (period >= 2),
+    qualification_side TEXT NOT NULL DEFAULT 'both'
+        CHECK (qualification_side IN ('support', 'resistance', 'both')),
     level_class TEXT NOT NULL,
     touches INTEGER NOT NULL CHECK (touches >= 0),
     quality_score DOUBLE PRECISION NOT NULL,
@@ -270,6 +272,8 @@ CREATE TABLE IF NOT EXISTS ma_research_levels (
         research_version, valid_from
     )
 );
+ALTER TABLE ma_research_levels
+    ADD COLUMN IF NOT EXISTS qualification_side TEXT NOT NULL DEFAULT 'both';
 CREATE INDEX IF NOT EXISTS ix_ma_research_levels_active
     ON ma_research_levels(instrument_id, timeframe, valid_from, valid_until);
 

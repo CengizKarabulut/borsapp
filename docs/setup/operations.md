@@ -44,6 +44,16 @@ MA Live, `ma_research_levels` tablosunda ilgili sembol/timeframe için etkin bir
 araştırma kaydı yoksa bilinçli olarak `UNKNOWN` üretir. Zayıf veya bulunmayan
 tarihsel kanıtı güncel fiyat yakınlığıyla yükseltmez.
 
+MA Research yalnız canonical, kapanmış barlarla gözlemsel seviye kalitesi üretir;
+Telegram'a doğrudan yazmaz. Tek sembol kontrolü:
+`borsapp --env-file .env ma-research-symbol ASELS --timeframe 1d --bars 1000`.
+Tüm evren yenilemesi:
+`borsapp --env-file .env ma-research-universe --timeframe 1d --bars 1000`.
+Destek ve direnç niteliği ayrı değerlendirilir; canlı fiyat yalnız araştırmada
+nitelikli bulunan tarafta olduğunda MA Live girdisi oluşur. `MA research refresh`
+GitHub işi hafta içi 18:30 İstanbul saatinde günlük seviyeleri yeniler; manuel
+çalıştırmada 1h, 4h veya 1d seçilebilir.
+
 ## Canlı yayın kapısı
 
 Canlıya geçiş üç ayrı bilinçli koşula bağlıdır:

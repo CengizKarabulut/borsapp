@@ -8,6 +8,7 @@ from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.features.ma import (
     MaQualification,
     QualifiedMaResearchProvider,
+    ma_series,
 )
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
 
@@ -17,6 +18,21 @@ class Source:
         return (
             MaQualification("SMA", 20, "level", 12, 45.0, "research-v1"),
             MaQualification("EMA", 20, "strong_level", 20, 60.0, "research-v1"),
+        )
+
+
+class WrongSideSource:
+    def load(self, frame):
+        return (
+            MaQualification(
+                "SMA",
+                20,
+                "level",
+                12,
+                45.0,
+                "research-v1",
+                qualification_side="resistance",
+            ),
         )
 
 
@@ -60,6 +76,33 @@ class QualifiedMaResearchProviderTests(unittest.TestCase):
         self.assertAlmostEqual(sma.value, sum(range(120, 140)) / 20)
         self.assertLess(sma.distance_atr, 0)
         self.assertEqual(len(result.research_version), 64)
+
+    def test_historical_support_resistance_direction_must_match_current_side(self) -> None:
+        result = QualifiedMaResearchProvider(WrongSideSource()).compute(frame())
+        self.assertIsNone(result)
+
+    def test_rolling_ma_optimizations_preserve_reference_formulas(self) -> None:
+        close = [float(value) for value in range(1, 31)]
+        volume = [float(100 + value % 7) for value in range(30)]
+        period = 7
+        sma = ma_series("SMA", close, volume, period)
+        wma = ma_series("WMA", close, volume, period)
+        vwma = ma_series("VWMA", close, volume, period)
+        weights = list(range(1, period + 1))
+        for index in range(period - 1, len(close)):
+            prices = close[index - period + 1 : index + 1]
+            volumes = volume[index - period + 1 : index + 1]
+            self.assertAlmostEqual(sma[index], sum(prices) / period)
+            self.assertAlmostEqual(
+                wma[index],
+                sum(value * weight for value, weight in zip(prices, weights, strict=True))
+                / sum(weights),
+            )
+            self.assertAlmostEqual(
+                vwma[index],
+                sum(value * observed for value, observed in zip(prices, volumes, strict=True))
+                / sum(volumes),
+            )
 
 
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ from market_intelligence.market_data.universe import (
 )
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
+    PostgresMaResearchStore,
 )
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
@@ -50,6 +51,7 @@ from market_intelligence.persistence.postgres.symbol_commands import (
 from market_intelligence.persistence.postgres.telegram_updates import (
     PostgresTelegramUpdateRepository,
 )
+from market_intelligence.research.ma_levels import research_ma_levels
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist, ScheduledBarPlanner
 from market_intelligence.settings import ApplicationSettings, merged_environment
@@ -118,6 +120,22 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Önizlenen değişiklikleri atomik olarak uygula.",
     )
+
+    research_symbol = subparsers.add_parser(
+        "ma-research-symbol",
+        help="Bir sembolün gözlemsel MA seviyelerini canonical veriyle üret",
+    )
+    research_symbol.add_argument("symbol")
+    research_symbol.add_argument("--timeframe", default="1d")
+    research_symbol.add_argument("--bars", type=int, default=1000)
+
+    research_universe = subparsers.add_parser(
+        "ma-research-universe",
+        help="BIST_ALL için MA Research seviyelerini yenile",
+    )
+    research_universe.add_argument("--universe", default="BIST_ALL")
+    research_universe.add_argument("--timeframe", default="1d")
+    research_universe.add_argument("--bars", type=int, default=1000)
     universe_sync.add_argument(
         "--allow-large-removal",
         action="store_true",
@@ -398,6 +416,120 @@ def _feature_engine(connection) -> FeatureEngine:
     return FeatureEngine(registry)
 
 
+def _research_instrument(
+    *,
+    settings: ApplicationSettings,
+    connection,
+    instrument,
+    timeframe,
+    bars: int,
+    evaluation_time: datetime,
+) -> tuple[int, int]:
+    frame = IngestionService(
+        provider=BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
+        store=PostgresSnapshotStore(connection),
+    ).ingest(
+        IngestionRequest(
+            instrument_id=instrument.instrument_id,
+            symbol=instrument.symbol,
+            provider_symbol=instrument.provider_symbol,
+            market=instrument.market,
+            timeframe=timeframe,
+            bars=bars,
+            as_of=evaluation_time,
+            series_revision=1,
+        )
+    )
+    levels = research_ma_levels(frame)
+    stored = PostgresMaResearchStore(connection).replace(frame, levels)
+    qualified = sum(level.level_class in {"strong_level", "level"} for level in levels)
+    return stored, qualified
+
+
+def _ma_research_symbol(
+    settings: ApplicationSettings,
+    *,
+    symbol: str,
+    timeframe_raw: str,
+    bars: int,
+) -> int:
+    if bars < 420 or bars > 5000:
+        raise ValueError("MA Research --bars 420 ile 5000 arasında olmalıdır")
+    timeframe = parse_timeframe(timeframe_raw)
+    evaluation_time = datetime.now(settings.runtime.timezone)
+    with _connect(settings.runtime.database_url) as connection:
+        instrument = PostgresRuntimeRepository(connection).resolve_instrument(
+            symbol.strip().upper(),
+            as_of=evaluation_time.date(),
+        )
+        if instrument is None:
+            raise ValueError(
+                f"Enstrüman kayıtlı değil: {symbol}; önce universe-sync --apply çalıştırın"
+            )
+        stored, qualified = _research_instrument(
+            settings=settings,
+            connection=connection,
+            instrument=instrument,
+            timeframe=timeframe,
+            bars=bars,
+            evaluation_time=evaluation_time,
+        )
+    print(
+        f"MA Research tamamlandı: {instrument.symbol} {timeframe.value} · "
+        f"seviye={stored} · nitelikli={qualified}"
+    )
+    return 0
+
+
+def _ma_research_universe(
+    settings: ApplicationSettings,
+    *,
+    universe: str,
+    timeframe_raw: str,
+    bars: int,
+) -> int:
+    if bars < 420 or bars > 5000:
+        raise ValueError("MA Research --bars 420 ile 5000 arasında olmalıdır")
+    universe_id = universe.strip().upper()
+    timeframe = parse_timeframe(timeframe_raw)
+    evaluation_time = datetime.now(settings.runtime.timezone)
+    successful = 0
+    failed = 0
+    qualified = 0
+    with _connect(settings.runtime.database_url) as connection:
+        runtime = PostgresRuntimeRepository(connection)
+        instruments = runtime.list_universe(universe_id, as_of=evaluation_time.date())
+        if not instruments:
+            raise ValueError(
+                f"Universe boş: {universe_id}; önce universe-sync --apply çalıştırın"
+            )
+        for instrument in instruments:
+            try:
+                _stored, instrument_qualified = _research_instrument(
+                    settings=settings,
+                    connection=connection,
+                    instrument=instrument,
+                    timeframe=timeframe,
+                    bars=bars,
+                    evaluation_time=evaluation_time,
+                )
+            except Exception as exc:
+                failed += 1
+                print(
+                    f"MA Research hatası: {instrument.symbol} · "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+            else:
+                successful += 1
+                qualified += instrument_qualified
+    print(
+        f"MA Research universe: {universe_id} {timeframe.value} · "
+        f"başarılı={successful} · hatalı={failed} · nitelikli_seviye={qualified}"
+    )
+    return 0 if failed == 0 else 1
+
+
 def _scan_symbol(
     settings: ApplicationSettings,
     *,
@@ -640,6 +772,20 @@ def main(argv: list[str] | None = None) -> int:
                 universe=args.universe,
                 apply=args.apply,
                 allow_large_removal=args.allow_large_removal,
+            )
+        if args.command == "ma-research-symbol":
+            return _ma_research_symbol(
+                settings,
+                symbol=args.symbol,
+                timeframe_raw=args.timeframe,
+                bars=args.bars,
+            )
+        if args.command == "ma-research-universe":
+            return _ma_research_universe(
+                settings,
+                universe=args.universe,
+                timeframe_raw=args.timeframe,
+                bars=args.bars,
             )
         if args.command == "scan-symbol":
             return _scan_symbol(

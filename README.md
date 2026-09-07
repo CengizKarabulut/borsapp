@@ -67,7 +67,7 @@ Kullanıcı kurulumları:
 - [x] `ma.near_zone` state makinesi ve persistence dilimi
 - [x] XIST tatil takvimi + watermark/catch-up worker
 - [x] BIST Tüm (XUTUM) kaynaklı, güvenlik frenli `BIST_ALL` universe eşitlemesi
-- [ ] MA Research seviye üreticisinin yeni feature store'a taşınması
+- [x] Yön-duyarlı MA Research seviye üreticisi ve günlük feature-store yenilemesi
 - [ ] Kalan legacy scanner ailelerinin parity ile taşınması
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.
