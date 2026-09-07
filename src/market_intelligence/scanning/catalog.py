@@ -21,10 +21,18 @@ from market_intelligence.scanning.signal.rsi_volume import (
     RsiMomentumVolumeScanner,
 )
 from market_intelligence.scanning.signal.smi_macd_positive import (
+    SmiMacdEarlyScanner,
+    SmiMacdFullScanner,
+    SmiMacdNegativeConfig,
     SmiMacdPositiveConfig,
     SmiMacdPositiveScanner,
     SmiMacdPositiveVolumeConfig,
     SmiMacdPositiveVolumeConfirmedScanner,
+)
+from market_intelligence.scanning.signal.trend_volume import (
+    EmaTrendVolumeScanner,
+    SmaMacdVolumeScanner,
+    TrendVolumeConfig,
 )
 from market_intelligence.scanning.technical.volume_spike import (
     TechnicalVolumeSpikeScanner,
@@ -195,6 +203,66 @@ def load_scanner_catalog(
                 RsiMacdVolumeScanner(rsi_macd_config),
                 rsi_macd_config,
                 rsi_macd_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    smi_early_section = _section(document, SmiMacdEarlyScanner.id)
+    smi_early_config = SmiMacdNegativeConfig(
+        minimum_history=int(smi_early_section["minimum_history"]),
+        volume_multiplier=float(smi_early_section["volume_multiplier"]),
+    )
+    if bool(smi_early_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                SmiMacdEarlyScanner(smi_early_config),
+                smi_early_config,
+                smi_early_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    smi_full_section = _section(document, SmiMacdFullScanner.id)
+    smi_full_config = SmiMacdNegativeConfig(
+        minimum_history=int(smi_full_section["minimum_history"]),
+        volume_multiplier=float(smi_full_section["volume_multiplier"]),
+    )
+    if bool(smi_full_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                SmiMacdFullScanner(smi_full_config),
+                smi_full_config,
+                smi_full_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    sma_section = _section(document, SmaMacdVolumeScanner.id)
+    sma_config = TrendVolumeConfig(
+        minimum_history=int(sma_section["minimum_history"]),
+        volume_multiplier=float(sma_section["volume_multiplier"]),
+    )
+    if bool(sma_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                SmaMacdVolumeScanner(sma_config),
+                sma_config,
+                sma_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    ema_section = _section(document, EmaTrendVolumeScanner.id)
+    ema_config = TrendVolumeConfig(
+        minimum_history=int(ema_section["minimum_history"]),
+        volume_multiplier=float(ema_section["volume_multiplier"]),
+    )
+    if bool(ema_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                EmaTrendVolumeScanner(ema_config),
+                ema_config,
+                ema_section,
                 calendar_version=calendar_version,
             )
         )

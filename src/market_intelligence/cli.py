@@ -35,7 +35,7 @@ from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
 from market_intelligence.features.trend import (
     InclusiveVolumeSma10Provider,
     InclusiveVolumeSma20Provider,
-    Sma200Provider,
+    LegacyTrendMaProvider,
 )
 from market_intelligence.features.volume import RelativeVolume20Provider
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
@@ -424,7 +424,7 @@ def _feature_engine(connection) -> FeatureEngine:
         SmiProvider(),
         LegacyRsi7Provider(),
         LegacyRsi14Provider(),
-        Sma200Provider(),
+        LegacyTrendMaProvider(),
         InclusiveVolumeSma10Provider(),
         InclusiveVolumeSma20Provider(),
         QualifiedMaResearchProvider(PostgresMaQualificationSource(connection)),

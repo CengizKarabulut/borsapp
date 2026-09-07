@@ -21,6 +21,10 @@ class ScannerCatalogTests(unittest.TestCase):
                 "signal.smi_macd_positive_volume_confirmed",
                 "signal.rsi_momentum_volume",
                 "signal.rsi_macd_volume",
+                "signal.smi_macd_early",
+                "signal.smi_macd_full",
+                "signal.sma_macd_volume",
+                "signal.ema_trend_volume",
                 "ma.near_zone",
             },
         )

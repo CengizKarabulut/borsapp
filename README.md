@@ -68,6 +68,10 @@ Kullanıcı kurulumları:
       `signal.smi_macd_positive_volume_confirmed` (`S-M-V-1`) dikey dilimleri
 - [x] `signal.rsi_momentum_volume` (`R-V-1`) ve
       `signal.rsi_macd_volume` (`R-M-V-1`) dikey dilimleri
+- [x] `signal.smi_macd_early` (`S-M-2`) ve
+      `signal.smi_macd_full` (`S-M-V-2`) dikey dilimleri
+- [x] `signal.sma_macd_volume` (`A-M-V-1`) ve
+      `signal.ema_trend_volume` (`E-V-1`) dikey dilimleri
 - [x] `ma.near_zone` state makinesi ve persistence dilimi
 - [x] XIST tatil takvimi + watermark/catch-up worker
 - [x] BIST Tüm (XUTUM) kaynaklı, güvenlik frenli `BIST_ALL` universe eşitlemesi

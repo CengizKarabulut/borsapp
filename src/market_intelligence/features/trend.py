@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
+from market_intelligence.features.momentum import recursive_ema
 from market_intelligence.features.specs import FeatureSpec, WarmupSpec
 from market_intelligence.market_data.bars import CanonicalFrame
 
-SMA_200 = FeatureSpec(
-    feature_id="trend.sma.close",
-    implementation="complete_window_mean_v1",
+LEGACY_TREND_MA_SET = FeatureSpec(
+    feature_id="trend.ma.legacy_set",
+    implementation="legacy_sma_and_recursive_ema_set_v1",
     version="1.0.0",
-    parameters={"period": 200},
+    parameters={
+        "sma_periods": (5, 8, 21, 50, 55, 200),
+        "ema_periods": (5, 8, 13, 21, 55, 200),
+    },
     warmup=WarmupSpec(bars=200, seed="complete_window"),
 )
 
@@ -31,9 +36,11 @@ INCLUSIVE_VOLUME_SMA_10 = FeatureSpec(
 
 
 @dataclass(frozen=True)
-class MovingAverageSnapshot:
-    value: float
+class LegacyTrendMaSnapshot:
     close: float
+    sma: Mapping[int, float]
+    ema: Mapping[int, float]
+    previous_ema: Mapping[int, float]
 
 
 @dataclass(frozen=True)
@@ -43,16 +50,24 @@ class InclusiveVolumeSnapshot:
     ratio: float
 
 
-class Sma200Provider:
-    spec = SMA_200
+class LegacyTrendMaProvider:
+    spec = LEGACY_TREND_MA_SET
 
-    def compute(self, frame: CanonicalFrame) -> MovingAverageSnapshot | None:
-        period = int(self.spec.parameters["period"])
-        if frame.is_partial or len(frame.bars) < period:
+    def compute(self, frame: CanonicalFrame) -> LegacyTrendMaSnapshot | None:
+        sma_periods = tuple(int(value) for value in self.spec.parameters["sma_periods"])
+        ema_periods = tuple(int(value) for value in self.spec.parameters["ema_periods"])
+        if frame.is_partial or len(frame.bars) < max((*sma_periods, *ema_periods)):
             return None
-        return MovingAverageSnapshot(
-            value=sum(bar.close for bar in frame.bars[-period:]) / period,
+        close = [bar.close for bar in frame.bars]
+        ema_series = {period: recursive_ema(close, period) for period in ema_periods}
+        return LegacyTrendMaSnapshot(
             close=frame.bars[-1].close,
+            sma={
+                period: sum(close[-period:]) / period
+                for period in sma_periods
+            },
+            ema={period: values[-1] for period, values in ema_series.items()},
+            previous_ema={period: values[-2] for period, values in ema_series.items()},
         )
 
 

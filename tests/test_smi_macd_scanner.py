@@ -15,15 +15,17 @@ from market_intelligence.features.momentum import (
 )
 from market_intelligence.features.trend import (
     INCLUSIVE_VOLUME_SMA_20,
-    SMA_200,
+    LEGACY_TREND_MA_SET,
     InclusiveVolumeSma20Provider,
     InclusiveVolumeSnapshot,
-    MovingAverageSnapshot,
-    Sma200Provider,
+    LegacyTrendMaProvider,
+    LegacyTrendMaSnapshot,
 )
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
 from market_intelligence.scanning.engine import ScannerEngine
 from market_intelligence.scanning.signal.smi_macd_positive import (
+    SmiMacdEarlyScanner,
+    SmiMacdFullScanner,
     SmiMacdPositiveScanner,
     SmiMacdPositiveVolumeConfirmedScanner,
 )
@@ -78,6 +80,34 @@ def momentum_features() -> dict[str, object]:
     }
 
 
+def trend_snapshot(close: float = 120.0, long_average: float = 100.0) -> LegacyTrendMaSnapshot:
+    return LegacyTrendMaSnapshot(
+        close=close,
+        sma={5: 115.0, 8: 114.0, 21: 112.0, 50: 108.0, 55: 107.0, 200: long_average},
+        ema={5: 119.0, 8: 118.0, 13: 117.0, 21: 112.0, 55: 108.0, 200: 100.0},
+        previous_ema={5: 117.0, 8: 116.0, 13: 116.5, 21: 111.0, 55: 107.0, 200: 99.0},
+    )
+
+
+def negative_momentum_features() -> dict[str, object]:
+    return {
+        SMI_10_3_3.feature_id: SmiSnapshot(
+            value=-20.0,
+            signal=-25.0,
+            previous_value=-30.0,
+            previous_signal=-28.0,
+        ),
+        MACD_12_26_9.feature_id: MacdSnapshot(
+            line=-1.0,
+            signal=-0.9,
+            histogram=-0.1,
+            previous_line=-1.2,
+            previous_signal=-1.0,
+            previous_histogram=-0.2,
+        ),
+    }
+
+
 class SmiFeatureTests(unittest.TestCase):
     def test_smi_is_finite_after_legacy_warmup(self) -> None:
         result = calculate_smi(long_frame())
@@ -101,15 +131,21 @@ class SmiFeatureTests(unittest.TestCase):
 
     def test_confirmation_features_use_complete_legacy_windows(self) -> None:
         source = long_frame()
-        average = Sma200Provider().compute(source)
+        average = LegacyTrendMaProvider().compute(source)
         volume = InclusiveVolumeSma20Provider().compute(source)
         self.assertIsNotNone(average)
         self.assertIsNotNone(volume)
         assert average is not None and volume is not None
         self.assertAlmostEqual(
-            average.value,
+            average.sma[200],
             sum(bar.close for bar in source.bars[-200:]) / 200,
         )
+        self.assertAlmostEqual(average.sma[5], 142.69925007169462)
+        self.assertAlmostEqual(average.sma[55], 138.337497768505)
+        self.assertAlmostEqual(average.ema[5], 142.72781953933813)
+        self.assertAlmostEqual(average.previous_ema[5], 142.67880403562785)
+        self.assertAlmostEqual(average.ema[200], 126.13405357428543)
+        self.assertAlmostEqual(average.previous_ema[200], 125.96629682079323)
         self.assertEqual(volume.observed_volume, 1000.0)
         self.assertEqual(volume.mean_volume, 1000.0)
         self.assertEqual(volume.ratio, 1.0)
@@ -131,7 +167,7 @@ class SmiMacdScannerTests(unittest.TestCase):
         source = long_frame()
         values = {
             **momentum_features(),
-            SMA_200.feature_id: MovingAverageSnapshot(value=100.0, close=120.0),
+            LEGACY_TREND_MA_SET.feature_id: trend_snapshot(),
             INCLUSIVE_VOLUME_SMA_20.feature_id: InclusiveVolumeSnapshot(
                 observed_volume=1600.0,
                 mean_volume=1000.0,
@@ -154,7 +190,7 @@ class SmiMacdScannerTests(unittest.TestCase):
         source = long_frame()
         values = {
             **momentum_features(),
-            SMA_200.feature_id: MovingAverageSnapshot(value=100.0, close=120.0),
+            LEGACY_TREND_MA_SET.feature_id: trend_snapshot(),
             INCLUSIVE_VOLUME_SMA_20.feature_id: InclusiveVolumeSnapshot(
                 observed_volume=1400.0,
                 mean_volume=1000.0,
@@ -168,6 +204,48 @@ class SmiMacdScannerTests(unittest.TestCase):
             context=context(source, values),
         )
         self.assertEqual(run.evaluation.status, EvaluationStatus.NO_MATCH)
+
+    def test_s_m_2_and_s_m_v_2_are_mutually_exclusive(self) -> None:
+        source = long_frame()
+        early_values = {
+            **negative_momentum_features(),
+            LEGACY_TREND_MA_SET.feature_id: trend_snapshot(close=90.0),
+            INCLUSIVE_VOLUME_SMA_20.feature_id: InclusiveVolumeSnapshot(1000.0, 1000.0, 1.0),
+        }
+        early = ScannerEngine().run(
+            cycle_id="cycle-1",
+            frame=source,
+            scanner=SmiMacdEarlyScanner(),
+            context=context(source, early_values),
+        )
+        full_on_early = ScannerEngine().run(
+            cycle_id="cycle-1",
+            frame=source,
+            scanner=SmiMacdFullScanner(),
+            context=context(source, early_values),
+        )
+        self.assertEqual(early.evaluation.status, EvaluationStatus.MATCH)
+        self.assertEqual(full_on_early.evaluation.status, EvaluationStatus.NO_MATCH)
+
+        full_values = {
+            **negative_momentum_features(),
+            LEGACY_TREND_MA_SET.feature_id: trend_snapshot(),
+            INCLUSIVE_VOLUME_SMA_20.feature_id: InclusiveVolumeSnapshot(1600.0, 1000.0, 1.6),
+        }
+        early_on_full = ScannerEngine().run(
+            cycle_id="cycle-2",
+            frame=source,
+            scanner=SmiMacdEarlyScanner(),
+            context=context(source, full_values),
+        )
+        full = ScannerEngine().run(
+            cycle_id="cycle-2",
+            frame=source,
+            scanner=SmiMacdFullScanner(),
+            context=context(source, full_values),
+        )
+        self.assertEqual(early_on_full.evaluation.status, EvaluationStatus.NO_MATCH)
+        self.assertEqual(full.evaluation.status, EvaluationStatus.MATCH)
 
 
 if __name__ == "__main__":
