@@ -66,6 +66,8 @@ Kullanıcı kurulumları:
 - [x] `signal.macd_positive_cross` dikey dilimi
 - [x] `signal.smi_macd_positive` (`S-M-1`) ve MA200/hacim onaylı
       `signal.smi_macd_positive_volume_confirmed` (`S-M-V-1`) dikey dilimleri
+- [x] `signal.rsi_momentum_volume` (`R-V-1`) ve
+      `signal.rsi_macd_volume` (`R-M-V-1`) dikey dilimleri
 - [x] `ma.near_zone` state makinesi ve persistence dilimi
 - [x] XIST tatil takvimi + watermark/catch-up worker
 - [x] BIST Tüm (XUTUM) kaynaklı, güvenlik frenli `BIST_ALL` universe eşitlemesi

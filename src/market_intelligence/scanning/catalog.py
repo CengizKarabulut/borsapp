@@ -14,6 +14,12 @@ from market_intelligence.scanning.signal.macd_positive_cross import (
     MacdPositiveCrossScanner,
     MacdTriggerMode,
 )
+from market_intelligence.scanning.signal.rsi_volume import (
+    RsiMacdVolumeConfig,
+    RsiMacdVolumeScanner,
+    RsiMomentumVolumeConfig,
+    RsiMomentumVolumeScanner,
+)
 from market_intelligence.scanning.signal.smi_macd_positive import (
     SmiMacdPositiveConfig,
     SmiMacdPositiveScanner,
@@ -155,6 +161,40 @@ def load_scanner_catalog(
                 SmiMacdPositiveVolumeConfirmedScanner(confirmed_config),
                 confirmed_config,
                 confirmed_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    rsi_volume_section = _section(document, RsiMomentumVolumeScanner.id)
+    rsi_volume_config = RsiMomentumVolumeConfig(
+        minimum_history=int(rsi_volume_section["minimum_history"]),
+        strength_threshold=float(rsi_volume_section["strength_threshold"]),
+        crossover_level=float(rsi_volume_section["crossover_level"]),
+        volume_multiplier=float(rsi_volume_section["volume_multiplier"]),
+    )
+    if bool(rsi_volume_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                RsiMomentumVolumeScanner(rsi_volume_config),
+                rsi_volume_config,
+                rsi_volume_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    rsi_macd_section = _section(document, RsiMacdVolumeScanner.id)
+    rsi_macd_config = RsiMacdVolumeConfig(
+        minimum_history=int(rsi_macd_section["minimum_history"]),
+        crossover_level=float(rsi_macd_section["crossover_level"]),
+        maximum_rsi=float(rsi_macd_section["maximum_rsi"]),
+        volume_multiplier=float(rsi_macd_section["volume_multiplier"]),
+    )
+    if bool(rsi_macd_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                RsiMacdVolumeScanner(rsi_macd_config),
+                rsi_macd_config,
+                rsi_macd_section,
                 calendar_version=calendar_version,
             )
         )

@@ -30,6 +30,22 @@ SMI_10_3_3 = FeatureSpec(
     warmup=WarmupSpec(bars=11, seed="first_valid_value"),
 )
 
+LEGACY_RSI_7 = FeatureSpec(
+    feature_id="momentum.rsi.legacy_7",
+    implementation="legacy_wilder_recursive_first_delta_v1",
+    version="1.0.0",
+    parameters={"period": 7},
+    warmup=WarmupSpec(bars=3, seed="first_delta"),
+)
+
+LEGACY_RSI_14 = FeatureSpec(
+    feature_id="momentum.rsi.legacy_14",
+    implementation="legacy_wilder_recursive_first_delta_v1",
+    version="1.0.0",
+    parameters={"period": 14},
+    warmup=WarmupSpec(bars=3, seed="first_delta"),
+)
+
 
 @dataclass(frozen=True)
 class MacdSnapshot:
@@ -147,6 +163,31 @@ def calculate_smi(
     )
 
 
+def calculate_legacy_rsi(frame: CanonicalFrame, period: int) -> RsiSnapshot | None:
+    if period < 1:
+        raise ValueError("RSI periyodu pozitif olmalıdır")
+    close = [bar.close for bar in frame.bars]
+    if frame.is_partial or len(close) < 3:
+        return None
+    changes = [current - previous for previous, current in zip(close, close[1:], strict=False)]
+    average_gain = max(changes[0], 0.0)
+    average_loss = max(-changes[0], 0.0)
+    values: list[float | None] = []
+    alpha = 1.0 / period
+    for index, change in enumerate(changes):
+        if index:
+            average_gain = alpha * max(change, 0.0) + (1.0 - alpha) * average_gain
+            average_loss = alpha * max(-change, 0.0) + (1.0 - alpha) * average_loss
+        if average_loss == 0:
+            values.append(100.0 if average_gain > 0 else None)
+        else:
+            ratio = average_gain / average_loss
+            values.append(100.0 - 100.0 / (1.0 + ratio))
+    if values[-1] is None or values[-2] is None:
+        return None
+    return RsiSnapshot(value=values[-1], previous_value=values[-2])
+
+
 class MacdProvider:
     spec = MACD_12_26_9
 
@@ -171,3 +212,17 @@ class SmiProvider:
             length_d=int(self.spec.parameters["length_d"]),
             signal_period=int(self.spec.parameters["signal"]),
         )
+
+
+class LegacyRsi7Provider:
+    spec = LEGACY_RSI_7
+
+    def compute(self, frame: CanonicalFrame) -> RsiSnapshot | None:
+        return calculate_legacy_rsi(frame, int(self.spec.parameters["period"]))
+
+
+class LegacyRsi14Provider:
+    spec = LEGACY_RSI_14
+
+    def compute(self, frame: CanonicalFrame) -> RsiSnapshot | None:
+        return calculate_legacy_rsi(frame, int(self.spec.parameters["period"]))
