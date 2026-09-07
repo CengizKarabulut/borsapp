@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   research:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_RESEARCH == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:

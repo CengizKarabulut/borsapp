@@ -51,8 +51,9 @@ Tüm evren yenilemesi:
 `borsapp --env-file .env ma-research-universe --timeframe 1d --bars 1000`.
 Destek ve direnç niteliği ayrı değerlendirilir; canlı fiyat yalnız araştırmada
 nitelikli bulunan tarafta olduğunda MA Live girdisi oluşur. `MA research refresh`
-GitHub işi hafta içi 18:30 İstanbul saatinde günlük seviyeleri yeniler; manuel
-çalıştırmada 1h, 4h veya 1d seçilebilir.
+GitHub işi manuel çalıştırmada 1h, 4h veya 1d seçilebilir. Zamanlanmış günlük
+yenileme, Neon depolama optimizasyonu tamamlandıktan sonra repository variable
+olarak `ENABLE_SCHEDULED_RESEARCH=true` verilerek açılır.
 
 ## Canlı yayın kapısı
 
@@ -70,10 +71,15 @@ engeller.
 
 ## GitHub Actions
 
-`Shadow scan` workflow'u hafta içi 10:00-18:00 İstanbul aralığına denk gelen
-UTC saatlerinde 15 dakikada bir uyanır. `DATABASE_URL` yoksa başarıyla ve hiçbir
-şey yapmadan çıkar. Workflow `DELIVERY_MODE=shadow` değerini zorlar ve doğrudan
-Telegram yayını yapmaz.
+`Shadow scan` workflow'u manuel olarak çalıştırılabilir. Zamanlanmış hafta içi
+çalışmalar, Neon depolama optimizasyonu tamamlandıktan sonra repository variable
+olarak `ENABLE_SCHEDULED_SCANS=true` verilerek açılır. `DATABASE_URL` yoksa
+başarıyla ve hiçbir şey yapmadan çıkar. Workflow `DELIVERY_MODE=shadow` değerini
+zorlar ve doğrudan Telegram yayını yapmaz.
+
+Bu iki zamanlama anahtarı varsayılan olarak kapalıdır. Böylece tüm BIST üzerinde
+tam frame kopyaları henüz seyreltilmeden ücretsiz Neon kotası kendiliğinden
+tüketilmez. `BIST universe sync` bu kapılardan bağımsız olarak günlük çalışır.
 
 Üretimde uzun yaşayan Docker worker tercih edilir. GitHub Actions, shadow ve
 yedek catch-up için uygundur; tek merkezi Telegram listener/publisher olarak

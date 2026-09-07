@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
+from market_intelligence.core.identity import canonical_json
 from market_intelligence.market_data.universe import UniverseSyncPlan
 from market_intelligence.persistence.postgres.scan_store import PostgresConnection
 
@@ -37,41 +39,82 @@ VALUES (%s, %s, %s)
 ON CONFLICT (instrument_id, universe_id, valid_from) DO NOTHING
 """
 
-FIND_ACTIVE_MEMBERSHIP_SQL = """
-SELECT valid_from
-FROM universe_memberships
-WHERE instrument_id = %s AND universe_id = %s
-  AND valid_from <= %s
-  AND (valid_to IS NULL OR valid_to >= %s)
-ORDER BY valid_from DESC
-LIMIT 1
-"""
-
-UPDATE_INSTRUMENT_NAME_SQL = """
-UPDATE instruments
-SET name = %s
-WHERE instrument_id = %s AND name IS DISTINCT FROM %s
-"""
-
-DELETE_SAME_DAY_MEMBERSHIP_SQL = """
-DELETE FROM universe_memberships
-WHERE instrument_id = %s AND universe_id = %s AND valid_from = %s
-"""
-
-CLOSE_MEMBERSHIP_SQL = """
-UPDATE universe_memberships
-SET valid_to = %s
-WHERE instrument_id = %s AND universe_id = %s
-  AND valid_from < %s
-  AND (valid_to IS NULL OR valid_to >= %s)
-"""
-
 INSERT_UNIVERSE_SYNC_RUN_SQL = """
 INSERT INTO universe_sync_runs (
     universe_id, source, effective_date, observed_count, current_count,
     addition_count, removal_count, unchanged_count, content_hash
 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 RETURNING sync_run_id
+"""
+
+FIND_INSTRUMENTS_BULK_SQL = """
+SELECT DISTINCT ON (upper(s.symbol)) i.instrument_id, upper(s.symbol)
+FROM instrument_symbols s
+JOIN instruments i ON i.instrument_id = s.instrument_id
+WHERE s.provider = 'borsapy' AND upper(s.symbol) = ANY(%s)
+  AND s.valid_from <= %s
+  AND (s.valid_to IS NULL OR s.valid_to >= %s)
+  AND i.valid_from <= %s
+  AND (i.valid_to IS NULL OR i.valid_to >= %s)
+ORDER BY upper(s.symbol), s.valid_from DESC
+"""
+
+INSERT_INSTRUMENTS_BULK_SQL = """
+INSERT INTO instruments (instrument_id, asset_class, market, name, valid_from)
+SELECT instrument_id, asset_class, market, name, valid_from
+FROM jsonb_to_recordset(%s::jsonb) AS value(
+    instrument_id UUID, asset_class TEXT, market TEXT, name TEXT, valid_from DATE
+)
+ON CONFLICT (instrument_id) DO NOTHING
+"""
+
+INSERT_SYMBOLS_BULK_SQL = """
+INSERT INTO instrument_symbols (instrument_id, provider, symbol, valid_from)
+SELECT instrument_id, provider, symbol, valid_from
+FROM jsonb_to_recordset(%s::jsonb) AS value(
+    instrument_id UUID, provider TEXT, symbol TEXT, valid_from DATE
+)
+ON CONFLICT (instrument_id, provider, symbol, valid_from) DO NOTHING
+"""
+
+UPDATE_INSTRUMENT_NAMES_BULK_SQL = """
+UPDATE instruments AS target
+SET name = value.name
+FROM jsonb_to_recordset(%s::jsonb) AS value(instrument_id UUID, name TEXT)
+WHERE target.instrument_id = value.instrument_id
+  AND target.name IS DISTINCT FROM value.name
+"""
+
+INSERT_MEMBERSHIPS_BULK_SQL = """
+INSERT INTO universe_memberships (instrument_id, universe_id, valid_from)
+SELECT value.instrument_id, value.universe_id, value.valid_from
+FROM jsonb_to_recordset(%s::jsonb) AS value(
+    instrument_id UUID, universe_id TEXT, valid_from DATE
+)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM universe_memberships existing
+    WHERE existing.instrument_id = value.instrument_id
+      AND existing.universe_id = value.universe_id
+      AND existing.valid_from <= value.valid_from
+      AND (existing.valid_to IS NULL OR existing.valid_to >= value.valid_from)
+)
+ON CONFLICT (instrument_id, universe_id, valid_from) DO NOTHING
+"""
+
+DELETE_SAME_DAY_MEMBERSHIPS_BULK_SQL = """
+DELETE FROM universe_memberships
+WHERE instrument_id = ANY(%s::uuid[])
+  AND universe_id = %s AND valid_from = %s
+"""
+
+CLOSE_MEMBERSHIPS_BULK_SQL = """
+UPDATE universe_memberships
+SET valid_to = %s
+WHERE instrument_id = ANY(%s::uuid[])
+  AND universe_id = %s
+  AND valid_from < %s
+  AND (valid_to IS NULL OR valid_to >= %s)
 """
 
 START_CYCLE_SQL = """
@@ -273,74 +316,84 @@ class PostgresRuntimeRepository:
                         "Universe üyeliği önizlemeden sonra değişti; yeniden önizleyin"
                     )
 
+                provider_symbols = [member.provider_symbol for member in plan.members]
+                cursor.execute(
+                    FIND_INSTRUMENTS_BULK_SQL,
+                    (provider_symbols, plan.as_of, plan.as_of, plan.as_of, plan.as_of),
+                )
+                existing_by_provider = {
+                    str(row[1]).upper(): str(row[0]) for row in cursor.fetchall()
+                }
+                new_instruments: list[dict[str, object]] = []
+                symbol_rows: list[dict[str, object]] = []
+                resolved_rows: list[dict[str, object]] = []
                 for member in plan.members:
-                    cursor.execute(
-                        FIND_INSTRUMENT_SQL,
-                        (
-                            "borsapy",
-                            member.provider_symbol,
-                            plan.as_of,
-                            plan.as_of,
-                            plan.as_of,
-                            plan.as_of,
-                        ),
-                    )
-                    row = cursor.fetchone()
-                    if row:
-                        instrument_id = str(row[0])
-                    else:
-                        cursor.execute(
-                            INSERT_INSTRUMENT_SQL,
+                    instrument_id = existing_by_provider.get(member.provider_symbol)
+                    if instrument_id is None:
+                        instrument_id = str(uuid4())
+                        new_instruments.append(
+                            {
+                                "instrument_id": instrument_id,
+                                "asset_class": member.asset_class,
+                                "market": member.market,
+                                "name": member.name,
+                                "valid_from": plan.as_of,
+                            }
+                        )
+                        symbol_rows.extend(
                             (
-                                member.asset_class,
-                                member.market,
-                                member.name,
-                                plan.as_of,
-                            ),
+                                {
+                                    "instrument_id": instrument_id,
+                                    "provider": "canonical",
+                                    "symbol": member.symbol,
+                                    "valid_from": plan.as_of,
+                                },
+                                {
+                                    "instrument_id": instrument_id,
+                                    "provider": "borsapy",
+                                    "symbol": member.provider_symbol,
+                                    "valid_from": plan.as_of,
+                                },
+                            )
                         )
-                        inserted = cursor.fetchone()
-                        if not inserted:
-                            raise RuntimeError("instruments instrument_id döndürmedi")
-                        instrument_id = str(inserted[0])
-                        cursor.execute(
-                            INSERT_SYMBOL_SQL,
-                            (instrument_id, "canonical", member.symbol, plan.as_of),
-                        )
-                        cursor.execute(
-                            INSERT_SYMBOL_SQL,
-                            (
-                                instrument_id,
-                                "borsapy",
-                                member.provider_symbol,
-                                plan.as_of,
-                            ),
-                        )
-                    cursor.execute(
-                        UPDATE_INSTRUMENT_NAME_SQL,
-                        (member.name, instrument_id, member.name),
+                    resolved_rows.append(
+                        {
+                            "instrument_id": instrument_id,
+                            "name": member.name,
+                            "universe_id": plan.universe_id,
+                            "valid_from": plan.as_of,
+                        }
                     )
-                    cursor.execute(
-                        FIND_ACTIVE_MEMBERSHIP_SQL,
-                        (instrument_id, plan.universe_id, plan.as_of, plan.as_of),
-                    )
-                    if not cursor.fetchone():
-                        cursor.execute(
-                            INSERT_UNIVERSE_SQL,
-                            (instrument_id, plan.universe_id, plan.as_of),
-                        )
+
+                cursor.execute(
+                    INSERT_INSTRUMENTS_BULK_SQL,
+                    (canonical_json(new_instruments),),
+                )
+                cursor.execute(
+                    INSERT_SYMBOLS_BULK_SQL,
+                    (canonical_json(symbol_rows),),
+                )
+                cursor.execute(
+                    UPDATE_INSTRUMENT_NAMES_BULK_SQL,
+                    (canonical_json(resolved_rows),),
+                )
+                cursor.execute(
+                    INSERT_MEMBERSHIPS_BULK_SQL,
+                    (canonical_json(resolved_rows),),
+                )
 
                 previous_day = plan.as_of - timedelta(days=1)
-                for symbol in plan.removals:
-                    instrument_id = current_by_symbol[symbol]
+                removed_ids = [current_by_symbol[symbol] for symbol in plan.removals]
+                if removed_ids:
                     cursor.execute(
-                        DELETE_SAME_DAY_MEMBERSHIP_SQL,
-                        (instrument_id, plan.universe_id, plan.as_of),
+                        DELETE_SAME_DAY_MEMBERSHIPS_BULK_SQL,
+                        (removed_ids, plan.universe_id, plan.as_of),
                     )
                     cursor.execute(
-                        CLOSE_MEMBERSHIP_SQL,
+                        CLOSE_MEMBERSHIPS_BULK_SQL,
                         (
                             previous_day,
-                            instrument_id,
+                            removed_ids,
                             plan.universe_id,
                             plan.as_of,
                             plan.as_of,
