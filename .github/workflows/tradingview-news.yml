@@ -1,0 +1,91 @@
+name: KAP Haber ve Araci Kurum Bulten Botu
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tradingview-news.yml'
+      - 'news_bot.py'
+      - 'news_bot_v4.py'
+      - 'news_bot_v5.py'
+      - 'news_bot_v6.py'
+      - 'news_bot_v7.py'
+      - 'news_bot_v8.py'
+      - 'news_bot_v9.py'
+      - 'news_bot_v10.py'
+      - 'news_bot_v11.py'
+      - 'research_summary.py'
+      - 'investor_takeaway.py'
+      - 'requirements.txt'
+      - 'test_news_bot.py'
+      - 'test_news_sources.py'
+      - 'test_news_v8.py'
+      - 'test_news_v9.py'
+      - 'test_news_v10.py'
+      - 'test_news_v11.py'
+  schedule:
+    - cron: '7 * * * *'
+    - cron: '22 * * * *'
+    - cron: '37 * * * *'
+    - cron: '52 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check-news:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: multi-source-news-check
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - name: Kodu cek
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Kutuphaneleri yukle
+        run: pip install -r requirements.txt
+
+      - name: Testleri calistir
+        run: |
+          python -m unittest -v test_news_bot.py test_news_sources.py test_news_v8.py test_news_v9.py test_news_v10.py test_news_v11.py
+          python -m py_compile news_bot.py news_bot_v4.py news_bot_v5.py news_bot_v6.py news_bot_v7.py news_bot_v8.py news_bot_v9.py news_bot_v10.py news_bot_v11.py research_summary.py investor_takeaway.py
+
+      - name: Haberleri ve arastirmalari Telegram'a gonder
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_MESSAGE_THREAD_ID: ${{ secrets.TELEGRAM_MESSAGE_THREAD_ID }}
+          BULLETIN_SOURCES: tera,a1capital,bulls,yapikredi,akyatirim,ziraat,qnb,garanti,midas,phillipcapital,gedik,oyak,seker,isyatirim,vakif,deniz
+          RESEARCH_MAX_AGE_DAYS: '0'
+          RESEARCH_HTTP_TIMEOUT: '18'
+          RESEARCH_SCAN_MAX_ANCHORS: '500'
+          RESEARCH_SUMMARY_MAX_PAGES: '12'
+          RESEARCH_SUMMARY_MAX_CHARS: '60000'
+          RESEARCH_SUMMARY_CAPTION_LIMIT: '980'
+          ENABLE_REUTERS: 'false'
+        run: python news_bot_v11.py
+
+      - name: Cache kaydet
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          git pull --rebase --autostash || true
+          git add news_cache.json
+          if git diff --cached --quiet; then
+            echo "Degisiklik yok"
+            exit 0
+          fi
+          git commit -m "Haber cache guncellendi [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash && git push && exit 0
+            echo "Push denemesi ${attempt} basarisiz; tekrar denenecek."
+            sleep 5
+          done
+          exit 1
