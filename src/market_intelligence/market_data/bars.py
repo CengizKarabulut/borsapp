@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -27,6 +28,9 @@ class CanonicalBar:
         _require_aware(self.close_time, "close_time")
         if self.close_time <= self.open_time:
             raise ValueError("Bar kapanış zamanı açılıştan sonra olmalıdır")
+        values = (self.open, self.high, self.low, self.close, self.volume)
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("OHLCV değerleri sonlu olmalıdır")
         if self.volume < 0:
             raise ValueError("Hacim negatif olamaz")
         if self.high < max(self.open, self.close) or self.low > min(self.open, self.close):

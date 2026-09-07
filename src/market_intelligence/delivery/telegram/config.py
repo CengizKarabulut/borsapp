@@ -16,6 +16,12 @@ class TopicKind(StrEnum):
     SYSTEM = "system"
 
 
+class DeliveryMode(StrEnum):
+    DISABLED = "disabled"
+    SHADOW = "shadow"
+    LIVE = "live"
+
+
 TOPIC_ENV_KEYS = {
     TopicKind.COMMAND: "TELEGRAM_TOPIC_COMMAND",
     TopicKind.SCANS: "TELEGRAM_TOPIC_SCANS",
@@ -44,6 +50,7 @@ class TelegramSettings:
     chat_id: int
     allowed_user_ids: frozenset[int]
     topic_ids: Mapping[TopicKind, int]
+    delivery_mode: DeliveryMode = DeliveryMode.DISABLED
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> TelegramSettings:
@@ -78,7 +85,13 @@ class TelegramSettings:
                 topics[kind] = _positive_int(raw, env_key)
         if missing:
             raise ValueError("Eksik Telegram topic ayarları: " + ", ".join(missing))
-        return cls(token, chat_id, allowed, topics)
+        try:
+            delivery_mode = DeliveryMode(
+                values.get("DELIVERY_MODE", DeliveryMode.DISABLED.value).strip().casefold()
+            )
+        except ValueError as exc:
+            raise ValueError("DELIVERY_MODE disabled, shadow veya live olmalıdır") from exc
+        return cls(token, chat_id, allowed, topics, delivery_mode)
 
     def topic_id(self, kind: TopicKind) -> int:
         try:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from market_intelligence.core.enums import EvaluationStatus
+from market_intelligence.core.enums import EvaluationStatus, ResultKind
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.scanning.contracts import Finding, ScanContext, ScanEvaluation, Scanner
 
@@ -164,4 +164,12 @@ class ScannerEngine:
                     raise ValueError(f"Finding sözleşme ihlali: {field_name}")
             if finding.finding_key in seen:
                 raise ValueError("Aynı değerlendirmede finding_key benzersiz olmalıdır")
+            if finding.kind is ResultKind.STATE:
+                if not finding.state_key or finding.valid_from is None:
+                    raise ValueError("State finding state_key ve valid_from içermelidir")
+                if (
+                    finding.valid_until is not None
+                    and finding.valid_until <= finding.valid_from
+                ):
+                    raise ValueError("State valid_until valid_from sonrasında olmalıdır")
             seen.add(finding.finding_key)

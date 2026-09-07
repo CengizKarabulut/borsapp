@@ -129,6 +129,7 @@ CREATE TABLE active_states (
     producer_version TEXT NOT NULL,
     ruleset_hash TEXT NOT NULL,
     valid_from TIMESTAMPTZ NOT NULL,
+    valid_until TIMESTAMPTZ,
     last_seen_at TIMESTAMPTZ NOT NULL,
     unknown_bars INTEGER NOT NULL DEFAULT 0,
     metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -163,6 +164,8 @@ CREATE TABLE telegram_outbox (
     status TEXT NOT NULL DEFAULT 'pending',
     attempt_count INTEGER NOT NULL DEFAULT 0,
     available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    locked_at TIMESTAMPTZ,
+    lease_until TIMESTAMPTZ,
     telegram_message_id BIGINT,
     last_error TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -170,6 +173,63 @@ CREATE TABLE telegram_outbox (
 );
 CREATE INDEX ix_telegram_outbox_pending
     ON telegram_outbox(status, available_at);
+
+CREATE TABLE shadow_comparisons (
+    comparison_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    snapshot_id TEXT NOT NULL REFERENCES data_snapshots(snapshot_id),
+    instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    scanner_id TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    bar_time TIMESTAMPTZ NOT NULL,
+    legacy_status TEXT NOT NULL,
+    new_status TEXT NOT NULL,
+    category TEXT NOT NULL,
+    legacy_finding_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
+    new_finding_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
+    diagnostics JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (snapshot_id, scanner_id)
+);
+
+CREATE TABLE research_artifacts (
+    artifact_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    artifact_kind TEXT NOT NULL,
+    timeframe TEXT,
+    bar_time TIMESTAMPTZ,
+    summary TEXT NOT NULL,
+    storage_uri TEXT,
+    content_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (instrument_id, artifact_kind, timeframe, bar_time, content_hash)
+);
+
+CREATE TABLE news_items (
+    news_id TEXT PRIMARY KEY,
+    instrument_id UUID REFERENCES instruments(instrument_id),
+    headline TEXT NOT NULL,
+    published_at TIMESTAMPTZ NOT NULL,
+    source TEXT NOT NULL,
+    url TEXT,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_news_items_instrument_published
+    ON news_items(instrument_id, published_at DESC);
+
+CREATE TABLE command_jobs (
+    job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    command_name TEXT NOT NULL,
+    instrument_id UUID REFERENCES instruments(instrument_id),
+    symbol_at_request TEXT NOT NULL,
+    requested_by BIGINT NOT NULL,
+    requested_topic BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    error_detail TEXT
+);
 
 CREATE TABLE finding_outcomes (
     event_id UUID NOT NULL REFERENCES scan_events(event_id),

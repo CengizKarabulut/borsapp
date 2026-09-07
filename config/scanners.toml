@@ -12,3 +12,23 @@ partial_bar_policy = "drop"
 # shadow çalışabilir ama Telegram'a yazmaz.
 shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
 notification_timeframes = ["1h", "4h", "1d"]
+
+[ma.near_zone]
+enabled = true
+version = "1.0.0"
+maximum_distance_atr = 1.0
+accepted_level_classes = ["strong_level", "level"]
+maximum_levels_per_side = 2
+partial_bar_policy = "drop"
+shadow_timeframes = ["1h", "4h", "1d", "1wk", "1mo"]
+notification_timeframes = ["4h", "1d"]
+
+[signal.macd_positive_cross]
+enabled = true
+version = "1.0.0"
+minimum_rsi = 30.0
+require_positive_macd = true
+trigger_mode = "legacy_rising_or_cross"
+partial_bar_policy = "drop"
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+notification_timeframes = ["1h", "4h", "1d"]

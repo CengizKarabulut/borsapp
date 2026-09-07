@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import UTC, datetime
 
 from market_intelligence.core.identity import ruleset_hash, stable_hash
 from market_intelligence.features.specs import FeatureSpec, WarmupSpec
@@ -27,6 +28,10 @@ class IdentityTests(unittest.TestCase):
         short = FeatureSpec("ema", "classic", "1", {"period": 55}, WarmupSpec(100, "sma"))
         long = FeatureSpec("ema", "classic", "1", {"period": 55}, WarmupSpec(250, "sma"))
         self.assertNotEqual(short.identity_hash, long.identity_hash)
+
+    def test_aware_datetime_has_stable_json_identity(self) -> None:
+        value = {"bar_time": datetime(2026, 9, 7, 12, 15, tzinfo=UTC)}
+        self.assertEqual(stable_hash(value), stable_hash(value))
 
 
 if __name__ == "__main__":

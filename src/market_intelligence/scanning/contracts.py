@@ -61,6 +61,8 @@ class Finding:
     metrics: Mapping[str, Any] = field(default_factory=dict)
     evidence: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
 
 
 @dataclass(frozen=True)

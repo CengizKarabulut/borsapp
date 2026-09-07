@@ -4,6 +4,7 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, is_dataclass
+from datetime import date, datetime, time
 from enum import Enum
 from typing import Any
 
@@ -13,6 +14,8 @@ def _normalize(value: Any) -> Any:
         return _normalize(asdict(value))
     if isinstance(value, Enum):
         return value.value
+    if isinstance(value, (datetime, date, time)):
+        return value.isoformat()
     if isinstance(value, Mapping):
         return {str(key): _normalize(value[key]) for key in sorted(value, key=str)}
     if isinstance(value, (set, frozenset)):
