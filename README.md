@@ -51,4 +51,18 @@ Kullanıcı kurulumları:
 [config/scanners.toml](config/scanners.toml), MACD referans kararı ise
 [ADR-0001](docs/adr/0001-macd-reference-implementation.md) içindedir.
 
+## Güncel göç durumu
+
+- [x] Canonical bar ve snapshot kimliği
+- [x] Feature registry ve snapshot-aware cache
+- [x] İlk scanner: `technical.volume_spike`
+- [x] BIST seans çıpalı kapanışlar ve watermark catch-up
+- [x] Event + Telegram outbox atomik PostgreSQL adapter'ı
+- [x] Tek bot / çok topic yönlendirme sözleşmesi
+- [ ] Canonical veri sağlayıcı adapter'ı
+- [ ] Legacy/new shadow karşılaştırma çalıştırıcısı
+- [ ] Merkezi Telegram publisher ve listener
+- [ ] `signal.macd_positive_cross` dikey dilimi
+- [ ] `ma.near_zone` state dikey dilimi
+
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.

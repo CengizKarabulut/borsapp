@@ -72,10 +72,23 @@ CREATE TABLE scan_cycles (
     UNIQUE (market, universe_id, timeframe, bar_time)
 );
 
+CREATE TABLE scan_watermarks (
+    market TEXT NOT NULL,
+    universe_id TEXT NOT NULL,
+    scanner_id TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    last_completed_bar_time TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (market, universe_id, scanner_id, timeframe)
+);
+
 CREATE TABLE scan_evaluations (
     evaluation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cycle_id UUID NOT NULL REFERENCES scan_cycles(cycle_id),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    symbol_at_evaluation TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    bar_time TIMESTAMPTZ NOT NULL,
     scanner_id TEXT NOT NULL,
     scanner_version TEXT NOT NULL,
     ruleset_hash TEXT NOT NULL,
@@ -95,6 +108,7 @@ CREATE TABLE scan_events (
     event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     evaluation_id UUID NOT NULL REFERENCES scan_evaluations(evaluation_id),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
+    symbol_at_event TEXT NOT NULL,
     scanner_id TEXT NOT NULL,
     finding_key TEXT NOT NULL,
     timeframe TEXT NOT NULL,
@@ -141,7 +155,10 @@ CREATE TABLE state_transitions (
 CREATE TABLE telegram_outbox (
     outbox_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     semantic_key TEXT NOT NULL UNIQUE,
+    publication_kind TEXT NOT NULL,
     topic_kind TEXT NOT NULL,
+    chat_id BIGINT NOT NULL,
+    message_thread_id BIGINT NOT NULL,
     payload JSONB NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     attempt_count INTEGER NOT NULL DEFAULT 0,

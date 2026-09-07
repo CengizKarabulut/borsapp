@@ -3,6 +3,22 @@
 Bu işlem bir kez kullanıcı tarafından yapılır. Bot token'ı veya kimlikler hiçbir
 zaman Git'e commit edilmez.
 
+## Neden tek bot?
+
+Tek bot bütün konu başlıklarına yazabilir; hedef konu her istekte
+`message_thread_id` ile seçilir. Tek bot:
+
+- tek token ve tek yetki yüzeyi oluşturur,
+- komut update offset'inin birden fazla listener arasında çakışmasını önler,
+- aynı olayın farklı botlardan iki kez gönderilmesi riskini azaltır,
+- tüm yayınları merkezi outbox üzerinden hız sınırlı ve denetlenebilir tutar.
+
+Bu projede yalnız **bir merkezi update consumer** ve **bir merkezi publisher**
+çalışacaktır. GitHub Actions tarama işleri doğrudan Telegram API'sine yazmaz.
+Beklenen tek grup trafiği için ikinci bir bot gerekmez. Ancak ileride farklı
+gruplar arasında güvenlik/yetki izolasyonu gerekirse ayrı bot yeni bir dağıtım
+kararı olarak değerlendirilebilir.
+
 ## 1. Grup ve bot
 
 1. Telegram'da bir **özel süpergrup** oluşturun.

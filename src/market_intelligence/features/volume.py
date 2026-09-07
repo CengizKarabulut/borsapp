@@ -25,6 +25,17 @@ class VolumeActivity:
     baseline_bar_count: int
 
 
+class RelativeVolume20Provider:
+    spec = RELATIVE_VOLUME_20
+
+    def compute(self, frame: CanonicalFrame) -> VolumeActivity | None:
+        return calculate_volume_activity(
+            frame,
+            window=int(self.spec.parameters["window"]),
+            min_history=int(self.spec.parameters["min_history"]),
+        )
+
+
 def calculate_volume_activity(
     frame: CanonicalFrame,
     *,

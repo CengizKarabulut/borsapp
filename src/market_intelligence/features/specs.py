@@ -35,6 +35,9 @@ class FeatureSliceKey:
     timeframe: str
     through_bar_time: str
     series_revision: int
+    snapshot_id: str
+    price_basis: str
+    source: str
     feature: FeatureSpec
 
     @property

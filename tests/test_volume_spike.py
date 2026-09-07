@@ -5,13 +5,20 @@ from datetime import UTC, datetime, timedelta
 
 from market_intelligence.core.enums import EvaluationStatus, PriceBasis
 from market_intelligence.core.timeframes import Timeframe
+from market_intelligence.features.registry import (
+    FeatureEngine,
+    FeatureRegistry,
+    InMemoryFeatureCache,
+)
 from market_intelligence.features.volume import (
     RELATIVE_VOLUME_20,
+    RelativeVolume20Provider,
     calculate_volume_activity,
 )
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
 from market_intelligence.scanning.contracts import ScanContext
 from market_intelligence.scanning.engine import ScannerEngine
+from market_intelligence.scanning.pipeline import ScanPipeline
 from market_intelligence.scanning.technical.volume_spike import (
     TechnicalVolumeSpikeScanner,
     VolumeSpikeConfig,
@@ -72,6 +79,26 @@ class VolumeFeatureTests(unittest.TestCase):
     def test_partial_bar_does_not_produce_feature(self) -> None:
         self.assertIsNone(calculate_volume_activity(frame(partial=True)))
 
+    def test_feature_is_computed_once_per_canonical_snapshot(self) -> None:
+        registry = FeatureRegistry()
+        registry.register(RelativeVolume20Provider())
+        engine = FeatureEngine(registry, InMemoryFeatureCache())
+        source = frame()
+        first = engine.resolve(source, [RELATIVE_VOLUME_20])
+        second = engine.resolve(source, [RELATIVE_VOLUME_20])
+        self.assertEqual((first.computed, first.cache_hits), (1, 0))
+        self.assertEqual((second.computed, second.cache_hits), (0, 1))
+
+    def test_partial_feature_is_cached_as_unavailable(self) -> None:
+        registry = FeatureRegistry()
+        registry.register(RelativeVolume20Provider())
+        engine = FeatureEngine(registry)
+        source = frame(partial=True)
+        first = engine.resolve(source, [RELATIVE_VOLUME_20])
+        second = engine.resolve(source, [RELATIVE_VOLUME_20])
+        self.assertEqual(first.unavailable, (RELATIVE_VOLUME_20.feature_id,))
+        self.assertEqual((second.computed, second.cache_hits), (0, 1))
+
 
 class VolumeSpikeScannerTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -129,6 +156,20 @@ class VolumeSpikeScannerTests(unittest.TestCase):
         )
         self.assertEqual(run.evaluation.status, EvaluationStatus.UNKNOWN)
         self.assertEqual(run.evaluation.error_code, "partial_bar_rejected")
+
+    def test_pipeline_resolves_feature_and_runs_scanner(self) -> None:
+        registry = FeatureRegistry()
+        registry.register(RelativeVolume20Provider())
+        pipeline = ScanPipeline(FeatureEngine(registry))
+        source = frame()
+        result = pipeline.run(
+            cycle_id="cycle-1",
+            frame=source,
+            scanner=self.scanner,
+            context=context(source),
+        )
+        self.assertEqual(result.features.computed, 1)
+        self.assertEqual(result.scan.evaluation.status, EvaluationStatus.MATCH)
 
 
 if __name__ == "__main__":
