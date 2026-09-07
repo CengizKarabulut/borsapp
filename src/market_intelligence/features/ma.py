@@ -39,3 +39,12 @@ class MaProximitySnapshot:
     atr: float
     levels: tuple[QualifiedMaLevel, ...]
     research_version: str
+
+
+class UnavailableMaResearchProvider:
+    """Explicit UNKNOWN until qualified MA Research data is wired for the frame."""
+
+    spec = QUALIFIED_MA_PROXIMITY
+
+    def compute(self, frame) -> None:
+        return None

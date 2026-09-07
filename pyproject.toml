@@ -12,6 +12,9 @@ license = { text = "Proprietary until source repository licenses are reconciled"
 authors = [{ name = "Cengiz Karabulut" }]
 dependencies = []
 
+[project.scripts]
+borsapp = "market_intelligence.cli:main"
+
 [project.optional-dependencies]
 dev = ["ruff>=0.5,<1"]
 runtime = [

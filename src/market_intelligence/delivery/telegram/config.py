@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 
@@ -46,7 +46,7 @@ def _positive_int(raw: str, key: str) -> int:
 
 @dataclass(frozen=True)
 class TelegramSettings:
-    bot_token: str
+    bot_token: str = field(repr=False)
     chat_id: int
     allowed_user_ids: frozenset[int]
     topic_ids: Mapping[TopicKind, int]

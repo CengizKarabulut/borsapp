@@ -152,6 +152,7 @@ CREATE TABLE active_states (
 
 CREATE TABLE state_transitions (
     transition_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transition_key TEXT NOT NULL UNIQUE,
     state_id UUID REFERENCES active_states(state_id),
     instrument_id UUID NOT NULL REFERENCES instruments(instrument_id),
     scanner_id TEXT NOT NULL,
@@ -187,6 +188,12 @@ CREATE TABLE telegram_outbox (
 );
 CREATE INDEX ix_telegram_outbox_pending
     ON telegram_outbox(status, available_at);
+
+CREATE TABLE telegram_consumers (
+    consumer_key TEXT PRIMARY KEY,
+    last_update_id BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 CREATE TABLE shadow_comparisons (
     comparison_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

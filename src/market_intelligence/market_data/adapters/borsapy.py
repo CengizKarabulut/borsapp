@@ -48,7 +48,11 @@ class BorsapyProvider:
             period=PERIODS[request.timeframe],
             interval=request.timeframe.value,
         )
-        bars = self._convert(data)
+        bars = [
+            bar
+            for bar in self._convert(data)
+            if self._opened_at(bar.timestamp) <= request.as_of.astimezone(self.schedule.timezone)
+        ]
         if request.bars > 0:
             bars = bars[-request.bars :]
         if not bars:
@@ -70,6 +74,11 @@ class BorsapyProvider:
             ),
         )
 
+    def _opened_at(self, timestamp: datetime) -> datetime:
+        timezone = ZoneInfo(self.timestamp_timezone)
+        aware = timestamp.replace(tzinfo=timezone) if timestamp.tzinfo is None else timestamp
+        return aware.astimezone(self.schedule.timezone)
+
     @staticmethod
     def _column_lookup(data: Any) -> dict[str, Any]:
         columns = data.columns
@@ -89,7 +98,11 @@ class BorsapyProvider:
         volume_column = lookup.get("volume")
         bars: list[ProviderBar] = []
         for timestamp, row in data.iterrows():
-            stamp = timestamp.to_pydatetime() if hasattr(timestamp, "to_pydatetime") else timestamp
+            stamp = (
+                timestamp.to_pydatetime()
+                if hasattr(timestamp, "to_pydatetime")
+                else timestamp
+            )
             if not isinstance(stamp, datetime):
                 raise ValueError("borsapy index datetime olmalıdır")
             bars.append(
