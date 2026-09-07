@@ -5,5 +5,11 @@ from market_intelligence.persistence.postgres.scan_store import (
     PersistedScan,
     PostgresScanStore,
 )
+from market_intelligence.persistence.postgres.snapshots import PostgresSnapshotStore
 
-__all__ = ["PersistedScan", "PostgresOutboxRepository", "PostgresScanStore"]
+__all__ = [
+    "PersistedScan",
+    "PostgresOutboxRepository",
+    "PostgresScanStore",
+    "PostgresSnapshotStore",
+]

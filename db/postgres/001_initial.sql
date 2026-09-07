@@ -56,6 +56,20 @@ CREATE TABLE data_snapshots (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE canonical_bars (
+    snapshot_id TEXT NOT NULL REFERENCES data_snapshots(snapshot_id) ON DELETE CASCADE,
+    open_time TIMESTAMPTZ NOT NULL,
+    close_time TIMESTAMPTZ NOT NULL,
+    open DOUBLE PRECISION NOT NULL,
+    high DOUBLE PRECISION NOT NULL,
+    low DOUBLE PRECISION NOT NULL,
+    close DOUBLE PRECISION NOT NULL,
+    volume DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (snapshot_id, close_time),
+    CHECK (close_time > open_time),
+    CHECK (volume >= 0)
+);
+
 CREATE TABLE scan_cycles (
     cycle_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     market TEXT NOT NULL,
