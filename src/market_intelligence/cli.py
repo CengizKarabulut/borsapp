@@ -372,7 +372,8 @@ def _listener_once(settings: ApplicationSettings, *, timeout: int) -> int:
             repository.release_listener_lock()
     print(
         f"Listener tamamlandı: received={result.received}, "
-        f"accepted={result.accepted}, ignored={result.ignored}"
+        f"accepted={result.accepted}, ignored={result.ignored}, "
+        f"reasons={result.ignored_reasons}"
     )
     return 0
 

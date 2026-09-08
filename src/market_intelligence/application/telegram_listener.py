@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from market_intelligence.application.symbol_commands import SymbolCommandService
@@ -38,6 +39,7 @@ class ListenerBatchResult:
     received: int
     accepted: int
     ignored: int
+    ignored_reasons: dict[str, int] = field(default_factory=dict)
 
 
 class TelegramListener:
@@ -69,15 +71,18 @@ class TelegramListener:
         )
         accepted = 0
         ignored = 0
+        ignored_reasons: Counter[str] = Counter()
         for update in updates:
             update_id = update.get("update_id")
             if not isinstance(update_id, int) or update_id < offset:
                 ignored += 1
+                ignored_reasons["stale_update"] += 1
                 continue
             command = self.parser.parse(update, self.settings)
             envelopes: tuple[OutboxEnvelope, ...] = ()
             if command is None:
                 ignored += 1
+                ignored_reasons[self.parser.rejection_reason(update, self.settings)] += 1
             else:
                 if self.settings.delivery_mode is DeliveryMode.LIVE:
                     reply = self.command_service.handle(command)
@@ -98,5 +103,13 @@ class TelegramListener:
                 accepted += 1
             self.repository.commit_update(update_id=update_id, envelopes=envelopes)
             offset = update_id + 1
-        ignored += len(received) - len(updates)
-        return ListenerBatchResult(len(received), accepted, ignored)
+        malformed = len(received) - len(updates)
+        ignored += malformed
+        if malformed:
+            ignored_reasons["update_id_missing"] += malformed
+        return ListenerBatchResult(
+            len(received),
+            accepted,
+            ignored,
+            dict(sorted(ignored_reasons.items())),
+        )
