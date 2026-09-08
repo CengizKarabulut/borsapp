@@ -106,7 +106,10 @@ class PostgresNewsStore:
                         if (
                             item.news_id in new_ids
                             and item.news_id in envelopes
-                            and any(symbol in instrument_by_symbol for symbol in item.symbols)
+                            and (
+                                item.source != "kap"
+                                or any(symbol in instrument_by_symbol for symbol in item.symbols)
+                            )
                         ):
                             outbox_count += self._persist_outbox(
                                 cursor, envelopes[item.news_id]

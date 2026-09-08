@@ -57,6 +57,10 @@ from market_intelligence.market_data.universe import (
     validate_universe_sync_plan,
 )
 from market_intelligence.news.kap import KapDisclosureProvider
+from market_intelligence.news.legacy_general import (
+    SUPPORTED_SOURCES,
+    LegacyGeneralNewsProvider,
+)
 from market_intelligence.persistence.postgres.command_jobs import (
     PostgresCommandJobRepository,
 )
@@ -239,6 +243,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     news_backfill.add_argument("--days", type=int, default=60)
     news_backfill.add_argument("--chunk-days", type=int, default=3)
+
+    general_news = subparsers.add_parser(
+        "news-general-sync",
+        help="Kaynak depodaki genel haber ve ekonomik takvim akışlarını eşitle",
+    )
+    general_news.add_argument("--lookback-days", type=int, default=1)
+    general_news.add_argument("--sources", default=",".join(SUPPORTED_SOURCES))
+    general_news.add_argument("--notify", action="store_true")
 
     telegram_smoke = subparsers.add_parser(
         "telegram-smoke-symbol",
@@ -1026,6 +1038,64 @@ def _news_kap_backfill(
     return 0
 
 
+def _news_general_sync(
+    settings: ApplicationSettings,
+    *,
+    lookback_days: int,
+    sources_raw: str,
+    notify: bool,
+) -> int:
+    if lookback_days < 0 or lookback_days > 7:
+        raise ValueError("--lookback-days 0 ile 7 arasında olmalıdır")
+    sources = tuple(
+        dict.fromkeys(value.strip().casefold() for value in sources_raw.split(",") if value.strip())
+    )
+    unknown = sorted(set(sources) - set(SUPPORTED_SOURCES))
+    if unknown:
+        raise ValueError("Desteklenmeyen genel haber kaynağı: " + ", ".join(unknown))
+    observed_at = datetime.now(settings.runtime.timezone)
+    failed = 0
+    totals = [0, 0, 0]
+    with _connect(settings.runtime.database_url) as connection:
+        store = PostgresNewsStore(connection)
+        for source in sources:
+            try:
+                result = NewsIngestionService(
+                    provider=LegacyGeneralNewsProvider(
+                        source,
+                        timezone=settings.runtime.timezone,
+                    ),
+                    store=store,
+                    telegram_settings=settings.telegram,
+                ).run(
+                    from_date=observed_at.date() - timedelta(days=lookback_days),
+                    to_date=observed_at.date(),
+                    observed_at=observed_at,
+                    notify=notify,
+                )
+            except Exception as exc:
+                failed += 1
+                print(
+                    f"Genel haber kaynağı hatası ({source}): "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+                continue
+            totals[0] += result.fetched
+            totals[1] += result.inserted
+            totals[2] += result.outbox_count
+            print(
+                f"Genel haber eşitleme: source={source}, bulunan={result.fetched}, "
+                f"yeni={result.inserted}, outbox={result.outbox_count}, "
+                f"ilk_referans={'evet' if result.bootstrapped else 'hayır'}"
+            )
+    print(
+        f"Genel haber toplamı: bulunan={totals[0]}, yeni={totals[1]}, "
+        f"outbox={totals[2]}, hatalı_kaynak={failed}"
+    )
+    return 0 if failed == 0 else 1
+
+
 def _telegram_smoke_symbol(
     settings: ApplicationSettings,
     *,
@@ -1200,6 +1270,13 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 days=args.days,
                 chunk_days=args.chunk_days,
+            )
+        if args.command == "news-general-sync":
+            return _news_general_sync(
+                settings,
+                lookback_days=args.lookback_days,
+                sources_raw=args.sources,
+                notify=args.notify,
             )
         if args.command == "telegram-smoke-symbol":
             return _telegram_smoke_symbol(

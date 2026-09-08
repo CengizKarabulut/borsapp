@@ -93,7 +93,16 @@ class NewsIngestionService:
 
     def _envelope(self, item: NewsItem) -> OutboxEnvelope:
         symbols = ", ".join(item.symbols)
-        heading = f"KAP · {symbols}" if symbols else "KAP"
+        source_label = {
+            "kap": "KAP",
+            "bloomberght": "Bloomberg HT",
+            "forexfactory": "Ekonomik Takvim",
+            "investing": "Investing.com Türkiye",
+            "ntvpara": "NTV Para",
+            "trthaber": "TRT Haber Ekonomi",
+            "tradingview": "TradingView",
+        }.get(item.source, item.provider or item.source)
+        heading = f"{source_label} · {symbols}" if symbols else source_label
         lines = [f"<b>{html.escape(heading)}</b>", html.escape(item.headline)]
         if item.summary:
             lines.append(html.escape(item.summary[:800]))
@@ -101,10 +110,14 @@ class NewsIngestionService:
             lines.append(f"📎 {item.attachment_count} ek")
         if item.url:
             lines.append(
-                f'<a href="{html.escape(item.url, quote=True)}">KAP bildirimini aç</a>'
+                f'<a href="{html.escape(item.url, quote=True)}">Kaynağı aç</a>'
             )
         return self.router.route(
-            publication_kind=PublicationKind.NEWS,
+            publication_kind=(
+                PublicationKind.CALENDAR
+                if item.source == "forexfactory"
+                else PublicationKind.NEWS
+            ),
             semantic_identity={"news_id": item.news_id},
             payload={
                 "text": "\n\n".join(lines),

@@ -70,3 +70,12 @@ jobs:
             notify_args+=(--notify)
           fi
           borsapp news-kap-sync --lookback-days "$lookback" "${notify_args[@]}"
+      - name: Synchronize general news and economic calendar
+        if: ${{ env.DATABASE_URL != '' && vars.ENABLE_GENERAL_NEWS == 'true' }}
+        shell: bash
+        run: |
+          notify_args=()
+          if [ "$DELIVERY_MODE" = "live" ]; then
+            notify_args+=(--notify)
+          fi
+          borsapp news-general-sync --lookback-days 1 "${notify_args[@]}"
