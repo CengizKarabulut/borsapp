@@ -41,6 +41,7 @@ class PublishBatchResult:
     sent: int
     failed: int
     skipped_mode: DeliveryMode | None = None
+    error_samples: tuple[str, ...] = ()
 
 
 class TelegramPublisher:
@@ -66,6 +67,7 @@ class TelegramPublisher:
         messages = self.repository.claim(limit=limit, now=now)
         sent = 0
         failed = 0
+        error_samples: list[str] = []
         for item in messages:
             try:
                 message_id = self.transport.send(
@@ -79,6 +81,8 @@ class TelegramPublisher:
                 safe_error = f"{type(exc).__name__}: {exc}".replace(
                     self.settings.bot_token, "[REDACTED]"
                 )[:1000]
+                if safe_error not in error_samples and len(error_samples) < 5:
+                    error_samples.append(safe_error)
                 self.repository.mark_failed(
                     outbox_id=item.outbox_id,
                     error=safe_error,
@@ -91,4 +95,9 @@ class TelegramPublisher:
                 sent_at=now,
             )
             sent += 1
-        return PublishBatchResult(len(messages), sent, failed)
+        return PublishBatchResult(
+            len(messages),
+            sent,
+            failed,
+            error_samples=tuple(error_samples),
+        )

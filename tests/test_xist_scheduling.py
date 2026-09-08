@@ -25,6 +25,17 @@ class FakeCalendar:
 
 
 class ScheduledBarPlannerTests(unittest.TestCase):
+    def test_first_run_bootstraps_only_the_latest_closed_bar(self) -> None:
+        due = ScheduledBarPlanner(FakeCalendar(), maximum_lookback_days=7).due(
+            timeframe=Timeframe.H1,
+            watermark=None,
+            evaluation_time=datetime(2026, 9, 9, 14, 5, tzinfo=ISTANBUL),
+        )
+        self.assertEqual(
+            due,
+            (datetime(2026, 9, 9, 14, 0, tzinfo=ISTANBUL),),
+        )
+
     def test_holiday_is_never_scheduled_and_missed_session_is_replayed(self) -> None:
         due = ScheduledBarPlanner(FakeCalendar()).due(
             timeframe=Timeframe.D1,

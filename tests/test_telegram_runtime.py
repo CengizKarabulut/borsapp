@@ -98,6 +98,7 @@ class TelegramPublisherTests(unittest.TestCase):
         ).publish_batch(now=datetime.now(UTC))
         self.assertEqual((result.sent, result.failed), (0, 1))
         self.assertNotIn("test-token", repository.failed[0][1])
+        self.assertEqual(result.error_samples, ("RuntimeError: [REDACTED] failed",))
 
 
 class TelegramCommandParserTests(unittest.TestCase):

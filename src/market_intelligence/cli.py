@@ -630,6 +630,8 @@ def _publisher_once(
             f"Publisher tamamlandı: claimed={result.claimed}, "
             f"sent={result.sent}, failed={result.failed}"
         )
+        for error in result.error_samples:
+            print(f"Publisher hata örneği: {error}", file=sys.stderr)
     return 0 if result.failed == 0 else 1
 
 

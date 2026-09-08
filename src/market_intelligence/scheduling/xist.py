@@ -62,8 +62,16 @@ class ScheduledBarPlanner:
         closed: list[datetime] = []
         for session_date in self.calendar.sessions(start, evaluation_time.date()):
             closed.extend(self.schedule.bar_closes(session_date, timeframe))
-        return WatermarkPlanner().due(
+        due = WatermarkPlanner().due(
             closed_bar_times=tuple(closed),
             evaluation_time=evaluation_time,
             watermark=watermark,
         )
+        # İlk kurulumda geçmiş tarihler için point-in-time evren üyeliği
+        # bilinmez. Watermark yokken günlerce geriye yürümek hem yeni eklenen
+        # evreni geçmişte boş gösterir hem de yüzlerce sembolde gereksiz yük
+        # üretir. İlk tur yalnız en yeni kapanmış barı işler; bundan sonraki
+        # eksikler kalıcı watermark üzerinden eksiksiz yakalanır.
+        if watermark is None and due:
+            return (due[-1],)
+        return due
