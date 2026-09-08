@@ -8,6 +8,7 @@ from market_intelligence.application.ingestion import IngestionRequest, Ingestio
 from market_intelligence.core.enums import PriceBasis
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.market_data.bars import CanonicalFrame
+from market_intelligence.market_data.errors import SeriesRevisionConflict
 from market_intelligence.market_data.providers import (
     FetchRequest,
     ProviderBar,
@@ -63,11 +64,20 @@ class FakeProvider:
 
 
 class FakeStore:
-    def __init__(self) -> None:
+    def __init__(self, *, latest_revision: int = 0, conflict_once: bool = False) -> None:
         self.saved: list[CanonicalFrame] = []
+        self.latest_revision = latest_revision
+        self.conflict_once = conflict_once
+
+    def latest_series_revision(self, **_kwargs) -> int:
+        return self.latest_revision
 
     def save(self, frame: CanonicalFrame) -> None:
+        if self.conflict_once:
+            self.conflict_once = False
+            raise SeriesRevisionConflict("provider revision")
         self.saved.append(frame)
+        self.latest_revision = max(self.latest_revision, frame.series_revision)
 
 
 def request(timeframe: Timeframe = Timeframe.M45) -> IngestionRequest:
@@ -112,6 +122,14 @@ class IngestionServiceTests(unittest.TestCase):
             service.ingest(request(Timeframe.M15))
 
         self.assertEqual(store.saved, [])
+
+    def test_provider_correction_automatically_opens_new_series_revision(self) -> None:
+        store = FakeStore(latest_revision=1, conflict_once=True)
+
+        result = IngestionService(provider=FakeProvider(), store=store).ingest(request())
+
+        self.assertEqual(result.series_revision, 2)
+        self.assertEqual(store.saved, [result])
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from market_intelligence.core.enums import PriceBasis
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
+from market_intelligence.market_data.errors import SeriesRevisionConflict
 from market_intelligence.persistence.postgres.snapshots import PostgresSnapshotStore
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
@@ -96,10 +97,26 @@ class PostgresSnapshotStoreTests(unittest.TestCase):
     def test_changed_bar_requires_new_series_revision(self) -> None:
         connection = FakeConnection(("2026-09-07T10:15:00+03:00",))
 
-        with self.assertRaisesRegex(ValueError, "series_revision artırılmalıdır"):
+        with self.assertRaisesRegex(SeriesRevisionConflict, "series_revision artırılmalıdır"):
             PostgresSnapshotStore(connection).save(frame())
 
         self.assertEqual(len(connection.cursor_instance.executed), 2)
+
+    def test_latest_series_revision_is_scoped_to_canonical_series(self) -> None:
+        connection = FakeConnection((4,))
+
+        revision = PostgresSnapshotStore(connection).latest_series_revision(
+            instrument_id="instrument-1",
+            timeframe="1h",
+            source="borsapy",
+            price_basis="split_adjusted",
+        )
+
+        self.assertEqual(revision, 4)
+        self.assertEqual(
+            connection.cursor_instance.executed[0][1],
+            ("instrument-1", "1h", "borsapy", "split_adjusted"),
+        )
 
 
 if __name__ == "__main__":

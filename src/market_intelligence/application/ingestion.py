@@ -7,6 +7,7 @@ from typing import Protocol
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.market_data.canonicalizer import Canonicalizer
+from market_intelligence.market_data.errors import SeriesRevisionConflict
 from market_intelligence.market_data.providers import FetchRequest, MarketDataProvider
 
 BASE_TIMEFRAME = {
@@ -22,6 +23,15 @@ BASE_TIMEFRAME = {
 
 
 class SnapshotStore(Protocol):
+    def latest_series_revision(
+        self,
+        *,
+        instrument_id: str,
+        timeframe: str,
+        source: str,
+        price_basis: str,
+    ) -> int: ...
+
     def save(self, frame: CanonicalFrame) -> None: ...
 
 
@@ -67,15 +77,36 @@ class IngestionService:
                 as_of=request.as_of,
             )
         )
-        canonical = self.canonicalizer.build(
-            instrument_id=request.instrument_id,
-            symbol_at_snapshot=request.symbol,
-            market=request.market,
-            provider_frame=raw,
-            target_timeframe=request.timeframe,
-            series_revision=request.series_revision,
+        series_revision = max(
+            request.series_revision,
+            self.store.latest_series_revision(
+                instrument_id=request.instrument_id,
+                timeframe=request.timeframe.value,
+                source=raw.provider,
+                price_basis=raw.price_basis.value,
+            ),
         )
-        if canonical.through_bar_time > request.as_of:
-            raise ValueError("Canonical snapshot gelecekte kapanan bar içeremez")
-        self.store.save(canonical)
-        return canonical
+        for _attempt in range(3):
+            canonical = self.canonicalizer.build(
+                instrument_id=request.instrument_id,
+                symbol_at_snapshot=request.symbol,
+                market=request.market,
+                provider_frame=raw,
+                target_timeframe=request.timeframe,
+                series_revision=series_revision,
+            )
+            if canonical.through_bar_time > request.as_of:
+                raise ValueError("Canonical snapshot gelecekte kapanan bar içeremez")
+            try:
+                self.store.save(canonical)
+            except SeriesRevisionConflict:
+                latest = self.store.latest_series_revision(
+                    instrument_id=request.instrument_id,
+                    timeframe=request.timeframe.value,
+                    source=raw.provider,
+                    price_basis=raw.price_basis.value,
+                )
+                series_revision = max(series_revision, latest) + 1
+                continue
+            return canonical
+        raise SeriesRevisionConflict("Canonical seri revizyonu üç denemede çözülemedi")

@@ -4,6 +4,7 @@ from typing import Any, Protocol
 
 from market_intelligence.core.identity import canonical_json, stable_hash
 from market_intelligence.market_data.bars import CanonicalFrame
+from market_intelligence.market_data.errors import SeriesRevisionConflict
 
 
 class Cursor(Protocol):
@@ -73,10 +74,35 @@ WHERE stored.content_hash IS DISTINCT FROM value.content_hash
 LIMIT 1
 """
 
+LATEST_REVISION_SQL = """
+SELECT COALESCE(MAX(series_revision), 0)
+FROM canonical_market_bars
+WHERE instrument_id = %s
+  AND timeframe = %s
+  AND source = %s
+  AND price_basis = %s
+"""
+
 
 class PostgresSnapshotStore:
     def __init__(self, connection: Connection) -> None:
         self.connection = connection
+
+    def latest_series_revision(
+        self,
+        *,
+        instrument_id: str,
+        timeframe: str,
+        source: str,
+        price_basis: str,
+    ) -> int:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                LATEST_REVISION_SQL,
+                (instrument_id, timeframe, source, price_basis),
+            )
+            row = cursor.fetchone()
+        return int(row[0]) if row else 0
 
     def save(self, frame: CanonicalFrame) -> None:
         bar_rows = [
@@ -104,7 +130,7 @@ class PostgresSnapshotStore:
                 cursor.execute(FIND_REVISION_CONFLICT_SQL, (serialized_bars,))
                 conflict = cursor.fetchone()
                 if conflict:
-                    raise ValueError(
+                    raise SeriesRevisionConflict(
                         "Canonical bar içeriği aynı series_revision içinde değişti: "
                         f"{conflict[0]}; series_revision artırılmalıdır"
                     )
