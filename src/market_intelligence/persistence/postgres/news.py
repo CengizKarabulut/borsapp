@@ -15,6 +15,13 @@ from market_intelligence.persistence.postgres.scan_store import (
 
 SOURCE_EXISTS_SQL = "SELECT EXISTS(SELECT 1 FROM news_items WHERE source = %s)"
 EXISTING_IDS_SQL = "SELECT news_id FROM news_items WHERE news_id = ANY(%s)"
+ENRICHED_IDS_SQL = """
+SELECT news_id
+FROM news_items
+WHERE news_id = ANY(%s)
+  AND source = 'kap'
+  AND jsonb_typeof(payload -> 'raw' -> 'detail') = 'object'
+"""
 RESOLVE_SYMBOLS_SQL = """
 SELECT DISTINCT ON (upper(s.symbol)) upper(s.symbol), i.instrument_id
 FROM instrument_symbols s
@@ -62,6 +69,20 @@ class PostgresNewsStore:
             return set()
         with self.connection.cursor() as cursor:
             cursor.execute(EXISTING_IDS_SQL, (list(news_ids),))
+            return {str(row[0]) for row in cursor.fetchall()}
+
+    def enriched_ids(self, news_ids: tuple[str, ...]) -> set[str]:
+        """Return KAP rows that already contain the official detail payload.
+
+        Existing list-only rows are deliberately omitted so a later sync can
+        backfill their complete Turkish summary without creating a new outbox
+        notification; persist still recognises them as existing rows.
+        """
+
+        if not news_ids:
+            return set()
+        with self.connection.cursor() as cursor:
+            cursor.execute(ENRICHED_IDS_SQL, (list(news_ids),))
             return {str(row[0]) for row in cursor.fetchall()}
 
     def persist(

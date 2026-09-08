@@ -281,6 +281,18 @@ def _tone(score: float | None) -> str:
     return next((label for threshold, label in labels if score >= threshold), "Güçlü düşüş")
 
 
+def _financial_tone(score: float | None) -> str:
+    if score is None:
+        return "Veri yetersiz"
+    labels = (
+        (80, "Çok güçlü"),
+        (65, "Güçlü"),
+        (50, "Orta"),
+        (35, "Zayıf"),
+    )
+    return next((label for threshold, label in labels if score >= threshold), "Çok zayıf")
+
+
 def _level_rows(technical: ResearchTechnicalSnapshot) -> tuple[tuple[str, ...], ...]:
     levels: list[tuple[float, str, str]] = []
     levels += [
@@ -439,7 +451,7 @@ def build_equity_research_report(
         (
             ("Şirket / Hisse", f"{company} / {frame.symbol_at_snapshot}"),
             ("Fiyat", f"{_num(technical.close)} {currency}"),
-            ("Temel görünüm", _tone(financial_score)),
+            ("Temel görünüm", _financial_tone(financial_score)),
             ("Teknik görünüm", trend),
             (
                 "Finansal sağlık",

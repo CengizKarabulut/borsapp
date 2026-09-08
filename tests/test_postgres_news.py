@@ -104,6 +104,14 @@ def envelope() -> OutboxEnvelope:
 
 
 class PostgresNewsStoreTests(unittest.TestCase):
+    def test_enriched_ids_only_uses_official_detail_payload_query(self) -> None:
+        connection = FakeConnection(source_exists=True, existing_ids=("kap:123",))
+
+        result = PostgresNewsStore(connection).enriched_ids(("kap:123",))
+
+        self.assertEqual(result, {"kap:123"})
+        self.assertTrue(any("jsonb_typeof" in query for query, _ in connection.queries))
+
     def test_first_source_batch_bootstraps_without_outbox(self) -> None:
         connection = FakeConnection(source_exists=False)
 

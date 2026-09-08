@@ -34,8 +34,12 @@ class FakeProvider:
 
 
 class FakeStore:
-    def __init__(self) -> None:
+    def __init__(self, *, enriched_ids: set[str] | None = None) -> None:
         self.calls = []
+        self._enriched_ids = enriched_ids or set()
+
+    def enriched_ids(self, news_ids: tuple[str, ...]) -> set[str]:
+        return self._enriched_ids.intersection(news_ids)
 
     def persist(self, **kwargs):
         self.calls.append(kwargs)
@@ -113,6 +117,51 @@ class NewsIngestionServiceTests(unittest.TestCase):
         self.assertEqual(result.fetched, 1)
         self.assertEqual(len(store.calls[0]["envelopes"]), 1)
         self.assertIn("Daha uzun", next(iter(store.calls[0]["envelopes"].values())).payload["text"])
+
+    def test_existing_list_only_kap_row_is_enriched_without_being_treated_as_new(self) -> None:
+        class EnrichingProvider(FakeProvider):
+            def __init__(self) -> None:
+                self.enriched = ()
+
+            def enrich(self, items):
+                self.enriched = items
+                return tuple(replace(value, summary="Tam resmi KAP metni.") for value in items)
+
+        provider = EnrichingProvider()
+        store = FakeStore(enriched_ids=set())
+        NewsIngestionService(
+            provider=provider, store=store, telegram_settings=settings(DeliveryMode.LIVE)
+        ).run(
+            from_date=date(2026, 9, 7),
+            to_date=date(2026, 9, 7),
+            observed_at=datetime(2026, 9, 7, 12, tzinfo=UTC),
+            notify=True,
+        )
+
+        self.assertEqual(tuple(value.news_id for value in provider.enriched), ("kap:123",))
+        self.assertEqual(store.calls[0]["items"][0].summary, "Tam resmi KAP metni.")
+
+    def test_already_enriched_kap_row_does_not_fetch_detail_again(self) -> None:
+        class EnrichingProvider(FakeProvider):
+            def __init__(self) -> None:
+                self.enriched = None
+
+            def enrich(self, items):
+                self.enriched = items
+                return items
+
+        provider = EnrichingProvider()
+        store = FakeStore(enriched_ids={"kap:123"})
+        NewsIngestionService(
+            provider=provider, store=store, telegram_settings=settings(DeliveryMode.LIVE)
+        ).run(
+            from_date=date(2026, 9, 7),
+            to_date=date(2026, 9, 7),
+            observed_at=datetime(2026, 9, 7, 12, tzinfo=UTC),
+            notify=True,
+        )
+
+        self.assertEqual(provider.enriched, ())
 
 
 if __name__ == "__main__":

@@ -32,6 +32,8 @@ class PersistedNewsBatch:
 class NewsStore(Protocol):
     def existing_ids(self, news_ids: tuple[str, ...]) -> set[str]: ...
 
+    def enriched_ids(self, news_ids: tuple[str, ...]) -> set[str]: ...
+
     def persist(
         self,
         *,
@@ -75,17 +77,23 @@ class NewsIngestionService:
         if notify and self.telegram_settings.delivery_mode is not DeliveryMode.LIVE:
             raise ValueError("haber bildirimi için DELIVERY_MODE=live olmalıdır")
         items = self.provider.fetch(from_date=from_date, to_date=to_date)
-        existing_reader = getattr(self.store, "existing_ids", None)
-        existing_ids = (
-            existing_reader(tuple(item.news_id for item in items))
-            if callable(existing_reader)
+        news_ids = tuple(item.news_id for item in items)
+        enriched_reader = getattr(self.store, "enriched_ids", None)
+        legacy_reader = getattr(self.store, "existing_ids", None)
+        already_enriched_ids = (
+            enriched_reader(news_ids)
+            if callable(enriched_reader)
+            else legacy_reader(news_ids)
+            if callable(legacy_reader)
             else set()
         )
         enriched_by_id: dict[str, NewsItem] = {}
         enrich = getattr(self.provider, "enrich", None)
         if callable(enrich):
-            new_items = tuple(item for item in items if item.news_id not in existing_ids)
-            enriched_by_id = {item.news_id: item for item in enrich(new_items)}
+            pending_items = tuple(
+                item for item in items if item.news_id not in already_enriched_ids
+            )
+            enriched_by_id = {item.news_id: item for item in enrich(pending_items)}
         items = tuple(enriched_by_id.get(item.news_id, item) for item in items)
         deduplicated: dict[str, NewsItem] = {}
         for item in items:
