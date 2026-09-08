@@ -59,9 +59,14 @@ jobs:
         run: borsapp news-kap-backfill --days "$KAP_BACKFILL_DAYS" --chunk-days 3
       - name: Queue every supported command response
         run: borsapp telegram-smoke-symbol "$SMOKE_SYMBOL" --confirm-live
-      - name: Publish stored command responses and force acknowledgement
+      - name: Publish stored command responses and job acknowledgements
         run: borsapp publisher-once --limit 100
-      - name: Execute queued force scan
-        run: borsapp command-worker-once --timeframe 1h --bars 250
-      - name: Publish force completion
+      - name: Execute queued analysis, report, fundamental, chart and force jobs
+        shell: bash
+        run: |
+          for _ in {1..8}; do
+            borsapp command-worker-once --timeframe 1h --bars 250
+            borsapp publisher-once --limit 100
+          done
+      - name: Publish remaining completions
         run: borsapp publisher-once --limit 100

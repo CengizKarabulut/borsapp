@@ -1114,11 +1114,17 @@ def _telegram_smoke_symbol(
     user_id = min(settings.telegram.allowed_user_ids)
     specifications = (
         (CommandName.HELP, ()),
+        (CommandName.STATUS, ()),
         (CommandName.SCAN, (canonical,)),
         (CommandName.SCANS, (canonical,)),
         (CommandName.NEWS, (canonical,)),
         (CommandName.ANALYSIS, (canonical,)),
+        (CommandName.REPORT, (canonical,)),
+        (CommandName.FUNDAMENTAL, (canonical,)),
         (CommandName.CHART, (canonical,)),
+        (CommandName.CHART_HELP, ()),
+        (CommandName.LIST, ()),
+        (CommandName.HISTORY, ()),
         (CommandName.SCAN, (canonical, "--FORCE")),
     )
     with _connect(settings.runtime.database_url) as connection:
@@ -1144,6 +1150,11 @@ def _telegram_smoke_symbol(
                 f" {' '.join(arguments)}" if arguments else ""
             )
             for part, text in enumerate(reply.messages, 1):
+                reply_topic_kind = {
+                    CommandName.SCAN: TopicKind.SCANS,
+                    CommandName.SCANS: TopicKind.SCANS,
+                    CommandName.NEWS: TopicKind.NEWS,
+                }.get(name, TopicKind.COMMAND)
                 envelopes.append(
                     router.route(
                         publication_kind=PublicationKind.COMMAND_REPLY,
@@ -1153,7 +1164,7 @@ def _telegram_smoke_symbol(
                             "part": part,
                         },
                         payload={"text": f"🧪 {rendered_command}\n\n{text}"},
-                        origin_topic_id=topic_id,
+                        reply_topic_kind=reply_topic_kind,
                     )
                 )
         inserted = PostgresOutboxRepository(connection).enqueue(tuple(envelopes))
