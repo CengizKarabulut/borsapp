@@ -6,9 +6,15 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-TECHNICAL_APP = REPOSITORY_ROOT / "_legacy" / "market-telegram-suite" / "apps" / "technical_bot"
-CHART_APP = REPOSITORY_ROOT / "_legacy" / "market-telegram-suite" / "apps" / "chart_bot"
+from market_intelligence.compat.paths import repository_root
+
+
+def _technical_app() -> Path:
+    return repository_root() / "_legacy" / "market-telegram-suite" / "apps" / "technical_bot"
+
+
+def _chart_app() -> Path:
+    return repository_root() / "_legacy" / "market-telegram-suite" / "apps" / "chart_bot"
 
 
 @contextmanager
@@ -47,7 +53,7 @@ def generate_and_send_research(
     target: Path,
 ) -> None:
     with _legacy_imports(
-        TECHNICAL_APP,
+        _technical_app(),
         {
             "TELEGRAM_MESSAGE_THREAD_ID": str(topic_id),
             "MPLBACKEND": "Agg",
@@ -75,7 +81,7 @@ def generate_and_send_fundamental(
     target: Path,
 ) -> None:
     with _legacy_imports(
-        TECHNICAL_APP,
+        _technical_app(),
         {
             "TELEGRAM_MESSAGE_THREAD_ID": str(topic_id),
             "MPLBACKEND": "Agg",
@@ -102,7 +108,7 @@ def generate_and_send_chart(
     intervals: tuple[str, ...] = ("1d",),
 ) -> None:
     with _legacy_imports(
-        CHART_APP,
+        _chart_app(),
         {
             "TELEGRAM_TOPIC_ID": str(topic_id),
             "BOT_OUTDIR": str(target),

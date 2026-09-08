@@ -27,6 +27,7 @@ jobs:
     env:
       APP_ENV: shadow
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: ${{ vars.NEWS_DELIVERY_MODE || 'disabled' }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

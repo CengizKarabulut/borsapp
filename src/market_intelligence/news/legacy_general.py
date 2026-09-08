@@ -4,16 +4,14 @@ import importlib.util
 import re
 from datetime import date, datetime
 from email.utils import parsedate_to_datetime
-from pathlib import Path
 from types import ModuleType
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from market_intelligence.compat.paths import repository_root
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.news.contracts import NewsItem
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-LEGACY_NEWS_FILE = REPOSITORY_ROOT / "_legacy" / "tradingview-haber-botu" / "news_bot.py"
 SUPPORTED_SOURCES = (
     "bloomberght",
     "forexfactory",
@@ -26,9 +24,10 @@ _BIST_TOKEN = re.compile(r"(?<![A-Z0-9])[A-Z]{3,6}(?![A-Z0-9])")
 
 
 def _legacy_module() -> ModuleType:
-    if not LEGACY_NEWS_FILE.is_file():
-        raise RuntimeError(f"Legacy haber sağlayıcısı bulunamadı: {LEGACY_NEWS_FILE}")
-    spec = importlib.util.spec_from_file_location("borsapp_legacy_general_news", LEGACY_NEWS_FILE)
+    legacy_news_file = repository_root() / "_legacy" / "tradingview-haber-botu" / "news_bot.py"
+    if not legacy_news_file.is_file():
+        raise RuntimeError(f"Legacy haber sağlayıcısı bulunamadı: {legacy_news_file}")
+    spec = importlib.util.spec_from_file_location("borsapp_legacy_general_news", legacy_news_file)
     if spec is None or spec.loader is None:
         raise RuntimeError("Legacy haber sağlayıcısı yüklenemedi")
     module = importlib.util.module_from_spec(spec)

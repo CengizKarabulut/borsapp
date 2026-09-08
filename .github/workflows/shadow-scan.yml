@@ -38,6 +38,7 @@ jobs:
     env:
       APP_ENV: production
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: live
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
