@@ -1,4 +1,4 @@
-name: Shadow scan
+name: Scheduled BIST scan
 
 on:
   workflow_dispatch:
@@ -36,9 +36,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_SCANS == 'true' }}
     runs-on: ubuntu-latest
     env:
-      APP_ENV: shadow
+      APP_ENV: production
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
-      DELIVERY_MODE: shadow
+      DELIVERY_MODE: live
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -78,7 +78,11 @@ jobs:
               borsapp scan-due --timeframe "$MANUAL_TIMEFRAME"
             fi
           else
-            for timeframe in 15m 30m 45m 1h 2h 4h 1d; do
+            for timeframe in 15m 30m 45m 2h; do
               borsapp scan-due --timeframe "$timeframe"
             done
+            for timeframe in 1h 4h 1d; do
+              borsapp scan-due --timeframe "$timeframe" --notify
+            done
+            borsapp publisher-once --limit 100
           fi

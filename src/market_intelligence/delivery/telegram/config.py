@@ -52,6 +52,7 @@ class TelegramSettings:
     topic_ids: Mapping[TopicKind, int]
     delivery_mode: DeliveryMode = DeliveryMode.DISABLED
     allow_chat_admins: bool = False
+    allow_chat_members: bool = False
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> TelegramSettings:
@@ -95,6 +96,9 @@ class TelegramSettings:
         allow_admins_raw = values.get("TELEGRAM_ALLOW_CHAT_ADMINS", "false").strip().casefold()
         if allow_admins_raw not in {"true", "false"}:
             raise ValueError("TELEGRAM_ALLOW_CHAT_ADMINS true veya false olmalıdır")
+        allow_members_raw = values.get("TELEGRAM_ALLOW_CHAT_MEMBERS", "false").strip().casefold()
+        if allow_members_raw not in {"true", "false"}:
+            raise ValueError("TELEGRAM_ALLOW_CHAT_MEMBERS true veya false olmalıdır")
         return cls(
             token,
             chat_id,
@@ -102,6 +106,7 @@ class TelegramSettings:
             topics,
             delivery_mode,
             allow_admins_raw == "true",
+            allow_members_raw == "true",
         )
 
     def topic_id(self, kind: TopicKind) -> int:
@@ -115,4 +120,7 @@ class TelegramSettings:
         # Authorization belongs to the chat and user; topic selection is a routing
         # concern.  Restricting ingestion to one topic made valid commands vanish
         # silently when Telegram clients posted them in General or another topic.
-        return chat_id == self.chat_id and user_id in self.allowed_user_ids
+        return (
+            chat_id == self.chat_id
+            and (self.allow_chat_members or user_id in self.allowed_user_ids)
+        )

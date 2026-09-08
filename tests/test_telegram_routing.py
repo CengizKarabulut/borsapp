@@ -42,6 +42,14 @@ class TelegramSettingsTests(unittest.TestCase):
         settings = TelegramSettings.from_mapping(values)
         self.assertTrue(settings.allow_chat_admins)
 
+    def test_configured_chat_members_can_be_explicitly_authorized(self) -> None:
+        values = environment()
+        values["TELEGRAM_ALLOW_CHAT_MEMBERS"] = "true"
+        settings = TelegramSettings.from_mapping(values)
+
+        self.assertTrue(settings.accepts(chat_id=-100123, user_id=999, topic_id=20))
+        self.assertFalse(settings.accepts(chat_id=-100999, user_id=999, topic_id=20))
+
 
 class TopicRouterTests(unittest.TestCase):
     def setUp(self) -> None:
