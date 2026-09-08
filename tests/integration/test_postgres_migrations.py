@@ -28,6 +28,7 @@ class PostgresMigrationIntegrationTests(unittest.TestCase):
         self.assertIn("000", first.applied)
         self.assertIn("001", first.applied)
         self.assertIn("002", first.applied)
+        self.assertIn("003", first.applied)
         self.assertEqual(second.applied, ())
         with self.connection.cursor() as cursor:
             cursor.execute(

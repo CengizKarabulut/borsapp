@@ -96,6 +96,17 @@ def _binding(
     )
     if not notifications.issubset(shadow):
         raise ValueError(f"{scanner.id}: notification timeframe önce shadow olmalıdır")
+    parity = section.get("parity")
+    if notifications:
+        verified = isinstance(parity, dict) and parity.get("status") == "verified"
+        has_evidence = bool(
+            verified and parity.get("verified_at") and parity.get("adr")
+        )
+        if not has_evidence:
+            raise ValueError(
+                f"{scanner.id}: notification_timeframes için doğrulanmış parity "
+                "kaydı (status, verified_at, adr) zorunludur"
+            )
     return ScannerBinding(
         scanner=scanner,
         ruleset_hash=ruleset_hash(

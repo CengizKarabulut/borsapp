@@ -62,6 +62,7 @@ from market_intelligence.news.legacy_general import (
     SUPPORTED_SOURCES,
     LegacyGeneralNewsProvider,
 )
+from market_intelligence.operations.doctor import inspect_runtime
 from market_intelligence.persistence.postgres.command_jobs import (
     PostgresCommandJobRepository,
 )
@@ -78,6 +79,7 @@ from market_intelligence.persistence.postgres.news import PostgresNewsStore
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.persistence.postgres.scan_store import PostgresScanStore
+from market_intelligence.persistence.postgres.shadow import PostgresShadowStore
 from market_intelligence.persistence.postgres.snapshots import PostgresSnapshotStore
 from market_intelligence.persistence.postgres.state_store import PostgresStateStore
 from market_intelligence.persistence.postgres.symbol_commands import (
@@ -91,6 +93,7 @@ from market_intelligence.research.ma_levels import research_ma_levels
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist, ScheduledBarPlanner
 from market_intelligence.settings import ApplicationSettings, merged_environment
+from market_intelligence.shadow.recorder import ShadowRecorder
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -105,6 +108,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("config-check", help="DB ve Telegram ayarlarını doğrula")
+
+    doctor = subparsers.add_parser(
+        "doctor",
+        help="PostgreSQL, migration, BIST evreni, tarama ve outbox sağlığını denetle",
+    )
+    doctor.add_argument("--directory", type=Path, default=Path("db/postgres"))
+    doctor.add_argument("--max-cycle-age-hours", type=float, default=48.0)
+    doctor.add_argument("--strict-runtime", action="store_true")
 
     init = subparsers.add_parser(
         "db-init",
@@ -128,6 +139,24 @@ def _parser() -> argparse.ArgumentParser:
         help="Uygulanmış ve bekleyen PostgreSQL migration sürümlerini göster",
     )
     version.add_argument("--directory", type=Path, default=Path("db/postgres"))
+
+    shadow_report = subparsers.add_parser(
+        "shadow-report",
+        help="Kalıcı legacy/new karşılaştırmalarını scanner ve timeframe bazında raporla",
+    )
+    shadow_report.add_argument("--days", type=int, default=30)
+    shadow_report.add_argument("--scanner")
+    shadow_report.add_argument("--timeframe")
+
+    shadow_gate = subparsers.add_parser(
+        "shadow-gate",
+        help="Bir scanner/timeframe parity eşiğini karşılamıyorsa başarısız dön",
+    )
+    shadow_gate.add_argument("--scanner", required=True)
+    shadow_gate.add_argument("--timeframe", required=True)
+    shadow_gate.add_argument("--days", type=int, default=30)
+    shadow_gate.add_argument("--min-samples", type=int, default=200)
+    shadow_gate.add_argument("--min-agreement", type=float, default=0.995)
 
     once = subparsers.add_parser(
         "publisher-once",
@@ -321,6 +350,31 @@ def _config_check(settings: ApplicationSettings) -> int:
     return 0
 
 
+def _doctor(
+    settings: ApplicationSettings,
+    directory: Path,
+    *,
+    maximum_cycle_age_hours: float,
+    strict_runtime: bool,
+) -> int:
+    if maximum_cycle_age_hours <= 0:
+        raise ValueError("--max-cycle-age-hours pozitif olmalıdır")
+    try:
+        with _connect(settings.runtime.database_url) as connection:
+            report = inspect_runtime(
+                connection,
+                migrations_directory=directory,
+                now=datetime.now(settings.runtime.timezone),
+                maximum_cycle_age=timedelta(hours=maximum_cycle_age_hours),
+                strict_runtime=strict_runtime,
+            )
+    except Exception as exc:
+        raise RuntimeError(f"doctor PostgreSQL denetimi başarısız: {type(exc).__name__}: {exc}") from exc
+    for check in report.checks:
+        print(f"{check.status:4} {check.name}: {check.detail}")
+    return 0 if report.healthy else 1
+
+
 def _db_migrate(
     settings: ApplicationSettings,
     directory: Path,
@@ -351,6 +405,91 @@ def _db_version(settings: ApplicationSettings, directory: Path) -> int:
     pending = ", ".join(result.pending) or "yok"
     print(f"Uygulanmış migration: {applied}\nBekleyen migration: {pending}")
     return 0
+
+
+def _shadow_scores(
+    settings: ApplicationSettings,
+    *,
+    days: int,
+    scanner_id: str | None = None,
+    timeframe: str | None = None,
+):
+    if days < 1 or days > 3650:
+        raise ValueError("--days 1 ile 3650 arasında olmalıdır")
+    if timeframe is not None:
+        timeframe = parse_timeframe(timeframe).value
+    since = datetime.now(settings.runtime.timezone) - timedelta(days=days)
+    with _connect(settings.runtime.database_url) as connection:
+        return PostgresShadowStore(connection).report(
+            since=since,
+            scanner_id=scanner_id,
+            timeframe=timeframe,
+        )
+
+
+def _shadow_report(
+    settings: ApplicationSettings,
+    *,
+    days: int,
+    scanner_id: str | None,
+    timeframe: str | None,
+) -> int:
+    scores = _shadow_scores(
+        settings,
+        days=days,
+        scanner_id=scanner_id,
+        timeframe=timeframe,
+    )
+    if not scores:
+        print("Seçilen aralıkta shadow karşılaştırması yok.")
+        return 0
+    print("scanner · timeframe · samples · agreement · legacy_only · new_only · unknown")
+    for score in scores:
+        print(
+            f"{score.scanner_id} · {score.timeframe} · {score.samples} · "
+            f"{score.agreement:.4%} · {score.legacy_only} · "
+            f"{score.new_only} · {score.unknown}"
+        )
+    return 0
+
+
+def _shadow_gate(
+    settings: ApplicationSettings,
+    *,
+    scanner_id: str,
+    timeframe: str,
+    days: int,
+    minimum_samples: int,
+    minimum_agreement: float,
+) -> int:
+    if minimum_samples < 1:
+        raise ValueError("--min-samples pozitif olmalıdır")
+    if not 0 <= minimum_agreement <= 1:
+        raise ValueError("--min-agreement 0 ile 1 arasında olmalıdır")
+    canonical_timeframe = parse_timeframe(timeframe).value
+    scores = _shadow_scores(
+        settings,
+        days=days,
+        scanner_id=scanner_id,
+        timeframe=canonical_timeframe,
+    )
+    if len(scores) != 1:
+        print(
+            f"PARITY FAIL · {scanner_id} · {canonical_timeframe} · karşılaştırma yok",
+            file=sys.stderr,
+        )
+        return 1
+    score = scores[0]
+    passed = score.passes(
+        minimum_samples=minimum_samples,
+        minimum_agreement=minimum_agreement,
+    )
+    print(
+        f"PARITY {'PASS' if passed else 'FAIL'} · {scanner_id} · {canonical_timeframe} · "
+        f"samples={score.samples} · agreement={score.agreement:.4%} · "
+        f"legacy_only={score.legacy_only}"
+    )
+    return 0 if passed else 1
 
 
 def _publisher_once(
@@ -562,6 +701,12 @@ def _feature_engine(connection) -> FeatureEngine:
     return FeatureEngine(registry)
 
 
+def _shadow_recorder(settings: ApplicationSettings, connection):
+    if not settings.runtime.enable_shadow_parity:
+        return None
+    return ShadowRecorder(PostgresShadowStore(connection))
+
+
 def _research_instrument(
     *,
     settings: ApplicationSettings,
@@ -730,6 +875,7 @@ def _scan_symbol(
                 state_store=PostgresStateStore(connection),
                 telegram_settings=effective_telegram,
                 confluence_store=PostgresConfluenceStore(connection),
+                shadow_recorder=_shadow_recorder(settings, connection),
             )
             result = coordinator.run(
                 cycle_id=cycle_id,
@@ -785,6 +931,7 @@ def _scheduled_components(settings: ApplicationSettings, connection, *, notify: 
         state_store=PostgresStateStore(connection),
         telegram_settings=telegram,
         confluence_store=PostgresConfluenceStore(connection),
+        shadow_recorder=_shadow_recorder(settings, connection),
     )
     return runtime, ingestion, coordinator
 
@@ -1258,6 +1405,13 @@ def main(argv: list[str] | None = None) -> int:
         settings = ApplicationSettings.from_mapping(values)
         if args.command == "config-check":
             return _config_check(settings)
+        if args.command == "doctor":
+            return _doctor(
+                settings,
+                args.directory,
+                maximum_cycle_age_hours=args.max_cycle_age_hours,
+                strict_runtime=args.strict_runtime,
+            )
         if args.command == "db-init":
             return _db_migrate(settings, args.directory)
         if args.command == "db-migrate":
@@ -1269,6 +1423,22 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "db-version":
             return _db_version(settings, args.directory)
+        if args.command == "shadow-report":
+            return _shadow_report(
+                settings,
+                days=args.days,
+                scanner_id=args.scanner,
+                timeframe=args.timeframe,
+            )
+        if args.command == "shadow-gate":
+            return _shadow_gate(
+                settings,
+                scanner_id=args.scanner,
+                timeframe=args.timeframe,
+                days=args.days,
+                minimum_samples=args.min_samples,
+                minimum_agreement=args.min_agreement,
+            )
         if args.command == "publisher-once":
             return _publisher_once(settings, limit=args.limit)
         if args.command == "publisher-loop":

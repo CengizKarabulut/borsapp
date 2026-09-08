@@ -26,6 +26,7 @@ from market_intelligence.scanning.contracts import Finding, ScanContext
 from market_intelligence.scanning.engine import ScanRun
 from market_intelligence.scanning.pipeline import ScanPipeline
 from market_intelligence.scanning.state_machine import TransitionDecision
+from market_intelligence.shadow.ports import ShadowRecorderPort
 
 
 class EventRunStore(Protocol):
@@ -77,6 +78,7 @@ class ScanFrameCoordinator:
         confluence_store: ConfluenceStore | None = None,
         confluence_policy: ConfluencePolicy | None = None,
         calendar_version: str = "bist-session-v1",
+        shadow_recorder: ShadowRecorderPort | None = None,
     ) -> None:
         self.pipeline = ScanPipeline(feature_engine)
         self.event_store = event_store
@@ -89,6 +91,7 @@ class ScanFrameCoordinator:
         self.confluence_engine = ConfluenceEngine()
         self.router = TopicRouter(telegram_settings)
         self.calendar_version = calendar_version
+        self.shadow_recorder = shadow_recorder
 
     def run(
         self,
@@ -126,6 +129,8 @@ class ScanFrameCoordinator:
                 context=context,
             )
             run = pipeline_run.scan
+            if self.shadow_recorder is not None:
+                self.shadow_recorder.record(cycle_id=cycle_id, frame=frame, run=run)
             runs.append(run)
             self._merge_coverage(coverage, binding.scanner.family, run.evaluation.status)
             observations.extend(

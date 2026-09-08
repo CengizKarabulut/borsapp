@@ -15,6 +15,18 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    profiles: ["runtime"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+    command: ["db-migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   scanner:
     profiles: ["runtime"]
     build: .
@@ -28,9 +40,14 @@ services:
       - --universe
       - BIST_ALL
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "borsapp", "doctor"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
 
   listener:
     profiles: ["runtime"]
@@ -40,9 +57,14 @@ services:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
     command: ["listener-loop"]
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "borsapp", "doctor"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
 
   publisher:
     profiles: ["runtime"]
@@ -52,9 +74,14 @@ services:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
     command: ["publisher-loop"]
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "borsapp", "doctor"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
 
   command-worker:
     profiles: ["runtime"]
@@ -64,9 +91,14 @@ services:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
     command: ["command-worker-loop", "--timeframe", "1h"]
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "borsapp", "doctor"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
 
 volumes:
   borsapp-postgres:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -40,7 +41,21 @@ class ScannerCatalogTests(unittest.TestCase):
                 binding.notification_timeframes.issubset(binding.shadow_timeframes)
             )
         volume = next(b for b in bindings if b.scanner.id == "technical.volume_spike")
-        self.assertIn(Timeframe.H1, volume.notification_timeframes)
+        self.assertIn(Timeframe.H1, volume.shadow_timeframes)
+        self.assertEqual(volume.notification_timeframes, frozenset())
+
+    def test_notification_requires_verified_parity_evidence(self) -> None:
+        source = (ROOT / "config/scanners.toml").read_text(encoding="utf-8")
+        altered = source.replace(
+            "notification_timeframes = []",
+            'notification_timeframes = ["1h"]',
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scanners.toml"
+            path.write_text(altered, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "doğrulanmış parity"):
+                load_scanner_catalog(path)
 
 
 if __name__ == "__main__":

@@ -58,12 +58,12 @@ açıkça gösterir.
 
 | Alan | Çalışan durum | Kalan doğrulama / göç |
 | --- | --- | --- |
-| SIGNAL | 9 scanner canonical motor üzerinde | Gerçek legacy adapterleri ve kalıcı parity raporu |
-| TECHNICAL | Legacy screener'daki 7 ekran canonical motor üzerinde | Shadow parity; araştırma/grafik vendor kodunun ayrıştırılması |
-| MA | Live state ve günlük research seviyeleri | Legacy parity ve ortak ATR FeatureSpec ayrıştırması |
+| SIGNAL | 9 scanner canonical motor üzerinde; gerçek legacy shadow adapterleri hazır | Saha parity örnekleri ve scanner bazlı promosyon |
+| TECHNICAL | Legacy screener'daki 7 ekran canonical motor ve gerçek legacy shadow adapterleri üzerinde | Saha parity örnekleri; araştırma/grafik vendor kodunun ayrıştırılması |
+| MA | Live state ve günlük research seviyeleri | Gerçek legacy adapter ve ortak ATR FeatureSpec ayrıştırması |
 | Telegram | Tek bot, topic routing, listener, outbox ve uzun iş kuyruğu | Kalıcı hosta geçiş ve sağlık gözlemi |
 | Haber | KAP canonical; genel haber compatibility adapteriyle çalışıyor | Genel haber kaynaklarını legacy importundan kurtarma |
-| Veritabanı | Sıralı/checksum'lı migration runner | Üretim migration gözlemi ve yedekleme prosedürü |
+| Veritabanı | Sıralı/checksum'lı migration runner, gerçek PostgreSQL CI testi | Üretim yedekleme prosedürü |
 | KARAR | Legacy kaynak korunuyor | `decision.panel_v645` henüz canonical scanner değil |
 | Sonuç ölçümü | Şema hazır | Outcome backfill/report henüz yok |
 
@@ -100,7 +100,7 @@ açıkça gösterir.
       topic ayrımıyla taşınması
 - [ ] Kaynak repolarda bulunmayan aracı kurum PDF/bülten sağlayıcısının ayrı
       entegrasyon olarak eklenmesi
-- [ ] Gerçek legacy kodunu aynı snapshot üzerinde çalıştıran tam shadow/parity hattı
+- [ ] MA dahil tüm aileleri kapsayan ve saha örneği biriktirmiş tam shadow/parity hattı
 - [ ] KARAR v6.4.5 ailesinin canonical scanner olarak taşınması
 - [ ] Compatibility katmanındaki araştırma, grafik ve genel haber kodunun ayrıştırılması
 - [ ] Sonuç/backfill ölçümü ve corporate action veri akışı

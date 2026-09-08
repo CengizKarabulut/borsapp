@@ -41,6 +41,7 @@ class RuntimeSettings:
     app_env: str
     timezone: ZoneInfo
     database_url: str = field(repr=False)
+    enable_shadow_parity: bool = False
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> RuntimeSettings:
@@ -55,7 +56,15 @@ class RuntimeSettings:
             raise ValueError("DATABASE_URL eksik")
         if not database_url.startswith(("postgresql://", "postgres://")):
             raise ValueError("DATABASE_URL PostgreSQL adresi olmalıdır")
-        return cls(app_env=app_env, timezone=timezone, database_url=database_url)
+        shadow_raw = values.get("ENABLE_SHADOW_PARITY", "false").strip().casefold()
+        if shadow_raw not in {"true", "false"}:
+            raise ValueError("ENABLE_SHADOW_PARITY true veya false olmalıdır")
+        return cls(
+            app_env=app_env,
+            timezone=timezone,
+            database_url=database_url,
+            enable_shadow_parity=shadow_raw == "true",
+        )
 
 
 @dataclass(frozen=True)

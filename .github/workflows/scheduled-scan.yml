@@ -40,6 +40,7 @@ jobs:
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: ${{ vars.SCAN_DELIVERY_MODE || 'shadow' }}
+      ENABLE_SHADOW_PARITY: ${{ vars.ENABLE_SHADOW_PARITY || 'false' }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -64,6 +65,9 @@ jobs:
       - name: Install runtime
         if: ${{ env.DATABASE_URL != '' }}
         run: python -m pip install ".[runtime]"
+      - name: Apply database migrations
+        if: ${{ env.DATABASE_URL != '' }}
+        run: borsapp db-migrate
       - name: Run requested or scheduled shadow scans
         if: ${{ env.DATABASE_URL != '' }}
         shell: bash
@@ -88,4 +92,7 @@ jobs:
               borsapp scan-due --timeframe "$timeframe" $notify_flag
             done
             borsapp publisher-once --limit 100
+            if [ "$ENABLE_SHADOW_PARITY" = "true" ]; then
+              borsapp shadow-report --days 30
+            fi
           fi

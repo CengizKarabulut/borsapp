@@ -16,7 +16,11 @@ dependencies = []
 borsapp = "market_intelligence.cli:main"
 
 [project.optional-dependencies]
-dev = ["ruff>=0.5,<1"]
+dev = [
+    "numpy>=1.26,<3",
+    "pandas>=2,<3",
+    "ruff>=0.5,<1",
+]
 runtime = [
     "beautifulsoup4>=4.13,<5",
     "borsapy>=0.10,<1",

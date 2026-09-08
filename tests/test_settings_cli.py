@@ -41,6 +41,12 @@ class SettingsTests(unittest.TestCase):
         self.assertNotIn("secret-token", rendered)
         self.assertNotIn("user:secret", rendered)
 
+    def test_shadow_parity_is_explicit_and_defaults_off(self) -> None:
+        values = valid_values()
+        self.assertFalse(ApplicationSettings.from_mapping(values).runtime.enable_shadow_parity)
+        values["ENABLE_SHADOW_PARITY"] = "true"
+        self.assertTrue(ApplicationSettings.from_mapping(values).runtime.enable_shadow_parity)
+
     def test_env_file_parser_does_not_mutate_or_require_dotenv(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ".env"
