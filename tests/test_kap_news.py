@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 from zoneinfo import ZoneInfo
 
-from market_intelligence.news.kap import KAP_DISCLOSURES_URL, KapDisclosureProvider
+from market_intelligence.news.kap import KAP_DETAIL_URL, KAP_DISCLOSURES_URL, KapDisclosureProvider
 
 
 class FakeResponse:
@@ -19,13 +19,18 @@ class FakeResponse:
 
 
 class FakeClient:
-    def __init__(self, body) -> None:
+    def __init__(self, body, detail_body=None) -> None:
         self.body = body
+        self.detail_body = detail_body
         self.calls = []
 
     def post(self, url: str, **kwargs):
         self.calls.append((url, kwargs))
         return FakeResponse(self.body)
+
+    def get(self, url: str, **kwargs):
+        self.calls.append((url, kwargs))
+        return FakeResponse(self.detail_body)
 
 
 class KapDisclosureProviderTests(unittest.TestCase):
@@ -69,13 +74,39 @@ class KapDisclosureProviderTests(unittest.TestCase):
             provider.fetch(from_date=date(2026, 9, 7), to_date=date(2026, 9, 7))
 
     def test_missing_disclosure_id_is_ignored(self) -> None:
-        provider = KapDisclosureProvider(
-            FakeClient([{"publishDate": "07.09.2026 14:05:06"}])
-        )
+        provider = KapDisclosureProvider(FakeClient([{"publishDate": "07.09.2026 14:05:06"}]))
         self.assertEqual(
             provider.fetch(from_date=date(2026, 9, 7), to_date=date(2026, 9, 7)),
             (),
         )
+
+    def test_new_disclosure_can_be_enriched_from_official_detail_body(self) -> None:
+        client = FakeClient(
+            [
+                {
+                    "disclosureIndex": 123,
+                    "publishDate": "07.09.2026 14:05",
+                    "stockCodes": "ASELS",
+                    "summary": "Kısa özet",
+                }
+            ],
+            [
+                {
+                    "disclosure": {"disclosureBasic": {"summary": "Yeni sözleşme açıklaması"}},
+                    "disclosureBody": [
+                        "<div><span class='content-tr'>Sözleşme tutarı 100 milyon avrodur.</span><span class='content-en'>English text</span></div>"
+                    ],
+                }
+            ],
+        )
+        provider = KapDisclosureProvider(client)
+        item = provider.fetch(from_date=date(2026, 9, 7), to_date=date(2026, 9, 7))[0]
+
+        enriched = provider.enrich((item,))[0]
+
+        self.assertIn("100 milyon avrodur", enriched.summary)
+        self.assertNotIn("English text", enriched.summary)
+        self.assertEqual(client.calls[-1][0], f"{KAP_DETAIL_URL}/123")
 
 
 if __name__ == "__main__":

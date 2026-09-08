@@ -34,6 +34,7 @@ class StoredNews:
     published_at: datetime
     url: str | None = None
     source: str = "kap"
+    summary: str = ""
 
 
 @dataclass(frozen=True)
@@ -114,7 +115,7 @@ class SymbolCommandService:
                 "/tara SEMBOL — son birleşik durum\n"
                 "/taramalar SEMBOL — tüm tarama ayrıntıları\n"
                 "/analiz SEMBOL — tek ekran birleşik araştırma özeti\n"
-                "/rapor SEMBOL — 24 bölümlü PDF araştırma raporu\n"
+                "/rapor SEMBOL — 25 bölümlü PDF araştırma raporu\n"
                 "/temel SEMBOL — kaynak etiketli temel analiz kartı\n"
                 "/grafik SEMBOL — teknik gösterge grafiği\n"
                 "/haber SEMBOL — bugünün tüm KAP'ları + önceki 3 KAP\n"
@@ -268,6 +269,14 @@ class SymbolCommandService:
             key=lambda news: news.published_at,
             reverse=True,
         )
+        unique_items: list[StoredNews] = []
+        seen: set[str] = set()
+        for item in kap_items:
+            key = item.url or f"{item.published_at.date()}:{item.headline.casefold()}"
+            if key not in seen:
+                unique_items.append(item)
+                seen.add(key)
+        kap_items = unique_items
         if not kap_items:
             return (f"{snapshot.symbol} için saklanmış KAP bildirimi yok.",)
         now = self._now()
@@ -293,6 +302,10 @@ class SymbolCommandService:
         for item in selected:
             timestamp = item.published_at.astimezone(now.tzinfo).strftime("%d.%m.%Y %H:%M")
             entry = f"- {timestamp} · {item.headline}"
+            if item.summary:
+                from market_intelligence.news.text import sentence_excerpt
+
+                entry += f"\n  {sentence_excerpt(item.summary, max_chars=1_250)}"
             if item.url:
                 entry += f"\n  {item.url}"
             entries.append(entry)

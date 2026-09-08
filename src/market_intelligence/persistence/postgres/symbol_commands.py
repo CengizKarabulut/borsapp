@@ -56,7 +56,8 @@ LIMIT 20
 """
 
 NEWS_SQL = """
-SELECT DISTINCT n.headline, n.published_at, n.url, n.source
+SELECT DISTINCT n.headline, n.published_at, n.url, n.source,
+       COALESCE(n.payload->>'summary', '') AS summary
 FROM news_items n
 LEFT JOIN news_item_instruments link ON link.news_id = n.news_id
 WHERE n.instrument_id = %s OR link.instrument_id = %s
@@ -117,7 +118,7 @@ class PostgresSymbolReadStore:
             )
             cursor.execute(NEWS_SQL, (instrument_id, instrument_id))
             news = tuple(
-                StoredNews(str(row[0]), row[1], row[2], str(row[3]))
+                StoredNews(str(row[0]), row[1], row[2], str(row[3]), str(row[4] or ""))
                 for row in cursor.fetchall()
             )
         return SymbolSnapshot(instrument_id, canonical_symbol, results, artifacts, news)

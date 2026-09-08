@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from market_intelligence.features.decision import DECISION_PANEL_V645, DecisionPanelSnapshot
 from market_intelligence.features.momentum import (
     MACD_12_26_9,
     RSI_14,
+    SMI_10_3_3,
     MacdSnapshot,
     RsiSnapshot,
+    SmiSnapshot,
 )
 from market_intelligence.features.specs import FeatureSpec, WarmupSpec
 from market_intelligence.features.technical import (
@@ -69,6 +71,31 @@ class ResearchTechnicalSnapshot:
     decision_score: int
     active_setup: str
     decision_entry: bool
+    open: float = 0.0
+    high: float = 0.0
+    low: float = 0.0
+    daily_volume: float = 0.0
+    turnover: float = 0.0
+    moving_averages: dict[int, float] = field(default_factory=dict)
+    moving_average_slopes: dict[int, float | None] = field(default_factory=dict)
+    smi: float | None = None
+    smi_signal: float | None = None
+    plus_di: float | None = None
+    minus_di: float | None = None
+    profile_poc: float | None = None
+    profile_val: float | None = None
+    profile_vah: float | None = None
+    vwap20: float | None = None
+    anchored_vwap: float | None = None
+    swing_high: float | None = None
+    swing_low: float | None = None
+    high_label: str = "—"
+    low_label: str = "—"
+    strong_divergences: int = 0
+    near_confluence: bool = False
+    bb_lower: float | None = None
+    bb_middle: float | None = None
+    bb_upper: float | None = None
 
 
 def _return(close: list[float], bars: int) -> float | None:
@@ -190,6 +217,7 @@ class ResearchTechnicalSnapshotProvider:
         WILDER_ATR_14,
         RSI_14,
         MACD_12_26_9,
+        SMI_10_3_3,
         TECHNICAL_MARKET_CONTEXT,
         DECISION_PANEL_V645,
     )
@@ -204,11 +232,14 @@ class ResearchTechnicalSnapshotProvider:
         atr = values.get(WILDER_ATR_14.feature_id)
         rsi = values.get(RSI_14.feature_id)
         macd = values.get(MACD_12_26_9.feature_id)
+        smi = values.get(SMI_10_3_3.feature_id)
         context = values.get(TECHNICAL_MARKET_CONTEXT.feature_id)
         decision = values.get(DECISION_PANEL_V645.feature_id)
         if not isinstance(atr, AtrSeries) or not isinstance(rsi, RsiSnapshot):
             return None
         if not isinstance(macd, MacdSnapshot) or not isinstance(context, TechnicalMarketContext):
+            return None
+        if not isinstance(smi, SmiSnapshot):
             return None
         if not isinstance(decision, DecisionPanelSnapshot):
             return None
@@ -223,6 +254,37 @@ class ResearchTechnicalSnapshotProvider:
         swing_high = max(bar.high for bar in swing)
         swing_low = min(bar.low for bar in swing)
         distance = swing_high - swing_low
+        periods = (5, 8, 13, 20, 50, 100, 200)
+        moving_averages = {
+            period: sum(close[-period:]) / period
+            for period in periods
+        }
+        moving_average_slopes: dict[int, float | None] = {}
+        for period in periods:
+            previous_window = close[-period - 5 : -5]
+            previous_average = sum(previous_window) / period if len(previous_window) == period else None
+            moving_average_slopes[period] = (
+                (moving_averages[period] / previous_average - 1.0) * 100.0
+                if previous_average
+                else None
+            )
+        recent = frame.bars[-20:]
+        recent_volume = sum(bar.volume for bar in recent)
+        vwap20 = (
+            sum(((bar.high + bar.low + bar.close) / 3.0) * bar.volume for bar in recent)
+            / recent_volume
+            if recent_volume > 0
+            else None
+        )
+        anchor_index = min(range(max(0, len(frame.bars) - 120), len(frame.bars)), key=lambda index: frame.bars[index].low)
+        anchored = frame.bars[anchor_index:]
+        anchored_volume = sum(bar.volume for bar in anchored)
+        anchored_vwap = (
+            sum(((bar.high + bar.low + bar.close) / 3.0) * bar.volume for bar in anchored)
+            / anchored_volume
+            if anchored_volume > 0
+            else None
+        )
         fibonacci = {
             "0.0%": swing_low,
             "23.6%": swing_high - distance * 0.236,
@@ -274,4 +336,29 @@ class ResearchTechnicalSnapshotProvider:
             decision_score=decision.score,
             active_setup=decision.active_setup,
             decision_entry=decision.entry,
+            open=frame.bars[-1].open,
+            high=frame.bars[-1].high,
+            low=frame.bars[-1].low,
+            daily_volume=frame.bars[-1].volume,
+            turnover=frame.bars[-1].volume * latest,
+            moving_averages=moving_averages,
+            moving_average_slopes=moving_average_slopes,
+            smi=smi.value,
+            smi_signal=smi.signal,
+            plus_di=context.plus_di,
+            minus_di=context.minus_di,
+            profile_poc=context.profile_poc,
+            profile_val=context.profile_val,
+            profile_vah=context.profile_vah,
+            vwap20=vwap20,
+            anchored_vwap=anchored_vwap,
+            swing_high=context.swing_high,
+            swing_low=context.swing_low,
+            high_label=context.high_label,
+            low_label=context.low_label,
+            strong_divergences=context.strong_divergences,
+            near_confluence=context.near_confluence,
+            bb_lower=context.bb_lower,
+            bb_middle=context.bb_middle,
+            bb_upper=context.bb_upper,
         )

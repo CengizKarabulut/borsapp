@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from market_intelligence.compat.paths import repository_root
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.news.contracts import NewsItem
+from market_intelligence.news.text import normalize_news_text, sentence_excerpt
 
 SUPPORTED_SOURCES = (
     "bloomberght",
@@ -81,7 +82,7 @@ class LegacyGeneralNewsProvider:
         for row in rows:
             if not isinstance(row, dict):
                 continue
-            headline = str(row.get("title") or "").strip()
+            headline = normalize_news_text(row.get("title"))
             if not headline:
                 continue
             published_at = _published_at(row.get("published"), self.timezone, observed_at)
@@ -89,7 +90,7 @@ class LegacyGeneralNewsProvider:
             # so an old RSS page cannot be replayed as fresh news.
             if row.get("published") and not from_date <= published_at.date() <= to_date:
                 continue
-            url = str(row.get("link") or "").strip() or None
+            url = normalize_news_text(row.get("link")) or None
             provider_id = str(row.get("id") or url or "").strip()
             news_id = f"{self.source}:" + (
                 provider_id
@@ -103,9 +104,12 @@ class LegacyGeneralNewsProvider:
                 published_at=published_at,
                 url=url,
                 symbols=_symbols(row),
-                summary=str(row.get("summary") or row.get("detail") or "").strip()[:1800],
-                provider=str(row.get("provider") or self.source).strip(),
-                category=str(row.get("category") or "Piyasa Haberi").strip(),
+                summary=sentence_excerpt(
+                    row.get("summary") or row.get("detail") or "",
+                    max_chars=6_000,
+                ),
+                provider=normalize_news_text(row.get("provider") or self.source),
+                category=normalize_news_text(row.get("category") or "Piyasa Haberi"),
                 payload={key: value for key, value in row.items() if key != "detail"},
             )
         return tuple(sorted(items.values(), key=lambda item: item.published_at, reverse=True))

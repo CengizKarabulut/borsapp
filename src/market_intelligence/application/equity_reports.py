@@ -12,7 +12,7 @@ from market_intelligence.features.research import (
 )
 from market_intelligence.fundamentals.providers import FinancialProviderChain
 from market_intelligence.market_data.bars import CanonicalFrame
-from market_intelligence.research.equity_report import (
+from market_intelligence.research.equity_report_v2 import (
     EquityResearchReport,
     build_equity_research_report,
 )

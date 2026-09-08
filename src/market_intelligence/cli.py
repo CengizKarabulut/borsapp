@@ -106,7 +106,7 @@ from market_intelligence.persistence.postgres.symbol_commands import (
 from market_intelligence.persistence.postgres.telegram_updates import (
     PostgresTelegramUpdateRepository,
 )
-from market_intelligence.research.equity_report import analysis_message
+from market_intelligence.research.equity_report_v2 import analysis_message
 from market_intelligence.research.ma_levels import research_ma_levels
 from market_intelligence.research.outcomes import OutcomeWindow, measure
 from market_intelligence.scanning.catalog import load_scanner_catalog
@@ -1273,7 +1273,7 @@ def _command_job_executor(
                     ).decode("ascii"),
                     "filename": generated.rendered.path.name,
                     "caption": (
-                        f"{job.symbol} · 24 bölümlü araştırma raporu\n"
+                        f"{job.symbol} · 25 bölümlü araştırma raporu\n"
                         f"Kapalı bar: {generated.bar_time:%d.%m.%Y}\n"
                         "Eksik veriler UNKNOWN bırakılmıştır. Yatırım tavsiyesi değildir."
                     ),

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 
-from market_intelligence.research.equity_report import EquityResearchReport
+from market_intelligence.research.equity_report_v2 import EquityResearchReport, ReportTable
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ def render_equity_research_pdf(
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfgen import canvas
     from reportlab.platypus import (
-        KeepTogether,
+        LongTable,
         PageBreak,
         Paragraph,
         SimpleDocTemplate,
@@ -124,6 +124,19 @@ def render_equity_research_pdf(
         leading=13,
         textColor=colors.HexColor("#102A43"),
     )
+    table_cell = ParagraphStyle(
+        "BorsappTableCell",
+        parent=small,
+        fontSize=6.9,
+        leading=9.2,
+        textColor=colors.HexColor("#243B53"),
+    )
+    table_head = ParagraphStyle(
+        "BorsappTableHead",
+        parent=table_cell,
+        fontName=bold_font,
+        textColor=colors.white,
+    )
 
     document = SimpleDocTemplate(
         str(target),
@@ -132,7 +145,7 @@ def render_equity_research_pdf(
         rightMargin=17 * mm,
         topMargin=19 * mm,
         bottomMargin=19 * mm,
-        title=f"{report.symbol} Araştırma Raporu",
+        title=f"{report.symbol} Hisse Analiz Raporu",
         author="Borsapp Market Intelligence",
         subject="Point-in-time, kaynak etiketli hisse araştırma raporu",
     )
@@ -152,7 +165,7 @@ def render_equity_research_pdf(
         page_canvas.restoreState()
 
     story = [
-        Paragraph(f"{escape(report.symbol)} Araştırma Raporu", title),
+        Paragraph(f"{escape(report.symbol)} Hisse Analiz Raporu", title),
         Paragraph(
             f"Rapor kimliği: {report.report_id[:20]}…<br/>"
             f"Kapalı bar: {escape(report.as_of_bar.isoformat())}<br/>"
@@ -162,7 +175,11 @@ def render_equity_research_pdf(
         ),
         Table(
             [
+                ["Analiz güveni", f"{report.confidence_score:.0f}/100"],
                 ["Kanıt kapsamı", f"{report.evidence_available}/{report.evidence_total} bölüm"],
+                ["Finansal sağlık", f"{report.financial_health_score:.0f}/100" if report.financial_health_score is not None else "Veri yok"],
+                ["Teknik puan", f"{report.technical_score:.0f}/100" if report.technical_score is not None else "Veri yok"],
+                ["Değerleme", report.valuation_status],
                 ["Veri politikası", "Point-in-time · eksik alan UNKNOWN · otomatik AL/SAT yok"],
             ],
             colWidths=[42 * mm, 130 * mm],
@@ -172,6 +189,8 @@ def render_equity_research_pdf(
         *[Paragraph(f"• {escape(item)}", body) for item in report.top_findings],
         Paragraph("Kritik 3 koşul", heading),
         *[Paragraph(f"• {escape(item)}", body) for item in report.critical_conditions],
+        Paragraph("En önemli 3 risk", heading),
+        *[Paragraph(f"• {escape(item)}", body) for item in report.key_risks],
         Paragraph(f"Geçersizleşme: {escape(report.invalidation)}", callout),
         Paragraph(f"Olumlu teyit: {escape(report.positive_confirmation)}", callout),
         Paragraph(f"Genel sonuç: {escape(report.conclusion)}", body),
@@ -194,21 +213,69 @@ def render_equity_research_pdf(
             ]
         )
     )
+    def table_widths(column_count: int) -> list[float]:
+        usable = 172 * mm
+        if column_count == 2:
+            return [42 * mm, 130 * mm]
+        if column_count == 4:
+            return [27 * mm, 25 * mm, 32 * mm, 88 * mm]
+        if column_count == 5:
+            return [27 * mm, 25 * mm, 24 * mm, 48 * mm, 48 * mm]
+        return [usable / max(column_count, 1)] * column_count
+
+    def render_table(item: ReportTable):
+        rows = [
+            [Paragraph(escape(value), table_head) for value in item.columns],
+            *[
+                [Paragraph(escape(value), table_cell) for value in row]
+                for row in item.rows
+            ],
+        ]
+        table = LongTable(
+            rows,
+            colWidths=table_widths(len(item.columns)),
+            repeatRows=1,
+            splitByRow=1,
+            hAlign="LEFT",
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (-1, 0), bold_font),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0B7285")),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F8FA")]),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#BCCCDC")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        return table
+
     for section in report.sections:
         status_color = {
             "AVAILABLE": "#2B8A3E",
             "PARTIAL": "#E67700",
             "UNKNOWN": "#C92A2A",
         }.get(section.status, "#486581")
-        block = [
+        story.append(
             Paragraph(
                 f"{section.number}. {escape(section.title)} "
                 f"<font color='{status_color}' size='7'>[{escape(section.status)}]</font>",
                 heading,
-            ),
-            *[Paragraph(escape(paragraph), body) for paragraph in section.paragraphs],
-        ]
-        story.append(KeepTogether(block))
+            )
+        )
+        story.extend(Paragraph(escape(paragraph), body) for paragraph in section.paragraphs)
+        story.extend(Paragraph(f"• {escape(item)}", body) for item in section.bullets)
+        for item in section.tables:
+            if item.title:
+                story.append(Paragraph(escape(item.title), callout))
+            if item.rows:
+                story.append(render_table(item))
+                story.append(Spacer(1, 2 * mm))
         story.append(Spacer(1, 1.5 * mm))
     story.extend(
         [

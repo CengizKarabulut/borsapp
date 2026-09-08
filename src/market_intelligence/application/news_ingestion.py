@@ -12,6 +12,7 @@ from market_intelligence.delivery.telegram.routing import (
     TopicRouter,
 )
 from market_intelligence.news.contracts import NewsItem
+from market_intelligence.news.text import news_dedup_key, sentence_excerpt
 
 
 class NewsProvider(Protocol):
@@ -29,6 +30,8 @@ class PersistedNewsBatch:
 
 
 class NewsStore(Protocol):
+    def existing_ids(self, news_ids: tuple[str, ...]) -> set[str]: ...
+
     def persist(
         self,
         *,
@@ -72,11 +75,28 @@ class NewsIngestionService:
         if notify and self.telegram_settings.delivery_mode is not DeliveryMode.LIVE:
             raise ValueError("haber bildirimi için DELIVERY_MODE=live olmalıdır")
         items = self.provider.fetch(from_date=from_date, to_date=to_date)
-        envelopes = (
-            {item.news_id: self._envelope(item) for item in items}
-            if notify
-            else {}
+        existing_reader = getattr(self.store, "existing_ids", None)
+        existing_ids = (
+            existing_reader(tuple(item.news_id for item in items))
+            if callable(existing_reader)
+            else set()
         )
+        enriched_by_id: dict[str, NewsItem] = {}
+        enrich = getattr(self.provider, "enrich", None)
+        if callable(enrich):
+            new_items = tuple(item for item in items if item.news_id not in existing_ids)
+            enriched_by_id = {item.news_id: item for item in enrich(new_items)}
+        items = tuple(enriched_by_id.get(item.news_id, item) for item in items)
+        deduplicated: dict[str, NewsItem] = {}
+        for item in items:
+            key = self._dedup_key(item)
+            current = deduplicated.get(key)
+            if current is None or len(item.summary) > len(current.summary):
+                deduplicated[key] = item
+        items = tuple(
+            sorted(deduplicated.values(), key=lambda item: item.published_at, reverse=True)
+        )
+        envelopes = {item.news_id: self._envelope(item) for item in items} if notify else {}
         persisted = self.store.persist(
             source=self.provider.source,
             items=items,
@@ -105,23 +125,29 @@ class NewsIngestionService:
         heading = f"{source_label} · {symbols}" if symbols else source_label
         lines = [f"<b>{html.escape(heading)}</b>", html.escape(item.headline)]
         if item.summary:
-            lines.append(html.escape(item.summary[:800]))
+            lines.append(html.escape(sentence_excerpt(item.summary, max_chars=2_800)))
         if item.attachment_count:
             lines.append(f"📎 {item.attachment_count} ek")
         if item.url:
-            lines.append(
-                f'<a href="{html.escape(item.url, quote=True)}">Kaynağı aç</a>'
-            )
+            lines.append(f'<a href="{html.escape(item.url, quote=True)}">Kaynağı aç</a>')
         return self.router.route(
             publication_kind=(
-                PublicationKind.CALENDAR
-                if item.source == "forexfactory"
-                else PublicationKind.NEWS
+                PublicationKind.CALENDAR if item.source == "forexfactory" else PublicationKind.NEWS
             ),
-            semantic_identity={"news_id": item.news_id},
+            semantic_identity={"dedup_key": self._dedup_key(item)},
             payload={
                 "text": "\n\n".join(lines),
                 "parse_mode": "HTML",
                 "link_preview_options": {"is_disabled": False},
             },
+        )
+
+    @staticmethod
+    def _dedup_key(item: NewsItem) -> str:
+        return news_dedup_key(
+            source=item.source,
+            news_id=item.news_id,
+            headline=item.headline,
+            url=item.url,
+            published_at=item.published_at,
         )

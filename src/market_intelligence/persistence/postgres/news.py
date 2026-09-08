@@ -7,6 +7,7 @@ from market_intelligence.application.news_ingestion import PersistedNewsBatch
 from market_intelligence.core.identity import canonical_json
 from market_intelligence.delivery.telegram.routing import OutboxEnvelope
 from market_intelligence.news.contracts import NewsItem
+from market_intelligence.news.text import news_dedup_key
 from market_intelligence.persistence.postgres.scan_store import (
     OUTBOX_SQL,
     PostgresConnection,
@@ -55,6 +56,13 @@ ON CONFLICT (news_id, instrument_id) DO NOTHING
 class PostgresNewsStore:
     def __init__(self, connection: PostgresConnection) -> None:
         self.connection = connection
+
+    def existing_ids(self, news_ids: tuple[str, ...]) -> set[str]:
+        if not news_ids:
+            return set()
+        with self.connection.cursor() as cursor:
+            cursor.execute(EXISTING_IDS_SQL, (list(news_ids),))
+            return {str(row[0]) for row in cursor.fetchall()}
 
     def persist(
         self,
@@ -147,6 +155,13 @@ class PostgresNewsStore:
                 "category": item.category,
                 "attachment_count": item.attachment_count,
                 "raw": dict(item.payload),
+                "dedup_key": news_dedup_key(
+                    source=item.source,
+                    news_id=item.news_id,
+                    headline=item.headline,
+                    url=item.url,
+                    published_at=item.published_at,
+                ),
             }
             news_rows.append(
                 {

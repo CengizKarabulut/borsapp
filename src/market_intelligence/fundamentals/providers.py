@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -39,6 +39,8 @@ class FinancialSnapshot:
     statement_periods: tuple[str, ...]
     providers_used: tuple[str, ...]
     errors: tuple[str, ...] = ()
+    series: dict[str, tuple[float, ...]] = field(default_factory=dict)
+    metadata: dict[str, str | float | None] = field(default_factory=dict)
 
     @property
     def coverage(self) -> float:
@@ -196,11 +198,15 @@ def _snapshot_from_frames(
     revenue = _sum4(values["revenue"])
     previous_revenue = _sum4(values["revenue"], 4)
     gross_profit = _sum4(values["gross_profit"])
+    previous_gross_profit = _sum4(values["gross_profit"], 4)
     operating_profit = _sum4(values["operating_profit"])
+    previous_operating_profit = _sum4(values["operating_profit"], 4)
     ebitda = _sum4(values["ebitda"])
+    previous_ebitda = _sum4(values["ebitda"], 4)
     net_income = _sum4(values["net_income"])
     previous_net_income = _sum4(values["net_income"], 4)
     cfo = _sum4(values["cfo"])
+    previous_cfo = _sum4(values["cfo"], 4)
     capex = _sum4(values["capex"])
     assets = _latest(values["assets"])
     equity = _latest(values["equity"])
@@ -211,17 +217,32 @@ def _snapshot_from_frames(
     debt_parts = (_latest(values["short_debt"]), _latest(values["long_debt"]))
     total_debt = sum(value or 0.0 for value in debt_parts) if any(value is not None for value in debt_parts) else None
     market_cap = _pick(fast, "market_cap", "marketCap") or _pick(info, "marketCap", "market_cap")
+    enterprise_value = _pick(info, "enterpriseValue", "enterprise_value")
+    shares_outstanding = _pick(
+        fast,
+        "shares_outstanding",
+        "sharesOutstanding",
+    ) or _pick(info, "sharesOutstanding", "impliedSharesOutstanding")
+    fcf = None if cfo is None else cfo - abs(capex or 0.0)
     metrics = {
         "revenue_ttm": revenue,
         "revenue_growth": _growth(revenue, previous_revenue),
+        "gross_profit_growth": _growth(gross_profit, previous_gross_profit),
+        "operating_profit_growth": _growth(operating_profit, previous_operating_profit),
+        "ebitda_growth": _growth(ebitda, previous_ebitda),
         "gross_margin": _ratio(gross_profit, revenue, 100.0),
         "operating_margin": _ratio(operating_profit, revenue, 100.0),
+        "ebitda_margin": _ratio(ebitda, revenue, 100.0),
         "net_margin": _ratio(net_income, revenue, 100.0),
         "net_income_ttm": net_income,
         "net_income_growth": _growth(net_income, previous_net_income),
         "ebitda_ttm": ebitda,
         "cfo_ttm": cfo,
-        "fcf_ttm": None if cfo is None else cfo - abs(capex or 0.0),
+        "cfo_growth": _growth(cfo, previous_cfo),
+        "cfo_net_income": _ratio(cfo, net_income),
+        "capex_ttm": capex,
+        "fcf_ttm": fcf,
+        "fcf_margin": _ratio(fcf, revenue, 100.0),
         "assets": assets,
         "liabilities": liabilities,
         "equity": equity,
@@ -230,9 +251,20 @@ def _snapshot_from_frames(
         "net_debt": None if total_debt is None else total_debt - (cash or 0.0),
         "current_ratio": _ratio(_latest(values["current_assets"]), _latest(values["current_liabilities"])),
         "debt_equity": _ratio(total_debt, equity),
+        "net_debt_equity": _ratio(
+            None if total_debt is None else total_debt - (cash or 0.0),
+            equity,
+        ),
+        "net_debt_ebitda": _ratio(
+            None if total_debt is None else total_debt - (cash or 0.0),
+            ebitda,
+        ),
+        "equity_assets": _ratio(equity, assets, 100.0),
         "roe": _ratio(net_income, equity, 100.0),
         "roa": _ratio(net_income, assets, 100.0),
         "market_cap": market_cap,
+        "enterprise_value": enterprise_value,
+        "shares_outstanding": shares_outstanding,
         "pe": _ratio(market_cap, net_income) if net_income is not None and net_income > 0 else _pick(info, "trailingPE", "pe_ratio"),
         "pb": _ratio(market_cap, equity) if equity is not None and equity > 0 else _pick(info, "priceToBook", "pb"),
         "ev_ebitda": (
@@ -240,6 +272,16 @@ def _snapshot_from_frames(
             if market_cap is not None and total_debt is not None and ebitda is not None and ebitda > 0
             else _pick(info, "enterpriseToEbitda", "ev_ebitda")
         ),
+        "ev_sales": _ratio(enterprise_value, revenue)
+        if enterprise_value is not None
+        else None,
+        "forward_pe": _pick(info, "forwardPE", "forward_pe"),
+        "peg": _pick(info, "pegRatio", "trailingPegRatio", "peg"),
+        "dividend_yield": (
+            lambda value: value * 100.0 if value is not None and 0 <= value <= 1 else value
+        )(_pick(info, "dividendYield", "dividend_yield")),
+        "fcf_yield": _ratio(fcf, market_cap, 100.0),
+        "earnings_yield": _ratio(net_income, market_cap, 100.0),
     }
     periods = set()
     for frame in (balance, income, cashflow):
@@ -258,6 +300,15 @@ def _snapshot_from_frames(
         metric_sources={key: provider_id for key, value in metrics.items() if value is not None},
         statement_periods=tuple(sorted(periods, reverse=True)),
         providers_used=(provider_id,),
+        series={key: tuple(series) for key, series in values.items()},
+        metadata={
+            "industry": info.get("industry"),
+            "subsector": info.get("industryKey") or info.get("industryDisp"),
+            "description": info.get("longBusinessSummary") or info.get("description"),
+            "free_float": info.get("floatShares"),
+            "paid_in_capital": info.get("paidInCapital"),
+            "exchange": info.get("exchange") or info.get("fullExchangeName") or "BIST",
+        },
     )
 
 
@@ -365,4 +416,15 @@ class FinancialProviderChain:
             statement_periods=tuple(sorted(periods, reverse=True)),
             providers_used=tuple(dict.fromkeys(providers_used)),
             errors=tuple(errors),
+            series={
+                **next((item.series for item in reversed(snapshots) if item.series), {}),
+                **primary.series,
+            },
+            metadata={
+                key: next(
+                    (item.metadata.get(key) for item in snapshots if item.metadata.get(key) is not None),
+                    None,
+                )
+                for key in set().union(*(item.metadata for item in snapshots))
+            },
         )

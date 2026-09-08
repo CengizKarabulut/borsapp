@@ -43,6 +43,18 @@ class TechnicalMarketContext:
     setup_direction: str
     strong_divergences: int
     near_confluence: bool
+    plus_di: float | None = None
+    minus_di: float | None = None
+    profile_poc: float | None = None
+    profile_val: float | None = None
+    profile_vah: float | None = None
+    swing_high: float | None = None
+    swing_low: float | None = None
+    high_label: str = "—"
+    low_label: str = "—"
+    bb_lower: float | None = None
+    bb_middle: float | None = None
+    bb_upper: float | None = None
 
 
 def _rolling_mean(values: list[float], period: int) -> list[float | None]:
@@ -125,7 +137,7 @@ def _adx(
     frame: CanonicalFrame,
     atr_values: list[float | None],
     period: int = 14,
-) -> float | None:
+) -> tuple[float | None, float | None, float | None]:
     plus_dm = [0.0]
     minus_dm = [0.0]
     for previous, current in zip(frame.bars, frame.bars[1:], strict=False):
@@ -145,7 +157,20 @@ def _adx(
         denominator = plus_di + minus_di
         dx.append(100.0 * abs(plus_di - minus_di) / denominator if denominator else 0.0)
     adx_values = _rma(dx, period)
-    return adx_values[-1]
+    latest_atr = atr_values[-1]
+    latest_plus = plus_values[-1]
+    latest_minus = minus_values[-1]
+    plus_di = (
+        100.0 * latest_plus / latest_atr
+        if latest_atr is not None and latest_plus is not None and latest_atr > 0
+        else None
+    )
+    minus_di = (
+        100.0 * latest_minus / latest_atr
+        if latest_atr is not None and latest_minus is not None and latest_atr > 0
+        else None
+    )
+    return adx_values[-1], plus_di, minus_di
 
 
 def _market_structure(frame: CanonicalFrame, pivot: int = 5):
@@ -158,11 +183,11 @@ def _market_structure(frame: CanonicalFrame, pivot: int = 5):
         if frame.bars[index].low == min(bar.low for bar in window):
             lows.append((index, frame.bars[index].low))
     if len(highs) < 2 or len(lows) < 2:
-        return "neutral", None, None
+        return "neutral", None, None, "—", "—"
     high_state = "HH" if highs[-1][1] > highs[-2][1] else "LH"
     low_state = "HL" if lows[-1][1] > lows[-2][1] else "LL"
     tone = "positive" if (high_state, low_state) == ("HH", "HL") else "negative" if (high_state, low_state) == ("LH", "LL") else "warning"
-    return tone, highs[-1][1], lows[-1][1]
+    return tone, highs[-1][1], lows[-1][1], high_state, low_state
 
 
 def _profile(frame: CanonicalFrame, lookback: int = 100, bins: int = 48):
@@ -281,7 +306,11 @@ class TechnicalMarketContextProvider:
         close = [bar.close for bar in frame.bars]
         bb_rank, squeeze_bars, bb_lower, bb_mid, bb_upper = _bb_context(close)
         atr = atr_series.latest if atr_series is not None else None
-        adx = _adx(frame, list(atr_series.values)) if atr_series is not None else None
+        adx, plus_di, minus_di = (
+            _adx(frame, list(atr_series.values))
+            if atr_series is not None
+            else (None, None, None)
+        )
         if bb_rank is None or adx is None or atr is None or atr <= 0:
             return None
         ema_periods = [5, 8, 10, 13, 20, 21, 34, 50, 55, 89, 100, 144, 200, 233]
@@ -292,7 +321,7 @@ class TechnicalMarketContextProvider:
         pierced_down = current.low < min(bar.low for bar in prior) <= current.close
         pierced_up = current.high > max(bar.high for bar in prior) >= current.close
         stacked_direction = "bullish" if current.close > ema21 and current.close > ema55 else "bearish" if current.close < ema21 and current.close < ema55 else None
-        structure_tone, swing_high, swing_low = _market_structure(frame)
+        structure_tone, swing_high, swing_low, high_label, low_label = _market_structure(frame)
         values = [ema[period][-1] for period in sorted(ema)]
         bullish_pairs = sum(left > right for left, right in zip(values, values[1:], strict=False))
         bearish_pairs = sum(left < right for left, right in zip(values, values[1:], strict=False))
@@ -355,4 +384,16 @@ class TechnicalMarketContextProvider:
             setup_direction=setup_direction,
             strong_divergences=strong_divergences,
             near_confluence=near_confluence,
+            plus_di=plus_di,
+            minus_di=minus_di,
+            profile_poc=poc,
+            profile_val=val,
+            profile_vah=vah,
+            swing_high=swing_high,
+            swing_low=swing_low,
+            high_label=high_label,
+            low_label=low_label,
+            bb_lower=bb_lower,
+            bb_middle=bb_mid,
+            bb_upper=bb_upper,
         )

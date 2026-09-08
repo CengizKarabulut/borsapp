@@ -10,7 +10,7 @@ from market_intelligence.application.symbol_commands import SymbolSnapshot
 from market_intelligence.core.enums import PriceBasis
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.features.decision import DecisionPanelV645Provider
-from market_intelligence.features.momentum import MacdProvider, RsiProvider
+from market_intelligence.features.momentum import MacdProvider, RsiProvider, SmiProvider
 from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
 from market_intelligence.features.research import (
     RESEARCH_TECHNICAL_SNAPSHOT,
@@ -21,7 +21,7 @@ from market_intelligence.features.technical import TechnicalMarketContextProvide
 from market_intelligence.features.volatility import WilderAtr14Provider
 from market_intelligence.fundamentals.providers import FinancialSnapshot
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
-from market_intelligence.research.equity_report import build_equity_research_report
+from market_intelligence.research.equity_report_v2 import build_equity_research_report
 from market_intelligence.research.pdf_report import render_equity_research_pdf
 
 
@@ -61,6 +61,7 @@ def technical_snapshot(source: CanonicalFrame) -> ResearchTechnicalSnapshot:
         WilderAtr14Provider(),
         RsiProvider(),
         MacdProvider(),
+        SmiProvider(),
         TechnicalMarketContextProvider(),
         DecisionPanelV645Provider(),
         ResearchTechnicalSnapshotProvider(),
@@ -107,7 +108,7 @@ def financial() -> FinancialSnapshot:
 
 
 class EquityReportTests(unittest.TestCase):
-    def test_contract_has_24_sections_and_deterministic_report_id(self) -> None:
+    def test_contract_has_25_sections_and_deterministic_report_id(self) -> None:
         source = frame()
         kwargs = {
             "frame": source,
@@ -122,7 +123,7 @@ class EquityReportTests(unittest.TestCase):
             **{**kwargs, "generated_at": datetime(2026, 9, 9, tzinfo=UTC)}
         )
 
-        self.assertEqual(len(first.sections), 24)
+        self.assertEqual(len(first.sections), 25)
         self.assertEqual(first.report_id, second.report_id)
         self.assertEqual(first.sections[4].status, "AVAILABLE")
         self.assertNotIn("AL/SAT", first.conclusion)

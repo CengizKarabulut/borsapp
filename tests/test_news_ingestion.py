@@ -81,6 +81,39 @@ class NewsIngestionServiceTests(unittest.TestCase):
             )
         self.assertEqual(store.calls, [])
 
+    def test_same_canonical_url_is_not_notified_twice_in_one_batch(self) -> None:
+        class DuplicateProvider:
+            source = "ntvpara"
+
+            def fetch(self, *, from_date: date, to_date: date):
+                base = replace(
+                    item(),
+                    source="ntvpara",
+                    news_id="ntv:1",
+                    url="https://example.com/a?utm_source=x",
+                )
+                duplicate = replace(
+                    base,
+                    news_id="ntv:2",
+                    url="https://www.example.com/a",
+                    summary="Daha uzun ve anlamlı özet.",
+                )
+                return base, duplicate
+
+        store = FakeStore()
+        result = NewsIngestionService(
+            provider=DuplicateProvider(), store=store, telegram_settings=settings(DeliveryMode.LIVE)
+        ).run(
+            from_date=date(2026, 9, 7),
+            to_date=date(2026, 9, 7),
+            observed_at=datetime(2026, 9, 7, 12, tzinfo=UTC),
+            notify=True,
+        )
+
+        self.assertEqual(result.fetched, 1)
+        self.assertEqual(len(store.calls[0]["envelopes"]), 1)
+        self.assertIn("Daha uzun", next(iter(store.calls[0]["envelopes"].values())).payload["text"])
+
 
 if __name__ == "__main__":
     unittest.main()
