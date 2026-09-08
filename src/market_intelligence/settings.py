@@ -42,6 +42,7 @@ class RuntimeSettings:
     timezone: ZoneInfo
     database_url: str = field(repr=False)
     enable_shadow_parity: bool = False
+    artifact_root: Path = Path("runtime_artifacts")
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> RuntimeSettings:
@@ -59,11 +60,16 @@ class RuntimeSettings:
         shadow_raw = values.get("ENABLE_SHADOW_PARITY", "false").strip().casefold()
         if shadow_raw not in {"true", "false"}:
             raise ValueError("ENABLE_SHADOW_PARITY true veya false olmalıdır")
+        artifact_root = Path(
+            values.get("BORSAPP_ARTIFACT_ROOT", "runtime_artifacts").strip()
+            or "runtime_artifacts"
+        )
         return cls(
             app_env=app_env,
             timezone=timezone,
             database_url=database_url,
             enable_shadow_parity=shadow_raw == "true",
+            artifact_root=artifact_root,
         )
 
 

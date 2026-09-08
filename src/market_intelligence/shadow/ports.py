@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.scanning.engine import ScanRun
@@ -12,7 +12,12 @@ class LegacyScannerAdapter(Protocol):
     legacy_source: str
     legacy_reference: str
 
-    def evaluate(self, frame: CanonicalFrame) -> ShadowEvaluation: ...
+    def evaluate(
+        self,
+        frame: CanonicalFrame,
+        *,
+        feature_values: dict[str, Any] | None = None,
+    ) -> ShadowEvaluation: ...
 
 
 class ShadowComparisonStore(Protocol):
@@ -26,4 +31,5 @@ class ShadowRecorderPort(Protocol):
         cycle_id: str,
         frame: CanonicalFrame,
         run: ScanRun,
+        feature_values: dict[str, Any],
     ) -> ShadowComparison | None: ...

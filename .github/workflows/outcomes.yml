@@ -1,0 +1,45 @@
+name: Daily finding outcomes
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Event lookback days
+        required: true
+        default: "90"
+        type: string
+  schedule:
+    - cron: "15 17 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: borsapp-outcomes
+  cancel-in-progress: false
+
+jobs:
+  outcomes:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_SCANS == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      DELIVERY_MODE: disabled
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install runtime
+        run: python -m pip install ".[runtime]"
+      - name: Apply database migrations
+        run: borsapp db-migrate
+      - name: Measure closed outcome windows
+        env:
+          REQUESTED_DAYS: ${{ inputs.days }}
+        run: borsapp outcomes-backfill --days "${REQUESTED_DAYS:-90}" --horizon 5,10,20
+      - name: Print engineering report
+        run: borsapp outcomes-report --days 90 --min-samples 30

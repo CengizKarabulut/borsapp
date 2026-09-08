@@ -6,6 +6,7 @@ from typing import Protocol
 
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.features.specs import FeatureSpec, WarmupSpec
+from market_intelligence.features.volatility import WILDER_ATR_14, AtrSeries, wilder_atr_series
 from market_intelligence.market_data.bars import CanonicalFrame
 
 QUALIFIED_MA_PROXIMITY = FeatureSpec(
@@ -186,34 +187,29 @@ def ma_series(
     raise ValueError(f"Bilinmeyen MA türü: {ma_type}")
 
 
-def _wilder_atr(frame: CanonicalFrame, period: int = 14) -> float | None:
-    if len(frame.bars) < period:
-        return None
-    ranges: list[float] = []
-    previous_close: float | None = None
-    for bar in frame.bars:
-        candidates = [bar.high - bar.low]
-        if previous_close is not None:
-            candidates.extend((abs(bar.high - previous_close), abs(bar.low - previous_close)))
-        ranges.append(max(candidates))
-        previous_close = bar.close
-    current = ranges[0]
-    alpha = 1.0 / period
-    for observed in ranges[1:]:
-        current = alpha * observed + (1.0 - alpha) * current
-    return current if math.isfinite(current) and current > 0 else None
-
-
 class QualifiedMaResearchProvider:
     spec = QUALIFIED_MA_PROXIMITY
+    dependencies = (WILDER_ATR_14,)
 
     def __init__(self, source: MaQualificationSource, *, atr_period: int = 14) -> None:
         self.source = source
         self.atr_period = atr_period
 
     def compute(self, frame: CanonicalFrame) -> MaProximitySnapshot | None:
+        atr_series = wilder_atr_series(frame, self.atr_period)
+        return self._compute(frame, atr_series.latest if atr_series is not None else None)
+
+    def compute_with_dependencies(
+        self,
+        frame: CanonicalFrame,
+        values: dict[str, object],
+    ) -> MaProximitySnapshot | None:
+        atr_series = values.get(WILDER_ATR_14.feature_id)
+        atr = atr_series.latest if isinstance(atr_series, AtrSeries) else None
+        return self._compute(frame, atr)
+
+    def _compute(self, frame: CanonicalFrame, atr: float | None) -> MaProximitySnapshot | None:
         qualifications = self.source.load(frame)
-        atr = _wilder_atr(frame, self.atr_period)
         if not qualifications or atr is None or frame.is_partial:
             return None
         close = [bar.close for bar in frame.bars]

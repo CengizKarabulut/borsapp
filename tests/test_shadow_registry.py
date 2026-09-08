@@ -34,3 +34,15 @@ class ShadowRegistryTests(unittest.TestCase):
                 "screener.py" in adapter.legacy_reference
                 or "signal_parity.py" in adapter.legacy_reference
             )
+
+    def test_decision_panel_has_real_legacy_adapter(self) -> None:
+        adapter = adapter_for("decision.panel_v645")
+        self.assertIsNotNone(adapter)
+        assert adapter is not None
+        self.assertIn("decision_panel_v645_signal.py", adapter.legacy_reference)
+
+    def test_ma_live_has_real_legacy_adapter(self) -> None:
+        adapter = adapter_for("ma.near_zone")
+        self.assertIsNotNone(adapter)
+        assert adapter is not None
+        self.assertIn("ma_engine.py", adapter.legacy_reference)

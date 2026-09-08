@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import os
 import signal
 import sys
@@ -11,7 +12,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import FrameType
 
-from market_intelligence.application.command_jobs import CommandJob, CommandJobRunner
+from market_intelligence.application.command_jobs import (
+    CommandArtifact,
+    CommandJob,
+    CommandJobOutput,
+    CommandJobRunner,
+)
+from market_intelligence.application.equity_reports import EquityReportService
 from market_intelligence.application.ingestion import IngestionRequest, IngestionService
 from market_intelligence.application.news_ingestion import NewsIngestionService
 from market_intelligence.application.scan_frame import ScanFrameCoordinator
@@ -23,16 +30,15 @@ from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.application.telegram_listener import TelegramListener
 from market_intelligence.compat.legacy_suite import (
     generate_and_send_chart,
-    generate_and_send_fundamental,
-    generate_and_send_research,
 )
-from market_intelligence.core.timeframes import parse_timeframe
+from market_intelligence.core.timeframes import Timeframe, parse_timeframe
 from market_intelligence.delivery.telegram.commands import CommandName, IncomingCommand
 from market_intelligence.delivery.telegram.config import DeliveryMode, TopicKind
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.delivery.telegram.publisher import TelegramPublisher
 from market_intelligence.delivery.telegram.routing import PublicationKind, TopicRouter
 from market_intelligence.delivery.telegram.updates import HttpxTelegramUpdateSource
+from market_intelligence.features.decision import DecisionPanelV645Provider
 from market_intelligence.features.ma import QualifiedMaResearchProvider
 from market_intelligence.features.momentum import (
     LegacyRsi7Provider,
@@ -42,17 +48,27 @@ from market_intelligence.features.momentum import (
     SmiProvider,
 )
 from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
+from market_intelligence.features.research import ResearchTechnicalSnapshotProvider
 from market_intelligence.features.technical import TechnicalMarketContextProvider
 from market_intelligence.features.trend import (
     InclusiveVolumeSma10Provider,
     InclusiveVolumeSma20Provider,
     LegacyTrendMaProvider,
 )
+from market_intelligence.features.volatility import WilderAtr14Provider
 from market_intelligence.features.volume import RelativeVolume20Provider
+from market_intelligence.fundamentals.presentation import fundamental_message
+from market_intelligence.fundamentals.providers import (
+    BorsapyKapFinancialProvider,
+    FinancialProviderChain,
+    YFinanceFinancialProvider,
+)
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
 from market_intelligence.market_data.adapters.borsapy_universe import (
     BorsapyBistUniverseProvider,
 )
+from market_intelligence.market_data.adapters.fallback import FallbackMarketDataProvider
+from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvider
 from market_intelligence.market_data.universe import (
     build_universe_sync_plan,
     validate_universe_sync_plan,
@@ -77,6 +93,7 @@ from market_intelligence.persistence.postgres.migrations import (
 )
 from market_intelligence.persistence.postgres.news import PostgresNewsStore
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
+from market_intelligence.persistence.postgres.outcomes import PostgresOutcomeStore
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.persistence.postgres.scan_store import PostgresScanStore
 from market_intelligence.persistence.postgres.shadow import PostgresShadowStore
@@ -89,7 +106,9 @@ from market_intelligence.persistence.postgres.symbol_commands import (
 from market_intelligence.persistence.postgres.telegram_updates import (
     PostgresTelegramUpdateRepository,
 )
+from market_intelligence.research.equity_report import analysis_message
 from market_intelligence.research.ma_levels import research_ma_levels
+from market_intelligence.research.outcomes import OutcomeWindow, measure
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist, ScheduledBarPlanner
 from market_intelligence.settings import ApplicationSettings, merged_environment
@@ -157,6 +176,21 @@ def _parser() -> argparse.ArgumentParser:
     shadow_gate.add_argument("--days", type=int, default=30)
     shadow_gate.add_argument("--min-samples", type=int, default=200)
     shadow_gate.add_argument("--min-agreement", type=float, default=0.995)
+
+    outcomes_backfill = subparsers.add_parser(
+        "outcomes-backfill",
+        help="Kapanmış event ufukları için idempotent sonuç ölçümü üret",
+    )
+    outcomes_backfill.add_argument("--horizon", default="5,10,20")
+    outcomes_backfill.add_argument("--days", type=int, default=90)
+    outcomes_backfill.add_argument("--scanner")
+
+    outcomes_report = subparsers.add_parser(
+        "outcomes-report",
+        help="Scanner/timeframe/ufuk bazında geçmiş sonuçları raporla",
+    )
+    outcomes_report.add_argument("--days", type=int, default=90)
+    outcomes_report.add_argument("--min-samples", type=int, default=30)
 
     once = subparsers.add_parser(
         "publisher-once",
@@ -229,7 +263,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     scan.add_argument("symbol")
     scan.add_argument("--timeframe", default="1h")
-    scan.add_argument("--bars", type=int, default=250)
+    scan.add_argument("--bars", type=int, default=320)
     scan.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     scan.add_argument(
         "--notify",
@@ -243,7 +277,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     due.add_argument("--timeframe", default="1h")
     due.add_argument("--universe", default="BIST_ALL")
-    due.add_argument("--bars", type=int, default=250)
+    due.add_argument("--bars", type=int, default=320)
     due.add_argument("--lookback-days", type=int, default=7)
     due.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     due.add_argument("--notify", action="store_true")
@@ -257,7 +291,7 @@ def _parser() -> argparse.ArgumentParser:
         default="15m,30m,45m,1h,2h,4h,1d",
     )
     worker.add_argument("--universe", default="BIST_ALL")
-    worker.add_argument("--bars", type=int, default=250)
+    worker.add_argument("--bars", type=int, default=320)
     worker.add_argument("--lookback-days", type=int, default=7)
     worker.add_argument("--poll-seconds", type=float, default=60.0)
     worker.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
@@ -268,7 +302,7 @@ def _parser() -> argparse.ArgumentParser:
         help="Telegram --force kuyruğundan tek işi güvenle çalıştır",
     )
     command_once.add_argument("--timeframe", default="1h")
-    command_once.add_argument("--bars", type=int, default=250)
+    command_once.add_argument("--bars", type=int, default=320)
     command_once.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
 
     command_loop = subparsers.add_parser(
@@ -276,7 +310,7 @@ def _parser() -> argparse.ArgumentParser:
         help="Telegram --force kuyruğunu sürekli tüket",
     )
     command_loop.add_argument("--timeframe", default="1h")
-    command_loop.add_argument("--bars", type=int, default=250)
+    command_loop.add_argument("--bars", type=int, default=320)
     command_loop.add_argument("--interval", type=float, default=2.0)
     command_loop.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
 
@@ -492,6 +526,91 @@ def _shadow_gate(
     return 0 if passed else 1
 
 
+def _outcome_horizons(raw: str) -> tuple[int, ...]:
+    try:
+        values = tuple(sorted({int(value.strip()) for value in raw.split(",")}))
+    except ValueError as exc:
+        raise ValueError("--horizon virgülle ayrılmış pozitif tam sayılar olmalıdır") from exc
+    if not values or values[0] < 1 or values[-1] > 500:
+        raise ValueError("--horizon değerleri 1 ile 500 arasında olmalıdır")
+    return values
+
+
+def _outcomes_backfill(
+    settings: ApplicationSettings,
+    *,
+    horizon_raw: str,
+    days: int,
+    scanner_id: str | None,
+) -> int:
+    if days < 1 or days > 3650:
+        raise ValueError("--days 1 ile 3650 arasında olmalıdır")
+    horizons = _outcome_horizons(horizon_raw)
+    now = datetime.now(settings.runtime.timezone)
+    since = now - timedelta(days=days)
+    completed = 0
+    waiting = 0
+    with _connect(settings.runtime.database_url) as connection:
+        store = PostgresOutcomeStore(connection)
+        candidates = store.candidates(since=since, scanner_id=scanner_id)
+        for candidate in candidates:
+            source = store.load_frame(candidate, maximum_horizon=max(horizons))
+            if source is None:
+                waiting += len(horizons)
+                continue
+            benchmark = store.load_benchmark(candidate, maximum_horizon=max(horizons))
+            outcomes = tuple(
+                measure(
+                    event_id=candidate.event_id,
+                    event_bar_time=candidate.event_bar_time,
+                    direction=candidate.direction,
+                    frame=source,
+                    benchmark=benchmark,
+                    window=OutcomeWindow(
+                        horizon_bars=horizon,
+                        price_basis=candidate.price_basis,
+                    ),
+                )
+                for horizon in horizons
+            )
+            completed += store.save(outcomes, observed_at=now)
+            waiting += sum(not outcome.complete for outcome in outcomes)
+    print(
+        f"Outcome backfill tamamlandı: events={len(candidates)}, "
+        f"written={completed}, waiting={waiting}, horizons={horizons}"
+    )
+    return 0
+
+
+def _outcomes_report(
+    settings: ApplicationSettings,
+    *,
+    days: int,
+    minimum_samples: int,
+) -> int:
+    if days < 1 or days > 3650 or minimum_samples < 1:
+        raise ValueError("--days ve --min-samples pozitif olmalıdır")
+    since = datetime.now(settings.runtime.timezone) - timedelta(days=days)
+    with _connect(settings.runtime.database_url) as connection:
+        rows = PostgresOutcomeStore(connection).report(
+            since=since,
+            minimum_samples=minimum_samples,
+        )
+    if not rows:
+        print("Seçilen aralık ve örnek eşiğinde tamamlanmış outcome yok.")
+        return 0
+    print("scanner · tf · horizon · n · raw · excess · win · mfe · mae")
+    for row in rows:
+        excess = "UNKNOWN" if row.average_excess_return is None else f"{row.average_excess_return:.2%}"
+        print(
+            f"{row.scanner_id} · {row.timeframe} · {row.horizon_bars} · "
+            f"{row.samples} · {row.average_raw_return:.2%} · {excess} · "
+            f"{row.win_rate:.2%} · {row.average_mfe:.2%} · {row.average_mae:.2%}"
+        )
+    print("Not: Geçmiş sonuç ölçümü yatırım tavsiyesi veya gelecek getiri garantisi değildir.")
+    return 0
+
+
 def _publisher_once(
     settings: ApplicationSettings,
     *,
@@ -694,11 +813,23 @@ def _feature_engine(connection) -> FeatureEngine:
         LegacyTrendMaProvider(),
         InclusiveVolumeSma10Provider(),
         InclusiveVolumeSma20Provider(),
+        WilderAtr14Provider(),
+        DecisionPanelV645Provider(),
         TechnicalMarketContextProvider(),
+        ResearchTechnicalSnapshotProvider(),
         QualifiedMaResearchProvider(PostgresMaQualificationSource(connection)),
     ):
         registry.register(provider)
     return FeatureEngine(registry)
+
+
+def _market_data_provider(settings: ApplicationSettings) -> FallbackMarketDataProvider:
+    return FallbackMarketDataProvider(
+        (
+            BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
+            YFinanceBistProvider(timestamp_timezone=settings.runtime.timezone.key),
+        )
+    )
 
 
 def _shadow_recorder(settings: ApplicationSettings, connection):
@@ -717,7 +848,7 @@ def _research_instrument(
     evaluation_time: datetime,
 ) -> tuple[int, int]:
     frame = IngestionService(
-        provider=BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
+        provider=_market_data_provider(settings),
         store=PostgresSnapshotStore(connection),
     ).ingest(
         IngestionRequest(
@@ -846,7 +977,7 @@ def _scan_symbol(
                 f"Enstrüman kayıtlı değil: {symbol}; önce instrument-register kullanın"
             )
         frame = IngestionService(
-            provider=BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
+            provider=_market_data_provider(settings),
             store=PostgresSnapshotStore(connection),
         ).ingest(
             IngestionRequest(
@@ -922,7 +1053,7 @@ def _scheduled_components(settings: ApplicationSettings, connection, *, notify: 
     )
     runtime = PostgresRuntimeRepository(connection)
     ingestion = IngestionService(
-        provider=BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
+        provider=_market_data_provider(settings),
         store=PostgresSnapshotStore(connection),
     )
     coordinator = ScanFrameCoordinator(
@@ -1046,7 +1177,44 @@ def _command_job_executor(
 ):
     parse_timeframe(timeframe)
 
-    def execute(job: CommandJob) -> None:
+    def financial_chain() -> FinancialProviderChain:
+        return FinancialProviderChain(
+            (
+                BorsapyKapFinancialProvider(),
+                YFinanceFinancialProvider(),
+            )
+        )
+
+    def research_frame(connection, job: CommandJob, generated_at: datetime):
+        runtime = PostgresRuntimeRepository(connection)
+        instrument = runtime.resolve_instrument(job.symbol, as_of=generated_at.date())
+        if instrument is None:
+            raise ValueError(f"Aktif enstrüman bulunamadı: {job.symbol}")
+        frame = IngestionService(
+            provider=_market_data_provider(settings),
+            store=PostgresSnapshotStore(connection),
+        ).ingest(
+            IngestionRequest(
+                instrument_id=instrument.instrument_id,
+                symbol=instrument.symbol,
+                provider_symbol=instrument.provider_symbol,
+                market=instrument.market,
+                timeframe=Timeframe.D1,
+                bars=max(500, bars),
+                as_of=generated_at,
+                series_revision=1,
+            )
+        )
+        stored = PostgresSymbolReadStore(connection).load_symbol(job.symbol)
+        if stored is None:
+            raise ValueError(f"Araştırma snapshot'ı bulunamadı: {job.symbol}")
+        service = EquityReportService(
+            feature_engine=_feature_engine(connection),
+            financials=financial_chain(),
+        )
+        return frame, stored, service
+
+    def execute(job: CommandJob) -> CommandJobOutput | None:
         if job.command in {CommandName.SCAN, CommandName.SCANS}:
             _ma_research_symbol(
                 settings,
@@ -1063,28 +1231,78 @@ def _command_job_executor(
                 notify=False,
             )
             return
-        target = Path("runtime_artifacts") / job.job_id / job.command.value
+        target = settings.runtime.artifact_root / job.job_id / job.command.value
         if job.command is CommandName.ANALYSIS:
-            generate_and_send_research(
-                symbol=job.symbol,
-                topic_id=settings.telegram.topic_id(TopicKind.ANALYSIS),
-                target=target,
+            generated_at = datetime.now(settings.runtime.timezone)
+            with _connect(settings.runtime.database_url) as connection:
+                frame, stored, service = research_frame(connection, job, generated_at)
+                report = service.assemble(
+                    frame=frame,
+                    stored=stored,
+                    generated_at=generated_at,
+                )
+            envelope = TopicRouter(settings.telegram).route(
+                publication_kind=PublicationKind.ANALYSIS,
+                semantic_identity={"report_id": report.report_id, "view": "summary"},
+                payload={"text": analysis_message(report)},
             )
-            return
+            return CommandJobOutput(envelopes=(envelope,))
         if job.command is CommandName.REPORT:
-            generate_and_send_research(
-                symbol=job.symbol,
-                topic_id=settings.telegram.topic_id(TopicKind.REPORTS),
-                target=target,
+            generated_at = datetime.now(settings.runtime.timezone)
+            with _connect(settings.runtime.database_url) as connection:
+                frame, stored, service = research_frame(connection, job, generated_at)
+                output_path = target / (
+                    f"{job.symbol}_{frame.through_bar_time:%Y%m%d}_arastirma_raporu.pdf"
+                )
+                generated = service.generate(
+                    frame=frame,
+                    stored=stored,
+                    generated_at=generated_at,
+                    target=output_path,
+                )
+            report_envelope = TopicRouter(settings.telegram).route(
+                publication_kind=PublicationKind.REPORT,
+                semantic_identity={"report_id": generated.report_id},
+                payload={
+                    "_method": "sendDocument",
+                    "document_path": str(generated.rendered.path),
+                    "document_base64": base64.b64encode(
+                        generated.rendered.path.read_bytes()
+                    ).decode("ascii"),
+                    "filename": generated.rendered.path.name,
+                    "caption": (
+                        f"{job.symbol} · 24 bölümlü araştırma raporu\n"
+                        f"Kapalı bar: {generated.bar_time:%d.%m.%Y}\n"
+                        "Eksik veriler UNKNOWN bırakılmıştır. Yatırım tavsiyesi değildir."
+                    ),
+                },
             )
-            return
+            return CommandJobOutput(
+                envelopes=(report_envelope,),
+                artifact=CommandArtifact(
+                    report_id=generated.report_id,
+                    instrument_id=generated.instrument_id,
+                    artifact_kind="equity_report_pdf",
+                    timeframe=generated.timeframe,
+                    bar_time=generated.bar_time,
+                    summary=generated.summary,
+                    storage_uri=str(generated.rendered.path),
+                    content_hash=generated.rendered.content_hash,
+                ),
+            )
         if job.command is CommandName.FUNDAMENTAL:
-            generate_and_send_fundamental(
-                symbol=job.symbol,
-                topic_id=settings.telegram.topic_id(TopicKind.ANALYSIS),
-                target=target,
+            as_of = datetime.now(settings.runtime.timezone)
+            financial = financial_chain().fetch(job.symbol, as_of=as_of)
+            envelope = TopicRouter(settings.telegram).route(
+                publication_kind=PublicationKind.ANALYSIS,
+                semantic_identity={
+                    "job_id": job.job_id,
+                    "view": "fundamental",
+                    "as_of": as_of,
+                },
+                payload={"text": fundamental_message(job.symbol, financial)},
             )
-            return
+            return CommandJobOutput(envelopes=(envelope,))
         if job.command is CommandName.CHART:
             generate_and_send_chart(
                 symbol=job.symbol,
@@ -1438,6 +1656,19 @@ def main(argv: list[str] | None = None) -> int:
                 days=args.days,
                 minimum_samples=args.min_samples,
                 minimum_agreement=args.min_agreement,
+            )
+        if args.command == "outcomes-backfill":
+            return _outcomes_backfill(
+                settings,
+                horizon_raw=args.horizon,
+                days=args.days,
+                scanner_id=args.scanner,
+            )
+        if args.command == "outcomes-report":
+            return _outcomes_report(
+                settings,
+                days=args.days,
+                minimum_samples=args.min_samples,
             )
         if args.command == "publisher-once":
             return _publisher_once(settings, limit=args.limit)

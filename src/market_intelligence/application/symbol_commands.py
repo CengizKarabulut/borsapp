@@ -113,8 +113,9 @@ class SymbolCommandService:
                 "Komutlar:\n"
                 "/tara SEMBOL — son birleşik durum\n"
                 "/taramalar SEMBOL — tüm tarama ayrıntıları\n"
-                "/analiz SEMBOL veya /rapor SEMBOL — kapsamlı araştırma\n"
-                "/temel SEMBOL — temel analiz kartı\n"
+                "/analiz SEMBOL — tek ekran birleşik araştırma özeti\n"
+                "/rapor SEMBOL — 24 bölümlü PDF araştırma raporu\n"
+                "/temel SEMBOL — kaynak etiketli temel analiz kartı\n"
                 "/grafik SEMBOL — teknik gösterge grafiği\n"
                 "/haber SEMBOL — bugünün tüm KAP'ları + önceki 3 KAP\n"
                 "/liste — son eşleşen BIST taramaları\n"
@@ -223,9 +224,10 @@ class SymbolCommandService:
             "signal": "Sinyaller",
             "technical": "Teknik taramalar",
             "ma": "Hareketli ortalama",
+            "decision": "KARAR v6.4.5",
         }
         lines = [f"{snapshot.symbol} · son saklanmış durum"]
-        for family in ("signal", "technical", "ma"):
+        for family in ("signal", "technical", "ma", "decision"):
             status = family_status.get(family)
             rendered = _status_label(status) if status else "Henüz veri yok"
             lines.append(f"{labels[family]}: {rendered}")
@@ -352,6 +354,7 @@ class SymbolCommandService:
 
 
 _SCANNER_LABELS = {
+    "decision.panel_v645": "KARAR Paneli v6.4.5",
     "ma.near_zone": "MA destek/direnç yakınlığı",
     "signal.ema_trend_volume": "EMA trend + hacim",
     "signal.macd_positive_cross": "MACD pozitif kesişim",

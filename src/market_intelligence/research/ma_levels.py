@@ -6,6 +6,7 @@ from statistics import median
 
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.features.ma import ma_series
+from market_intelligence.features.volatility import wilder_atr_series
 from market_intelligence.market_data.bars import CanonicalFrame
 
 MA_TYPES = ("SMA", "EMA", "WMA", "VWMA", "KAMA", "ALMA", "HMA")
@@ -84,28 +85,6 @@ class _Touch:
     position: int
     ma_value: float
     atr: float
-
-
-def _atr_series(frame: CanonicalFrame, period: int) -> list[float | None]:
-    ranges: list[float] = []
-    previous_close: float | None = None
-    for bar in frame.bars:
-        candidates = [bar.high - bar.low]
-        if previous_close is not None:
-            candidates.extend((abs(bar.high - previous_close), abs(bar.low - previous_close)))
-        ranges.append(max(candidates))
-        previous_close = bar.close
-    result: list[float | None] = [None] * len(ranges)
-    if len(ranges) < period:
-        return result
-    current = ranges[0]
-    alpha = 1.0 / period
-    for index, observed in enumerate(ranges):
-        if index:
-            current = alpha * observed + (1.0 - alpha) * current
-        if index >= period - 1:
-            result[index] = current
-    return result
 
 
 def _cross_count(close: list[float], moving: list[float | None]) -> int:
@@ -260,7 +239,8 @@ def research_ma_levels(
         raise ValueError("MA Research kısmi canonical frame üzerinde çalışamaz")
     close = [bar.close for bar in frame.bars]
     volume = [bar.volume for bar in frame.bars]
-    atr = _atr_series(frame, resolved.atr_period)
+    atr_snapshot = wilder_atr_series(frame, resolved.atr_period)
+    atr = list(atr_snapshot.values) if atr_snapshot is not None else [None] * len(frame.bars)
     levels: list[ResearchedMaLevel] = []
     for ma_type in resolved.ma_types:
         for period in resolved.periods:

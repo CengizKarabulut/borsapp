@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from market_intelligence.features.momentum import recursive_ema
 from market_intelligence.features.specs import FeatureSpec, WarmupSpec
+from market_intelligence.features.volatility import WILDER_ATR_14, AtrSeries, wilder_atr_series
 from market_intelligence.market_data.bars import CanonicalFrame
 
 TECHNICAL_MARKET_CONTEXT = FeatureSpec(
@@ -70,18 +71,6 @@ def _rma(values: list[float], period: int) -> list[float | None]:
     return result
 
 
-def _true_ranges(frame: CanonicalFrame) -> list[float]:
-    values: list[float] = []
-    previous_close: float | None = None
-    for bar in frame.bars:
-        candidates = [bar.high - bar.low]
-        if previous_close is not None:
-            candidates.extend((abs(bar.high - previous_close), abs(bar.low - previous_close)))
-        values.append(max(candidates))
-        previous_close = bar.close
-    return values
-
-
 def _rsi_series(close: list[float], period: int = 14) -> list[float | None]:
     result: list[float | None] = [None] * len(close)
     if len(close) <= period:
@@ -132,8 +121,11 @@ def _bb_context(close: list[float], period: int = 20, rank_window: int = 100):
     return ranks[-1], streak, middle - 2 * deviation, middle, middle + 2 * deviation
 
 
-def _adx(frame: CanonicalFrame, period: int = 14) -> tuple[float | None, float | None]:
-    ranges = _true_ranges(frame)
+def _adx(
+    frame: CanonicalFrame,
+    atr_values: list[float | None],
+    period: int = 14,
+) -> float | None:
     plus_dm = [0.0]
     minus_dm = [0.0]
     for previous, current in zip(frame.bars, frame.bars[1:], strict=False):
@@ -141,7 +133,6 @@ def _adx(frame: CanonicalFrame, period: int = 14) -> tuple[float | None, float |
         down = previous.low - current.low
         plus_dm.append(up if up > down and up > 0 else 0.0)
         minus_dm.append(down if down > up and down > 0 else 0.0)
-    atr_values = _rma(ranges, period)
     plus_values = _rma(plus_dm, period)
     minus_values = _rma(minus_dm, period)
     dx: list[float] = []
@@ -154,7 +145,7 @@ def _adx(frame: CanonicalFrame, period: int = 14) -> tuple[float | None, float |
         denominator = plus_di + minus_di
         dx.append(100.0 * abs(plus_di - minus_di) / denominator if denominator else 0.0)
     adx_values = _rma(dx, period)
-    return adx_values[-1], atr_values[-1]
+    return adx_values[-1]
 
 
 def _market_structure(frame: CanonicalFrame, pivot: int = 5):
@@ -266,13 +257,31 @@ def _strong_divergences(
 
 class TechnicalMarketContextProvider:
     spec = TECHNICAL_MARKET_CONTEXT
+    dependencies = (WILDER_ATR_14,)
 
     def compute(self, frame: CanonicalFrame) -> TechnicalMarketContext | None:
+        atr_series = wilder_atr_series(frame, 14)
+        return self._compute(frame, atr_series)
+
+    def compute_with_dependencies(
+        self,
+        frame: CanonicalFrame,
+        values: dict[str, object],
+    ) -> TechnicalMarketContext | None:
+        atr_series = values.get(WILDER_ATR_14.feature_id)
+        return self._compute(frame, atr_series if isinstance(atr_series, AtrSeries) else None)
+
+    def _compute(
+        self,
+        frame: CanonicalFrame,
+        atr_series: AtrSeries | None,
+    ) -> TechnicalMarketContext | None:
         if frame.is_partial or len(frame.bars) < self.spec.warmup.bars:
             return None
         close = [bar.close for bar in frame.bars]
         bb_rank, squeeze_bars, bb_lower, bb_mid, bb_upper = _bb_context(close)
-        adx, atr = _adx(frame)
+        atr = atr_series.latest if atr_series is not None else None
+        adx = _adx(frame, list(atr_series.values)) if atr_series is not None else None
         if bb_rank is None or adx is None or atr is None or atr <= 0:
             return None
         ema_periods = [5, 8, 10, 13, 20, 21, 34, 50, 55, 89, 100, 144, 200, 233]

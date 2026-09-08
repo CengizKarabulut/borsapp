@@ -50,7 +50,7 @@ Kullanıcı kurulumları:
 
 Tarayıcı kuralları [config/scanners.toml](config/scanners.toml), MACD referans
 kararı ise [ADR-0001](docs/adr/0001-macd-reference-implementation.md) içindedir.
-Katalog bugün 9 SIGNAL, 7 TECHNICAL ve 1 MA tarayıcısı içerir. Bu sayı, parity
+Katalog bugün 9 SIGNAL, 7 TECHNICAL, 1 MA ve 1 KARAR tarayıcısı içerir. Bu sayı, parity
 kanıtı veya legacy'nin kaldırıldığı anlamına gelmez; aşağıdaki tablo bu ayrımı
 açıkça gösterir.
 
@@ -59,13 +59,14 @@ açıkça gösterir.
 | Alan | Çalışan durum | Kalan doğrulama / göç |
 | --- | --- | --- |
 | SIGNAL | 9 scanner canonical motor üzerinde; gerçek legacy shadow adapterleri hazır | Saha parity örnekleri ve scanner bazlı promosyon |
-| TECHNICAL | Legacy screener'daki 7 ekran canonical motor ve gerçek legacy shadow adapterleri üzerinde | Saha parity örnekleri; araştırma/grafik vendor kodunun ayrıştırılması |
-| MA | Live state ve günlük research seviyeleri | Gerçek legacy adapter ve ortak ATR FeatureSpec ayrıştırması |
+| TECHNICAL | Legacy screener'daki 7 ekran canonical motor ve gerçek legacy shadow adapterleri üzerinde | Saha parity örnekleri; grafik vendor kodunun ayrıştırılması |
+| MA | Live state, günlük research seviyeleri, ortak cache'lenen ATR ve gerçek MA Live shadow adapter | MA Research için ayrı saha parity kanıtı |
 | Telegram | Tek bot, topic routing, listener, outbox ve uzun iş kuyruğu | Kalıcı hosta geçiş ve sağlık gözlemi |
 | Haber | KAP canonical; genel haber compatibility adapteriyle çalışıyor | Genel haber kaynaklarını legacy importundan kurtarma |
 | Veritabanı | Sıralı/checksum'lı migration runner, gerçek PostgreSQL CI testi | Üretim yedekleme prosedürü |
-| KARAR | Legacy kaynak korunuyor | `decision.panel_v645` henüz canonical scanner değil |
-| Sonuç ölçümü | Şema hazır | Outcome backfill/report henüz yok |
+| KARAR | `decision.panel_v645` canonical günlük scanner ve gerçek legacy shadow adapter üzerinde | Saha parity örnekleri ve promosyon |
+| Araştırma | `/analiz` tek ekran canonical özet; `/rapor` 24 bölümlü PDF; `/temel` ortak finansal provider zinciri | MTF/Elliott feature'ları ve saha veri kapsamı |
+| Sonuç ölçümü | 5/10/20 bar yön-duyarlı MFE/MAE, XU100 excess return, backfill/report workflow | Yeterli saha örneği birikmesi |
 
 - [x] Canonical bar ve snapshot kimliği
 - [x] Feature registry ve snapshot-aware cache
@@ -90,19 +91,26 @@ açıkça gösterir.
 - [x] `signal.sma_macd_volume` (`A-M-V-1`) ve
       `signal.ema_trend_volume` (`E-V-1`) dikey dilimleri
 - [x] `ma.near_zone` state makinesi ve persistence dilimi
+- [x] Wilder ATR'nin kimlikli ortak feature ve bağımlılık cache'i olarak ayrıştırılması
 - [x] XIST tatil takvimi + watermark/catch-up worker
 - [x] BIST Tüm (XUTUM) kaynaklı, güvenlik frenli `BIST_ALL` universe eşitlemesi
 - [x] Yön-duyarlı MA Research seviye üreticisi ve günlük feature-store yenilemesi
 - [x] `taramabot` içindeki dokuz legacy sinyal kodunun yeni scanner kataloğuna taşınması
-- [x] `/analiz`, `/rapor`, `/temel` ve `/grafik` için kaynak üreticilerle uyumlu
-      geçiş adapter'ları
+- [x] `/analiz`, `/rapor` ve `/temel` için canonical uygulama servisi, BIST kamu
+      finansalları + yfinance fallback ve transactional outbox
+- [x] `/rapor` için deterministik kimlikli 24 bölümlü PDF ve Telegram
+      `sendDocument` teslimatı
+- [x] OHLCV ingestion için borsapy → yfinance fallback zinciri
+- [x] `/grafik` için kaynak üreticiyle uyumlu geçiş adapter'ı
 - [x] Genel piyasa haberleri ve ekonomik takvimin kaynak önceliği, bootstrap ve
       topic ayrımıyla taşınması
 - [ ] Kaynak repolarda bulunmayan aracı kurum PDF/bülten sağlayıcısının ayrı
       entegrasyon olarak eklenmesi
-- [ ] MA dahil tüm aileleri kapsayan ve saha örneği biriktirmiş tam shadow/parity hattı
-- [ ] KARAR v6.4.5 ailesinin canonical scanner olarak taşınması
+- [ ] Tüm aileleri kapsayan shadow hattında MA Research parity ve yeterli saha örneği
+- [x] KARAR v6.4.5 ailesinin canonical scanner ve gerçek legacy shadow adapteri
+      olarak taşınması
 - [ ] Compatibility katmanındaki araştırma, grafik ve genel haber kodunun ayrıştırılması
-- [ ] Sonuç/backfill ölçümü ve corporate action veri akışı
+- [x] Sonuç/backfill ölçümü
+- [ ] Corporate action veri akışı
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import io
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -64,6 +66,57 @@ class TelegramRetryTests(unittest.TestCase):
         self.assertEqual(message_id, 9)
         self.assertEqual(fake_httpx.post.call_count, 2)
         sleep.assert_called_once_with(3.0)
+
+    def test_modern_transport_uploads_pdf_document(self) -> None:
+        fake_httpx = SimpleNamespace(
+            post=Mock(
+                return_value=Response(
+                    200,
+                    {"ok": True, "result": {"message_id": 12, "message_thread_id": 70}},
+                )
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ASELS.pdf"
+            path.write_bytes(b"%PDF-1.4 fixture")
+            with patch.dict(sys.modules, {"httpx": fake_httpx}):
+                message_id = HttpxTelegramTransport("token").send(
+                    chat_id=-1001,
+                    message_thread_id=70,
+                    payload={
+                        "_method": "sendDocument",
+                        "document_path": str(path),
+                        "filename": "ASELS_rapor.pdf",
+                        "caption": "ASELS raporu",
+                    },
+                )
+        self.assertEqual(message_id, 12)
+        call = fake_httpx.post.call_args
+        self.assertEqual(call.kwargs["data"]["caption"], "ASELS raporu")
+        self.assertEqual(call.kwargs["files"]["document"][0], "ASELS_rapor.pdf")
+
+    def test_document_can_retry_from_durable_outbox_bytes_without_local_file(self) -> None:
+        fake_httpx = SimpleNamespace(
+            post=Mock(
+                return_value=Response(
+                    200,
+                    {"ok": True, "result": {"message_id": 13, "message_thread_id": 70}},
+                )
+            )
+        )
+        with patch.dict(sys.modules, {"httpx": fake_httpx}):
+            message_id = HttpxTelegramTransport("token").send(
+                chat_id=-1001,
+                message_thread_id=70,
+                payload={
+                    "_method": "sendDocument",
+                    "document_base64": "JVBERi0xLjQgZml4dHVyZQ==",
+                    "filename": "ASELS_rapor.pdf",
+                },
+            )
+        self.assertEqual(message_id, 13)
+        uploaded = fake_httpx.post.call_args.kwargs["files"]["document"][1]
+        self.assertEqual(uploaded.getvalue(), b"%PDF-1.4 fixture")
 
 
 if __name__ == "__main__":

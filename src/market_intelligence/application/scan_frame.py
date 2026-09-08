@@ -130,7 +130,12 @@ class ScanFrameCoordinator:
             )
             run = pipeline_run.scan
             if self.shadow_recorder is not None:
-                self.shadow_recorder.record(cycle_id=cycle_id, frame=frame, run=run)
+                self.shadow_recorder.record(
+                    cycle_id=cycle_id,
+                    frame=frame,
+                    run=run,
+                    feature_values=pipeline_run.features.values,
+                )
             runs.append(run)
             self._merge_coverage(coverage, binding.scanner.family, run.evaluation.status)
             observations.extend(

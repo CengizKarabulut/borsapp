@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+from html import escape
+from pathlib import Path
+
+from market_intelligence.research.equity_report import EquityResearchReport
+
+
+@dataclass(frozen=True)
+class RenderedPdf:
+    path: Path
+    content_hash: str
+    size_bytes: int
+
+
+def _font_paths() -> tuple[Path | None, Path | None]:
+    candidates = (
+        (
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ),
+        (
+            Path("C:/Windows/Fonts/arial.ttf"),
+            Path("C:/Windows/Fonts/arialbd.ttf"),
+        ),
+    )
+    return next(
+        ((regular, bold) for regular, bold in candidates if regular.exists() and bold.exists()),
+        (None, None),
+    )
+
+
+def render_equity_research_pdf(
+    report: EquityResearchReport,
+    target: Path,
+) -> RenderedPdf:
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfgen import canvas
+    from reportlab.platypus import (
+        KeepTogether,
+        PageBreak,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    regular_path, bold_path = _font_paths()
+    regular_font = "Helvetica"
+    bold_font = "Helvetica-Bold"
+    if regular_path is not None and bold_path is not None:
+        regular_font = "BorsappSans"
+        bold_font = "BorsappSansBold"
+        if regular_font not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(regular_font, str(regular_path)))
+            pdfmetrics.registerFont(TTFont(bold_font, str(bold_path)))
+
+    class DeterministicCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            kwargs["invariant"] = 1
+            super().__init__(*args, **kwargs)
+
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle(
+        "BorsappTitle",
+        parent=styles["Title"],
+        fontName=bold_font,
+        fontSize=21,
+        leading=25,
+        textColor=colors.HexColor("#102A43"),
+        alignment=TA_LEFT,
+        spaceAfter=7 * mm,
+    )
+    subtitle = ParagraphStyle(
+        "BorsappSubtitle",
+        parent=styles["Normal"],
+        fontName=regular_font,
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#486581"),
+        spaceAfter=4 * mm,
+    )
+    heading = ParagraphStyle(
+        "BorsappHeading",
+        parent=styles["Heading2"],
+        fontName=bold_font,
+        fontSize=12,
+        leading=15,
+        textColor=colors.HexColor("#0B7285"),
+        spaceBefore=3 * mm,
+        spaceAfter=2 * mm,
+    )
+    body = ParagraphStyle(
+        "BorsappBody",
+        parent=styles["BodyText"],
+        fontName=regular_font,
+        fontSize=9.2,
+        leading=13.2,
+        textColor=colors.HexColor("#243B53"),
+        spaceAfter=1.7 * mm,
+    )
+    small = ParagraphStyle(
+        "BorsappSmall",
+        parent=body,
+        fontSize=7.5,
+        leading=10,
+        textColor=colors.HexColor("#627D98"),
+    )
+    callout = ParagraphStyle(
+        "BorsappCallout",
+        parent=body,
+        fontName=bold_font,
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#102A43"),
+    )
+
+    document = SimpleDocTemplate(
+        str(target),
+        pagesize=A4,
+        leftMargin=17 * mm,
+        rightMargin=17 * mm,
+        topMargin=19 * mm,
+        bottomMargin=19 * mm,
+        title=f"{report.symbol} Araştırma Raporu",
+        author="Borsapp Market Intelligence",
+        subject="Point-in-time, kaynak etiketli hisse araştırma raporu",
+    )
+
+    def footer(page_canvas, _document) -> None:
+        page_canvas.saveState()
+        page_canvas.setStrokeColor(colors.HexColor("#D9E2EC"))
+        page_canvas.line(17 * mm, 14 * mm, 193 * mm, 14 * mm)
+        page_canvas.setFont(regular_font, 6.8)
+        page_canvas.setFillColor(colors.HexColor("#829AB1"))
+        page_canvas.drawString(
+            17 * mm,
+            9.5 * mm,
+            "Bu rapor yatırım tavsiyesi değildir. Veriler değişebilir; UNKNOWN alanlar tahmin edilmemiştir.",
+        )
+        page_canvas.drawRightString(193 * mm, 9.5 * mm, f"Sayfa {page_canvas.getPageNumber()}")
+        page_canvas.restoreState()
+
+    story = [
+        Paragraph(f"{escape(report.symbol)} Araştırma Raporu", title),
+        Paragraph(
+            f"Rapor kimliği: {report.report_id[:20]}…<br/>"
+            f"Kapalı bar: {escape(report.as_of_bar.isoformat())}<br/>"
+            f"Üretim: {escape(report.generated_at.isoformat())}<br/>"
+            f"Şablon: {escape(report.template_version)} · Veri revizyonu: {report.series_revision}",
+            subtitle,
+        ),
+        Table(
+            [
+                ["Kanıt kapsamı", f"{report.evidence_available}/{report.evidence_total} bölüm"],
+                ["Veri politikası", "Point-in-time · eksik alan UNKNOWN · otomatik AL/SAT yok"],
+            ],
+            colWidths=[42 * mm, 130 * mm],
+        ),
+        Spacer(1, 5 * mm),
+        Paragraph("Öne çıkan 5 bulgu", heading),
+        *[Paragraph(f"• {escape(item)}", body) for item in report.top_findings],
+        Paragraph("Kritik 3 koşul", heading),
+        *[Paragraph(f"• {escape(item)}", body) for item in report.critical_conditions],
+        Paragraph(f"Geçersizleşme: {escape(report.invalidation)}", callout),
+        Paragraph(f"Olumlu teyit: {escape(report.positive_confirmation)}", callout),
+        Paragraph(f"Genel sonuç: {escape(report.conclusion)}", body),
+        PageBreak(),
+    ]
+    story[2].setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), regular_font),
+                ("FONTNAME", (0, 0), (0, -1), bold_font),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#243B53")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#E6FFFA")),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BCCCDC")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    for section in report.sections:
+        status_color = {
+            "AVAILABLE": "#2B8A3E",
+            "PARTIAL": "#E67700",
+            "UNKNOWN": "#C92A2A",
+        }.get(section.status, "#486581")
+        block = [
+            Paragraph(
+                f"{section.number}. {escape(section.title)} "
+                f"<font color='{status_color}' size='7'>[{escape(section.status)}]</font>",
+                heading,
+            ),
+            *[Paragraph(escape(paragraph), body) for paragraph in section.paragraphs],
+        ]
+        story.append(KeepTogether(block))
+        story.append(Spacer(1, 1.5 * mm))
+    story.extend(
+        [
+            Spacer(1, 4 * mm),
+            Paragraph("Metodoloji ve sınırlamalar", heading),
+            Paragraph(
+                "Rapor yalnız kapalı barlar, canonical scanner kayıtları, saklanmış KAP/haberler ve "
+                "kaynağı belirtilen finansal alanlardan üretilir. Veri → bulgu → anlam → koşul → "
+                "senaryo sırası korunur. Sonuçlar emir, hedef fiyat veya kişiye özel tavsiye değildir.",
+                small,
+            ),
+        ]
+    )
+    document.build(story, onFirstPage=footer, onLaterPages=footer, canvasmaker=DeterministicCanvas)
+    content = target.read_bytes()
+    return RenderedPdf(
+        path=target.resolve(),
+        content_hash=hashlib.sha256(content).hexdigest(),
+        size_bytes=len(content),
+    )

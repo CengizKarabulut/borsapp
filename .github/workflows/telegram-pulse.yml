@@ -28,6 +28,7 @@ jobs:
       APP_ENV: production
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      BORSAPP_ARTIFACT_ROOT: ${{ github.workspace }}/runtime_artifacts
       DELIVERY_MODE: live
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -66,6 +67,6 @@ jobs:
           while [ "$SECONDS" -lt "$deadline" ]; do
             borsapp publisher-once --limit 50 || true
             borsapp listener-once --timeout 20 || true
-            borsapp command-worker-once --timeframe 1h --bars 250 || true
+            borsapp command-worker-once --timeframe 1h --bars 320 || true
             borsapp publisher-once --limit 50 || true
           done

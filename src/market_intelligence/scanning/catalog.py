@@ -8,6 +8,10 @@ from typing import Any
 from market_intelligence.core.identity import ruleset_hash
 from market_intelligence.core.timeframes import Timeframe, parse_timeframe
 from market_intelligence.scanning.contracts import Scanner
+from market_intelligence.scanning.decision.panel_v645 import (
+    DecisionPanelV645Config,
+    DecisionPanelV645Scanner,
+)
 from market_intelligence.scanning.ma.near_zone import MaNearZoneConfig, MaNearZoneScanner
 from market_intelligence.scanning.signal.macd_positive_cross import (
     MacdPositiveCrossConfig,
@@ -329,6 +333,20 @@ def load_scanner_catalog(
                 MaNearZoneScanner(ma_config),
                 ma_config,
                 ma_section,
+                calendar_version=calendar_version,
+            )
+        )
+
+    decision_section = _section(document, DecisionPanelV645Scanner.id)
+    decision_config = DecisionPanelV645Config(
+        minimum_score=int(decision_section["minimum_score"]),
+    )
+    if bool(decision_section.get("enabled", True)):
+        bindings.append(
+            _binding(
+                DecisionPanelV645Scanner(decision_config),
+                decision_config,
+                decision_section,
                 calendar_version=calendar_version,
             )
         )

@@ -107,6 +107,14 @@ partial_bar_policy = "drop"
 shadow_timeframes = ["1h", "4h", "1d", "1wk", "1mo"]
 notification_timeframes = []
 
+[decision.panel_v645]
+enabled = true
+version = "6.4.5"
+minimum_score = 75
+partial_bar_policy = "drop"
+shadow_timeframes = ["1d"]
+notification_timeframes = []
+
 [signal.macd_positive_cross]
 enabled = true
 version = "1.0.0"

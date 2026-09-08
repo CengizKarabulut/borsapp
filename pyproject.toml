@@ -19,6 +19,7 @@ borsapp = "market_intelligence.cli:main"
 dev = [
     "numpy>=1.26,<3",
     "pandas>=2,<3",
+    "reportlab>=4.2,<5",
     "ruff>=0.5,<1",
 ]
 runtime = [
@@ -33,6 +34,7 @@ runtime = [
     "plotly>=5.22,<7",
     "psycopg[binary]>=3.2,<4",
     "requests>=2.31,<3",
+    "reportlab>=4.2,<5",
     "yfinance>=0.2,<1",
 ]
 

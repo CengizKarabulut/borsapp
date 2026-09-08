@@ -75,7 +75,8 @@ class LegacyTaramabotSignalAdapter:
         if self.scanner_id not in SIGNAL_ALIASES:
             raise ValueError(f"SIGNAL legacy alias bulunamadı: {self.scanner_id}")
 
-    def evaluate(self, frame: CanonicalFrame) -> ShadowEvaluation:
+    def evaluate(self, frame: CanonicalFrame, *, feature_values=None) -> ShadowEvaluation:
+        del feature_values
         strategy, finding_key = SIGNAL_ALIASES[self.scanner_id]
         result, error = self.session.evaluate(frame)
         if error is not None or result is None or result.empty:

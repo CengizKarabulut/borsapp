@@ -1,0 +1,1 @@
+"""Canonical KARAR scanner family."""

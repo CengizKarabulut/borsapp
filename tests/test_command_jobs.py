@@ -7,7 +7,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from market_intelligence.application.command_jobs import (
+    CommandArtifact,
     CommandJob,
+    CommandJobOutput,
     CommandJobRunner,
 )
 from market_intelligence.delivery.telegram.commands import CommandName
@@ -114,8 +116,9 @@ class CommandJobRunnerTests(unittest.TestCase):
         self.assertEqual(executed, [job()])
         finished = repository.finished[0]
         self.assertIsNone(finished["error_detail"])
-        self.assertEqual(finished["envelope"].message_thread_id, 10)
-        self.assertIn("tamamlandı", finished["envelope"].payload["text"])
+        self.assertEqual(finished["envelopes"][-1].message_thread_id, 10)
+        self.assertIn("tamamlandı", finished["envelopes"][-1].payload["text"])
+        self.assertIsNone(finished["artifact"])
 
     def test_failure_is_recorded_without_exposing_detail_in_reply(self) -> None:
         repository = FakeRepository(job())
@@ -131,7 +134,7 @@ class CommandJobRunnerTests(unittest.TestCase):
         self.assertEqual((result.completed, result.failed), (0, 1))
         finished = repository.finished[0]
         self.assertIn("sensitive detail", finished["error_detail"])
-        self.assertNotIn("sensitive detail", finished["envelope"].payload["text"])
+        self.assertNotIn("sensitive detail", finished["envelopes"][-1].payload["text"])
 
     def test_scans_job_points_to_detailed_follow_up_command(self) -> None:
         source = job()
@@ -143,7 +146,7 @@ class CommandJobRunnerTests(unittest.TestCase):
             executor=lambda _job: None,
         ).run_once(now=datetime(2026, 9, 7, tzinfo=UTC))
 
-        self.assertIn("/taramalar ASELS", repository.finished[0]["envelope"].payload["text"])
+        self.assertIn("/taramalar ASELS", repository.finished[0]["envelopes"][-1].payload["text"])
 
     def test_report_job_points_to_reports_topic(self) -> None:
         source = job()
@@ -155,7 +158,40 @@ class CommandJobRunnerTests(unittest.TestCase):
             executor=lambda _job: None,
         ).run_once(now=datetime(2026, 9, 7, tzinfo=UTC))
 
-        self.assertIn("Raporlar konusuna", repository.finished[0]["envelope"].payload["text"])
+        self.assertIn("Raporlar konusuna", repository.finished[0]["envelopes"][-1].payload["text"])
+
+    def test_report_output_and_completion_are_finished_together(self) -> None:
+        source = replace(job(), command=CommandName.REPORT)
+        repository = FakeRepository(source)
+        report_envelope = OutboxEnvelope(
+            semantic_key="report-1",
+            publication_kind=PublicationKind.REPORT,
+            topic_kind=TopicKind.REPORTS,
+            chat_id=-100123,
+            message_thread_id=70,
+            payload={"_method": "sendDocument", "document_path": "report.pdf"},
+        )
+        artifact = CommandArtifact(
+            report_id="deterministic-report",
+            instrument_id="00000000-0000-0000-0000-000000000001",
+            artifact_kind="equity_report_pdf",
+            timeframe="1d",
+            bar_time=datetime(2026, 9, 7, tzinfo=UTC),
+            summary="ASELS raporu",
+            storage_uri="report.pdf",
+            content_hash="abc",
+        )
+
+        CommandJobRunner(
+            settings=live_settings(),
+            repository=repository,
+            executor=lambda _job: CommandJobOutput((report_envelope,), artifact),
+        ).run_once(now=datetime(2026, 9, 7, tzinfo=UTC))
+
+        finished = repository.finished[0]
+        self.assertEqual(len(finished["envelopes"]), 2)
+        self.assertEqual(finished["envelopes"][0], report_envelope)
+        self.assertEqual(finished["artifact"], artifact)
 
     def test_disabled_mode_does_not_claim_jobs(self) -> None:
         repository = FakeRepository(job())
@@ -171,12 +207,17 @@ class CommandJobRunnerTests(unittest.TestCase):
 
 class PostgresCommandJobRepositoryTests(unittest.TestCase):
     def test_claim_uses_lease_and_maps_job(self) -> None:
-        connection = FakeConnection(("job-1", "tara", "asels", 42, 10, 3))
+        connection = FakeConnection(
+            ("job-1", "tara", "asels", 42, 10, 3, "instrument-1")
+        )
         now = datetime(2026, 9, 7, tzinfo=UTC)
 
         claimed = PostgresCommandJobRepository(connection).claim(now=now)
 
-        self.assertEqual(claimed, CommandJob("job-1", CommandName.SCAN, "ASELS", 42, 10, 3))
+        self.assertEqual(
+            claimed,
+            CommandJob("job-1", CommandName.SCAN, "ASELS", 42, 10, 3, "instrument-1"),
+        )
         params = connection.queries[0][1]
         self.assertEqual(params, (now, now, now + timedelta(minutes=15)))
         self.assertEqual(connection.committed, 1)
@@ -196,7 +237,8 @@ class PostgresCommandJobRepositoryTests(unittest.TestCase):
             job=job(),
             finished_at=datetime(2026, 9, 7, tzinfo=UTC),
             error_detail=None,
-            envelope=envelope,
+            envelopes=(envelope,),
+            artifact=None,
         )
 
         self.assertEqual(len(connection.queries), 2)
@@ -220,7 +262,8 @@ class PostgresCommandJobRepositoryTests(unittest.TestCase):
                 job=job(),
                 finished_at=datetime(2026, 9, 7, tzinfo=UTC),
                 error_detail=None,
-                envelope=envelope,
+                envelopes=(envelope,),
+                artifact=None,
             )
 
         self.assertEqual(connection.committed, 0)

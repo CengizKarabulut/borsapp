@@ -15,6 +15,17 @@ class FeatureProvider(Protocol):
     def compute(self, frame: CanonicalFrame) -> Any | None: ...
 
 
+class DependentFeatureProvider(Protocol):
+    spec: FeatureSpec
+    dependencies: Sequence[FeatureSpec]
+
+    def compute_with_dependencies(
+        self,
+        frame: CanonicalFrame,
+        values: dict[str, Any],
+    ) -> Any | None: ...
+
+
 class FeatureRegistry:
     def __init__(self) -> None:
         self._providers: dict[tuple[str, str, str], FeatureProvider] = {}
@@ -86,7 +97,20 @@ class FeatureEngine:
         unavailable: list[str] = []
         cache_hits = 0
         computed = 0
-        for spec in specs:
+        visiting: set[tuple[str, str, str]] = set()
+
+        def resolve_one(spec: FeatureSpec) -> None:
+            nonlocal cache_hits, computed
+            if spec.feature_id in values or spec.feature_id in unavailable:
+                return
+            identity = self.registry._key(spec)
+            if identity in visiting:
+                raise ValueError(f"Feature bağımlılık döngüsü: {spec.feature_id}")
+            visiting.add(identity)
+            provider = self.registry.resolve(spec)
+            dependencies = tuple(getattr(provider, "dependencies", ()))
+            for dependency in dependencies:
+                resolve_one(dependency)
             key = FeatureSliceKey(
                 instrument_id=frame.instrument_id,
                 timeframe=frame.timeframe.value,
@@ -101,11 +125,27 @@ class FeatureEngine:
             if found:
                 cache_hits += 1
             else:
-                value = self.registry.resolve(spec).compute(frame)
+                missing_dependency = any(
+                    dependency.feature_id in unavailable for dependency in dependencies
+                )
+                if missing_dependency:
+                    value = None
+                elif dependencies:
+                    dependency_values = {
+                        dependency.feature_id: values[dependency.feature_id]
+                        for dependency in dependencies
+                    }
+                    value = provider.compute_with_dependencies(frame, dependency_values)
+                else:
+                    value = provider.compute(frame)
                 self.cache.put(key, value)
                 computed += 1
             if value is None:
                 unavailable.append(spec.feature_id)
             else:
                 values[spec.feature_id] = value
+            visiting.remove(identity)
+
+        for spec in specs:
+            resolve_one(spec)
         return FeatureResolution(values, tuple(unavailable), cache_hits, computed)

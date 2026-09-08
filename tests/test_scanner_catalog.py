@@ -33,6 +33,7 @@ class ScannerCatalogTests(unittest.TestCase):
                 "signal.sma_macd_volume",
                 "signal.ema_trend_volume",
                 "ma.near_zone",
+                "decision.panel_v645",
             },
         )
         for binding in bindings:

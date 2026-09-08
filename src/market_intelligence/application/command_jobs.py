@@ -21,6 +21,25 @@ class CommandJob:
     requested_by: int
     requested_topic: int
     attempt_count: int
+    instrument_id: str | None = None
+
+
+@dataclass(frozen=True)
+class CommandArtifact:
+    report_id: str
+    instrument_id: str
+    artifact_kind: str
+    timeframe: str | None
+    bar_time: datetime | None
+    summary: str
+    storage_uri: str
+    content_hash: str
+
+
+@dataclass(frozen=True)
+class CommandJobOutput:
+    envelopes: tuple[OutboxEnvelope, ...] = ()
+    artifact: CommandArtifact | None = None
 
 
 class CommandJobRepository(Protocol):
@@ -32,12 +51,13 @@ class CommandJobRepository(Protocol):
         job: CommandJob,
         finished_at: datetime,
         error_detail: str | None,
-        envelope: OutboxEnvelope,
+        envelopes: tuple[OutboxEnvelope, ...],
+        artifact: CommandArtifact | None,
     ) -> None: ...
 
 
 class CommandJobExecutor(Protocol):
-    def __call__(self, job: CommandJob) -> None: ...
+    def __call__(self, job: CommandJob) -> CommandJobOutput | None: ...
 
 
 @dataclass(frozen=True)
@@ -67,10 +87,12 @@ class CommandJobRunner:
         if job is None:
             return CommandJobRun(0, 0, 0)
         error: str | None = None
+        output = CommandJobOutput()
         try:
-            self.executor(job)
+            output = self.executor(job) or CommandJobOutput()
         except Exception as exc:
             error = f"{type(exc).__name__}: {str(exc)[:500]}"
+            output = CommandJobOutput()
         if job.command is CommandName.ANALYSIS:
             success_text = f"{job.symbol} analizi tamamlandı; Analizler konusuna gönderildi."
         elif job.command is CommandName.REPORT:
@@ -100,7 +122,8 @@ class CommandJobRunner:
             job=job,
             finished_at=now,
             error_detail=error,
-            envelope=envelope,
+            envelopes=(*output.envelopes, envelope),
+            artifact=output.artifact,
         )
         return CommandJobRun(1, int(error is None), int(error is not None))
 

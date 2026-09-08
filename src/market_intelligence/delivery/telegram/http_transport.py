@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import io
 import time
+from pathlib import Path
 from typing import Any
 
 
@@ -32,15 +36,69 @@ class HttpxTelegramTransport:
             ) from exc
         data = dict(payload)
         method = str(data.pop("_method", "sendMessage"))
-        if method != "sendMessage":
+        if method not in {"sendMessage", "sendDocument"}:
             raise TelegramDeliveryError(f"Desteklenmeyen Telegram yöntemi: {method}")
+        document_path: Path | None = None
+        document_bytes: bytes | None = None
+        document_name: str | None = None
+        if method == "sendDocument":
+            raw_path = data.pop("document_path", None)
+            raw_base64 = data.pop("document_base64", None)
+            document_name = str(data.pop("filename", "")).strip() or None
+            if isinstance(raw_path, str) and raw_path.strip():
+                candidate = Path(raw_path).resolve()
+                if candidate.is_file():
+                    document_path = candidate
+            if document_path is None and isinstance(raw_base64, str) and raw_base64:
+                try:
+                    document_bytes = base64.b64decode(raw_base64, validate=True)
+                except (ValueError, binascii.Error) as exc:
+                    raise TelegramDeliveryError("Telegram belge içeriği geçersiz") from exc
+            if document_path is None and document_bytes is None:
+                raise TelegramDeliveryError("Telegram belgesi bulunamadı")
+            size = (
+                document_path.stat().st_size
+                if document_path is not None
+                else len(document_bytes or b"")
+            )
+            if size > 49 * 1024 * 1024:
+                raise TelegramDeliveryError("Telegram belgesi 49 MB sınırını aşıyor")
         data["chat_id"] = chat_id
         data["message_thread_id"] = message_thread_id
         url = f"https://api.telegram.org/bot{self._bot_token}/{method}"
         body: dict[str, Any] = {}
         for attempt in range(5):
             try:
-                response = httpx.post(url, data=data, timeout=self.timeout_seconds)
+                if document_path is None and document_bytes is None:
+                    response = httpx.post(url, data=data, timeout=self.timeout_seconds)
+                elif document_path is not None:
+                    with document_path.open("rb") as document:
+                        response = httpx.post(
+                            url,
+                            data=data,
+                            files={
+                                "document": (
+                                    document_name or document_path.name,
+                                    document,
+                                    "application/pdf",
+                                )
+                            },
+                            timeout=max(self.timeout_seconds, 60.0),
+                        )
+                else:
+                    document = io.BytesIO(document_bytes or b"")
+                    response = httpx.post(
+                        url,
+                        data=data,
+                        files={
+                            "document": (
+                                document_name or "borsapp-rapor.pdf",
+                                document,
+                                "application/pdf",
+                            )
+                        },
+                        timeout=max(self.timeout_seconds, 60.0),
+                    )
             except Exception as exc:
                 raise TelegramDeliveryError(
                     f"Telegram ağ hatası: {type(exc).__name__}"

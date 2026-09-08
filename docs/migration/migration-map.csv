@@ -3,8 +3,8 @@ taramabot,individual_scanners/,src/market_intelligence/scanning/signal/,MOVE,imp
 taramabot,scanner_legacy.py,src/market_intelligence/market_data/providers/borsapy.py,SPLIT,implemented,provider owns network access
 taramabot,bist_timeframes.py,src/market_intelligence/market_data/resampling.py,MERGE,implemented,canonical session anchored resampling
 taramabot,state_manager.py,src/market_intelligence/persistence/postgres/,REPLACE,implemented,watermarks states and outbox are PostgreSQL backed
-taramabot,decision_panel_v645_signal.py,src/market_intelligence/scanning/decision/panel_v645.py,MOVE,pending,production signal entry point
-taramabot,historical_decision_panel_v644.py,src/market_intelligence/features/decision.py,SPLIT,pending,decision indicator and scoring source
+taramabot,decision_panel_v645_signal.py,src/market_intelligence/scanning/decision/panel_v645.py,MOVE,migrated,production signal entry point; golden parity test
+taramabot,historical_decision_panel_v644.py,src/market_intelligence/features/decision.py,SPLIT,migrated,decision indicator and scoring source; shared ATR dependency
 taramabot,exit_engine.py,src/market_intelligence/features/risk.py,SPLIT,pending,setup-aware exit metrics
 ma-reaction-scanner,scanner/,src/market_intelligence/features/ma.py,MERGE,partial,qualification migrated; parity pending
 ma-reaction-scanner,scanner/,src/market_intelligence/scanning/ma/near_zone.py,SPLIT,implemented,event-state boundary

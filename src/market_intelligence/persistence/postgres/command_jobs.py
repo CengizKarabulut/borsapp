@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from uuid import NAMESPACE_URL, uuid5
 
-from market_intelligence.application.command_jobs import CommandJob
+from market_intelligence.application.command_jobs import CommandArtifact, CommandJob
 from market_intelligence.core.identity import canonical_json
 from market_intelligence.delivery.telegram.commands import CommandName
 from market_intelligence.delivery.telegram.routing import OutboxEnvelope
@@ -30,13 +31,23 @@ SET status = 'running',
 FROM candidate
 WHERE target.job_id = candidate.job_id
 RETURNING target.job_id, target.command_name, target.symbol_at_request,
-          target.requested_by, target.requested_topic, target.attempt_count
+          target.requested_by, target.requested_topic, target.attempt_count,
+          target.instrument_id
 """
 
 FINISH_JOB_SQL = """
 UPDATE command_jobs
 SET status = %s, finished_at = %s, lease_until = NULL, error_detail = %s
 WHERE job_id = %s AND status = 'running'
+"""
+
+INSERT_ARTIFACT_SQL = """
+INSERT INTO research_artifacts (
+    artifact_id, instrument_id, artifact_kind, timeframe, bar_time,
+    summary, storage_uri, content_hash, created_at
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (instrument_id, artifact_kind, timeframe, bar_time, content_hash)
+DO UPDATE SET summary = EXCLUDED.summary, storage_uri = EXCLUDED.storage_uri
 """
 
 
@@ -62,6 +73,7 @@ class PostgresCommandJobRepository:
             requested_by=int(row[3]),
             requested_topic=int(row[4]),
             attempt_count=int(row[5]),
+            instrument_id=str(row[6]),
         )
 
     def finish(
@@ -70,29 +82,46 @@ class PostgresCommandJobRepository:
         job: CommandJob,
         finished_at: datetime,
         error_detail: str | None,
-        envelope: OutboxEnvelope,
+        envelopes: tuple[OutboxEnvelope, ...],
+        artifact: CommandArtifact | None,
     ) -> None:
         status = "completed" if error_detail is None else "failed"
-        payload = {
-            "publication_kind": envelope.publication_kind.value,
-            "chat_id": envelope.chat_id,
-            "message_thread_id": envelope.message_thread_id,
-            "message": envelope.payload,
-        }
         with self.connection.transaction():
             with self.connection.cursor() as cursor:
                 cursor.execute(
                     FINISH_JOB_SQL,
                     (status, finished_at, error_detail, job.job_id),
                 )
-                cursor.execute(
-                    OUTBOX_SQL,
-                    (
-                        envelope.semantic_key,
-                        envelope.publication_kind.value,
-                        envelope.topic_kind.value,
-                        envelope.chat_id,
-                        envelope.message_thread_id,
-                        canonical_json(payload),
-                    ),
-                )
+                if artifact is not None and error_detail is None:
+                    cursor.execute(
+                        INSERT_ARTIFACT_SQL,
+                        (
+                            str(uuid5(NAMESPACE_URL, artifact.report_id)),
+                            artifact.instrument_id,
+                            artifact.artifact_kind,
+                            artifact.timeframe,
+                            artifact.bar_time,
+                            artifact.summary,
+                            artifact.storage_uri,
+                            artifact.content_hash,
+                            finished_at,
+                        ),
+                    )
+                for envelope in envelopes:
+                    payload = {
+                        "publication_kind": envelope.publication_kind.value,
+                        "chat_id": envelope.chat_id,
+                        "message_thread_id": envelope.message_thread_id,
+                        "message": envelope.payload,
+                    }
+                    cursor.execute(
+                        OUTBOX_SQL,
+                        (
+                            envelope.semantic_key,
+                            envelope.publication_kind.value,
+                            envelope.topic_kind.value,
+                            envelope.chat_id,
+                            envelope.message_thread_id,
+                            canonical_json(payload),
+                        ),
+                    )

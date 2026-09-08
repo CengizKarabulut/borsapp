@@ -31,3 +31,5 @@ market-telegram-suite,basarisiz_kirilim,Başarısız kırılım,technical.failed
 market-telegram-suite,karar_bolgesi,Karar bölgesi,technical.decision_zone,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:288
 market-telegram-suite,trend_devami,Trend devamı,technical.trend_continuation,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:294
 market-telegram-suite,tukenme,Tükenme denemesi,technical.exhaustion,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:300
+taramabot,KARAR-v6.4.5,KARAR Paneli v6.4.5,decision.panel_v645,legacy_to_new,verified_code,_legacy/taramabot/decision_panel_v645_signal.py:40
+taramabot,KARAR-v6.4.5,KARAR Paneli v6.4.5,decision.panel_v645,new_to_legacy,verified_code,_legacy/taramabot/decision_panel_v645_signal.py:74

@@ -85,3 +85,13 @@ fazla kullanıcı virgülle ayrılabilir: `123456789,987654321`.
 - Başka grup, başka topic veya izin verilmeyen kullanıcıdan gelen komut işlenmez.
 - Sistem konusu başarısızlık ve shadow farkları içindir; normal başarı loglarıyla
   doldurulmaz.
+
+## 5. Araştırma komutlarının çıktısı
+
+- `/analiz ASELS`: Analiz & Araştırma konusuna tek ekran canonical özet.
+- `/temel ASELS`: aynı konuya kaynak ve veri kapsamı etiketli finansal kart.
+- `/rapor ASELS`: Raporlar & Bültenler konusuna 24 bölümlü PDF belge.
+
+Bu üç komut uzun iş kuyruğuna alınır. Komut Merkezi önce iş kimliğini, işlem
+bitince de başarı veya hata durumunu gösterir. PDF doğrudan bot tarafından dosya
+olarak yüklenir; ayrı bir bağlantı veya ikinci bot gerekmez.

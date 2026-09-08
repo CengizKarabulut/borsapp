@@ -32,7 +32,8 @@ class LegacyTechnicalSuiteAdapter:
         if self.scanner_id not in TECHNICAL_ALIASES:
             raise ValueError(f"TECHNICAL legacy alias bulunamadı: {self.scanner_id}")
 
-    def evaluate(self, frame: CanonicalFrame) -> ShadowEvaluation:
+    def evaluate(self, frame: CanonicalFrame, *, feature_values=None) -> ShadowEvaluation:
+        del feature_values
         legacy_id = TECHNICAL_ALIASES[self.scanner_id]
         result, reason, error = self.session.evaluate(frame)
         if error is not None:

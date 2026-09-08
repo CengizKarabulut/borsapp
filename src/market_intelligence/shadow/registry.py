@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from market_intelligence.shadow.adapters.ma_live import LegacyMaLiveAdapter
+from market_intelligence.shadow.adapters.taramabot_decision import (
+    LegacyTaramabotDecisionAdapter,
+)
 from market_intelligence.shadow.adapters.taramabot_signals import (
     SIGNAL_ALIASES,
     LegacySignalSession,
@@ -27,6 +31,10 @@ class ShadowAdapterRegistry:
                 for scanner_id in SIGNAL_ALIASES
             }
         )
+        decision = LegacyTaramabotDecisionAdapter()
+        self._adapters[decision.scanner_id] = decision
+        ma_live = LegacyMaLiveAdapter()
+        self._adapters[ma_live.scanner_id] = ma_live
 
     def adapter_for(self, scanner_id: str) -> LegacyScannerAdapter | None:
         return self._adapters.get(scanner_id)

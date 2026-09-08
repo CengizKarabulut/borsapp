@@ -72,6 +72,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      BORSAPP_ARTIFACT_ROOT: /app/runtime_artifacts
+    volumes:
+      - borsapp-artifacts:/app/runtime_artifacts
     command: ["publisher-loop"]
     depends_on:
       migrate:
@@ -89,6 +92,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      BORSAPP_ARTIFACT_ROOT: /app/runtime_artifacts
+    volumes:
+      - borsapp-artifacts:/app/runtime_artifacts
     command: ["command-worker-loop", "--timeframe", "1h"]
     depends_on:
       migrate:
@@ -102,3 +108,4 @@ services:
 
 volumes:
   borsapp-postgres:
+  borsapp-artifacts:
