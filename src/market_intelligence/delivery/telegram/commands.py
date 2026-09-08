@@ -12,8 +12,12 @@ class CommandName(StrEnum):
     SCAN = "tara"
     SCANS = "taramalar"
     ANALYSIS = "analiz"
+    REPORT = "rapor"
+    FUNDAMENTAL = "temel"
     CHART = "grafik"
+    CHART_HELP = "grafikyardim"
     NEWS = "haber"
+    STATUS = "durum"
     HELP = "yardim"
 
 
@@ -29,6 +33,9 @@ class IncomingCommand:
 
 
 _SYMBOL = re.compile(r"^[A-Z0-9._=-]{1,24}$")
+_NO_SYMBOL_COMMANDS = frozenset(
+    {CommandName.HELP, CommandName.CHART_HELP, CommandName.STATUS}
+)
 
 
 class TelegramCommandParser:
@@ -58,9 +65,9 @@ class TelegramCommandParser:
         except ValueError:
             return "unknown_command"
         args = tuple(part.strip().upper() for part in parts[1:] if part.strip())
-        if name is not CommandName.HELP and not args:
+        if name not in _NO_SYMBOL_COMMANDS and not args:
             return "symbol_missing"
-        if name is not CommandName.HELP and not _SYMBOL.fullmatch(args[0]):
+        if name not in _NO_SYMBOL_COMMANDS and not _SYMBOL.fullmatch(args[0]):
             return "symbol_invalid"
         return "accepted"
 
@@ -91,7 +98,7 @@ class TelegramCommandParser:
         except ValueError:
             return None
         args = tuple(part.strip().upper() for part in parts[1:] if part.strip())
-        if name is not CommandName.HELP:
+        if name not in _NO_SYMBOL_COMMANDS:
             if not args or not _SYMBOL.fullmatch(args[0]):
                 return None
         return IncomingCommand(

@@ -81,6 +81,8 @@ Kullanıcı kurulumları:
 - [x] BIST Tüm (XUTUM) kaynaklı, güvenlik frenli `BIST_ALL` universe eşitlemesi
 - [x] Yön-duyarlı MA Research seviye üreticisi ve günlük feature-store yenilemesi
 - [x] `taramabot` içindeki dokuz legacy sinyal kodunun yeni scanner kataloğuna taşınması
-- [ ] Genel piyasa haberleri, takvim, analiz ve grafik üreticilerinin parity ile taşınması
+- [x] `/analiz`, `/rapor`, `/temel` ve `/grafik` için kaynak üreticilerle uyumlu
+      geçiş adapter'ları
+- [ ] Genel piyasa haberleri, ekonomik takvim ve aracı kurum bültenlerinin parity ile taşınması
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.

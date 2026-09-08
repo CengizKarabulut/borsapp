@@ -3,6 +3,17 @@ name: MA research refresh
 on:
   workflow_dispatch:
     inputs:
+      scope:
+        description: Tek sembol veya BIST Tüm
+        required: true
+        default: symbol
+        type: choice
+        options: [symbol, universe]
+      symbol:
+        description: Tek sembol araştırmasında kullanılacak BIST kodu
+        required: true
+        default: ASELS
+        type: string
       timeframe:
         description: Canonical research timeframe
         required: true
@@ -60,9 +71,19 @@ jobs:
       - name: Refresh observation-only MA research
         if: ${{ env.DATABASE_URL != '' }}
         shell: bash
+        env:
+          MANUAL_SCOPE: ${{ inputs.scope }}
+          MANUAL_SYMBOL: ${{ inputs.symbol }}
+          MANUAL_TIMEFRAME: ${{ inputs.timeframe }}
         run: |
-          timeframe="1d"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            timeframe="${{ inputs.timeframe }}"
+            if [ "$MANUAL_SCOPE" = "symbol" ]; then
+              borsapp ma-research-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME" --bars 1000
+            else
+              borsapp ma-research-universe --universe BIST_ALL --timeframe "$MANUAL_TIMEFRAME" --bars 1000
+            fi
+          else
+            for timeframe in 4h 1d; do
+              borsapp ma-research-universe --universe BIST_ALL --timeframe "$timeframe" --bars 1000
+            done
           fi
-          borsapp ma-research-universe --universe BIST_ALL --timeframe "$timeframe" --bars 1000

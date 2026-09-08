@@ -23,6 +23,7 @@ from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.application.telegram_listener import TelegramListener
 from market_intelligence.compat.legacy_suite import (
     generate_and_send_chart,
+    generate_and_send_fundamental,
     generate_and_send_research,
 )
 from market_intelligence.core.timeframes import parse_timeframe
@@ -847,6 +848,12 @@ def _command_job_executor(
 
     def execute(job: CommandJob) -> None:
         if job.command in {CommandName.SCAN, CommandName.SCANS}:
+            _ma_research_symbol(
+                settings,
+                symbol=job.symbol,
+                timeframe_raw=timeframe,
+                bars=max(1000, bars),
+            )
             _scan_symbol(
                 settings,
                 symbol=job.symbol,
@@ -857,8 +864,15 @@ def _command_job_executor(
             )
             return
         target = Path("runtime_artifacts") / job.job_id / job.command.value
-        if job.command is CommandName.ANALYSIS:
+        if job.command in {CommandName.ANALYSIS, CommandName.REPORT}:
             generate_and_send_research(
+                symbol=job.symbol,
+                topic_id=settings.telegram.topic_id(TopicKind.ANALYSIS),
+                target=target,
+            )
+            return
+        if job.command is CommandName.FUNDAMENTAL:
+            generate_and_send_fundamental(
                 symbol=job.symbol,
                 topic_id=settings.telegram.topic_id(TopicKind.ANALYSIS),
                 target=target,

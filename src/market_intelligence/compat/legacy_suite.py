@@ -68,6 +68,32 @@ def generate_and_send_research(
         )
 
 
+def generate_and_send_fundamental(
+    *,
+    symbol: str,
+    topic_id: int,
+    target: Path,
+) -> None:
+    with _legacy_imports(
+        TECHNICAL_APP,
+        {
+            "TELEGRAM_MESSAGE_THREAD_ID": str(topic_id),
+            "MPLBACKEND": "Agg",
+        },
+    ):
+        from src.fundamental_analysis import build_fundamental_report
+        from src.fundamental_card import render_fundamental_card
+        from src.fundamental_quality import apply_coverage_policy
+        from src.fundamental_telegram import send_fundamental_card
+        from src.research_theme import apply_white_theme
+
+        apply_white_theme()
+        target.mkdir(parents=True, exist_ok=True)
+        report = apply_coverage_policy(build_fundamental_report(symbol))
+        image = render_fundamental_card(report, target / f"{symbol}_temel.png")
+        send_fundamental_card(image, report)
+
+
 def generate_and_send_chart(
     *,
     symbol: str,

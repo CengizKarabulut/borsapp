@@ -131,8 +131,13 @@ class SymbolCommandServiceTests(unittest.TestCase):
         self.assertIn("yalnız /tara", reply.text)
         self.assertEqual(queue.calls, 0)
 
-    def test_analysis_and_chart_are_enqueued_as_long_jobs(self) -> None:
-        for name in (CommandName.ANALYSIS, CommandName.CHART):
+    def test_analysis_report_fundamental_and_chart_are_enqueued_as_long_jobs(self) -> None:
+        for name in (
+            CommandName.ANALYSIS,
+            CommandName.REPORT,
+            CommandName.FUNDAMENTAL,
+            CommandName.CHART,
+        ):
             with self.subTest(name=name):
                 queue = FakeQueue()
                 store = FakeStore(snapshot())
@@ -142,6 +147,17 @@ class SymbolCommandServiceTests(unittest.TestCase):
                 self.assertEqual(store.calls, 0)
                 self.assertEqual(queue.calls, 1)
                 self.assertEqual(reply.queued_job_id, "job-1")
+
+    def test_status_and_chart_help_do_not_require_a_symbol(self) -> None:
+        service = SymbolCommandService(
+            FakeStore(snapshot()),
+            clock=lambda: datetime(2026, 9, 8, 4, 15, tzinfo=ZoneInfo("Europe/Istanbul")),
+        )
+        status = service.handle(command(CommandName.STATUS))
+        chart_help = service.handle(command(CommandName.CHART_HELP))
+
+        self.assertIn("Borsapp çalışıyor", status.text)
+        self.assertIn("/grafik ASELS", chart_help.text)
 
     def test_news_reply_includes_source_url(self) -> None:
         reply = SymbolCommandService(FakeStore(snapshot())).handle(

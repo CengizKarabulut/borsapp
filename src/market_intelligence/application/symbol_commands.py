@@ -87,8 +87,30 @@ class SymbolCommandService:
     def handle(self, command: IncomingCommand) -> CommandReply:
         if command.name is CommandName.HELP:
             return CommandReply(
-                "Komutlar: /tara SYMBOL, /taramalar SYMBOL, /analiz SYMBOL, "
-                "/grafik SYMBOL, /haber SYMBOL. Yenileme: /tara SYMBOL --force"
+                "Komutlar:\n"
+                "/tara SEMBOL — son birleşik durum\n"
+                "/taramalar SEMBOL — tüm tarama ayrıntıları\n"
+                "/analiz SEMBOL veya /rapor SEMBOL — kapsamlı araştırma\n"
+                "/temel SEMBOL — temel analiz kartı\n"
+                "/grafik SEMBOL — teknik gösterge grafiği\n"
+                "/haber SEMBOL — bugünün tüm KAP'ları + önceki 3 KAP\n"
+                "/durum — bot çalışma durumu\n"
+                "/grafikyardim — grafik açıklaması\n"
+                "/tara SEMBOL --force — verileri ve MA seviyelerini yenile"
+            )
+        if command.name is CommandName.STATUS:
+            now = self._now()
+            return CommandReply(
+                "🤖 Borsapp çalışıyor\n"
+                f"Saat: {now.strftime('%d.%m.%Y %H:%M')} (Türkiye)\n"
+                "Komut alımı: etkin\n"
+                "Veri modeli: saklanmış sonuç + açıkça istenen yenileme"
+            )
+        if command.name is CommandName.CHART_HELP:
+            return CommandReply(
+                "Grafik kullanımı: /grafik ASELS\n"
+                "Günlük fiyat üzerinde trend, momentum, volatilite ve hacim "
+                "göstergelerini tek görselde üretir; sonuç Grafikler konusuna gelir."
             )
         symbol = command.args[0]
         force = any(argument.casefold() == "--force" for argument in command.args[1:])
@@ -108,7 +130,12 @@ class SymbolCommandService:
                 queued_job_id=job_id,
             )
 
-        if command.name in {CommandName.ANALYSIS, CommandName.CHART}:
+        if command.name in {
+            CommandName.ANALYSIS,
+            CommandName.REPORT,
+            CommandName.FUNDAMENTAL,
+            CommandName.CHART,
+        }:
             if self.job_queue is None:
                 return CommandReply("Uzun iş kuyruğu bu ortamda etkin değil.")
             job_id = self.job_queue.enqueue(
@@ -117,7 +144,12 @@ class SymbolCommandService:
                 requested_by=command.user_id,
                 requested_topic=command.topic_id,
             )
-            output_name = "araştırma analizi" if command.name is CommandName.ANALYSIS else "grafiği"
+            output_name = {
+                CommandName.ANALYSIS: "araştırma analizi",
+                CommandName.REPORT: "araştırma raporu",
+                CommandName.FUNDAMENTAL: "temel analiz kartı",
+                CommandName.CHART: "grafiği",
+            }[command.name]
             return CommandReply(
                 f"{symbol} {output_name} hazırlanmak üzere kuyruğa alındı. İş: {job_id}",
                 queued_job_id=job_id,
