@@ -1,0 +1,11 @@
+borsapp combines code migrated from repositories owned by Cengiz Karabulut:
+
+- taramabot
+- ma-reaction-scanner
+- market-telegram-suite
+- tradingview-haber-botu
+
+The `_legacy/` directory is retained temporarily for migration and behavioral
+comparison. Its presence does not relicense any code. Third-party Python
+packages, APIs, market data, news, Telegram, GitHub, and database services are
+governed by their respective licenses and terms.

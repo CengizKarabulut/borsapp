@@ -1,0 +1,19 @@
+source_repo,source_path,target_path,action,status,evidence
+taramabot,individual_scanners/,src/market_intelligence/scanning/signal/,MOVE,implemented,9 scanner bindings in scanning/catalog.py
+taramabot,scanner_legacy.py,src/market_intelligence/market_data/providers/borsapy.py,SPLIT,implemented,provider owns network access
+taramabot,bist_timeframes.py,src/market_intelligence/market_data/resampling.py,MERGE,implemented,canonical session anchored resampling
+taramabot,state_manager.py,src/market_intelligence/persistence/postgres/,REPLACE,implemented,watermarks states and outbox are PostgreSQL backed
+taramabot,decision_panel_v645_signal.py,src/market_intelligence/scanning/decision/panel_v645.py,MOVE,pending,production signal entry point
+taramabot,historical_decision_panel_v644.py,src/market_intelligence/features/decision.py,SPLIT,pending,decision indicator and scoring source
+taramabot,exit_engine.py,src/market_intelligence/features/risk.py,SPLIT,pending,setup-aware exit metrics
+ma-reaction-scanner,scanner/,src/market_intelligence/features/ma.py,MERGE,partial,qualification migrated; parity pending
+ma-reaction-scanner,scanner/,src/market_intelligence/scanning/ma/near_zone.py,SPLIT,implemented,event-state boundary
+market-telegram-suite,apps/technical_bot/src/screener.py,src/market_intelligence/scanning/technical/,SPLIT,implemented,7 legacy screens mapped to 7 scanners
+market-telegram-suite,apps/technical_bot/src/stock_dashboard.py,src/market_intelligence/features/technical.py,SPLIT,partial,scanner context migrated; research renderer remains vendor-backed
+market-telegram-suite,apps/chart_bot/,src/market_intelligence/research/technical/,VENDOR,pending,runtime still uses compatibility adapter
+market-telegram-suite,apps/research_bot/,src/market_intelligence/research/fundamental/,VENDOR,pending,runtime still uses compatibility adapter
+tradingview-haber-botu,kap.py,src/market_intelligence/news/kap.py,MOVE,implemented,canonical KAP ingestion
+tradingview-haber-botu,news_bot.py,src/market_intelligence/news/general.py,SPLIT,partial,general sources still load frozen legacy module
+tradingview-haber-botu,tv_news_bot.py,src/market_intelligence/news/tradingview.py,MOVE,pending,legacy source adapter remains
+all,telegram senders,src/market_intelligence/delivery/telegram/,MERGE,implemented,single listener router publisher and outbox
+all,mutable JSON state,src/market_intelligence/persistence/postgres/,REPLACE,implemented,canonical runtime persistence

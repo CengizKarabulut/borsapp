@@ -1,6 +1,5 @@
 .git
 .github
-_legacy
 .venv
 venv
 __pycache__
@@ -11,3 +10,8 @@ reports
 out
 tests
 scripts
+_legacy/taramabot
+_legacy/ma-reaction-scanner
+_legacy/market-telegram-suite/**/tests
+_legacy/tradingview-haber-botu/test_*.py
+_legacy/tradingview-haber-botu/*_cache.json

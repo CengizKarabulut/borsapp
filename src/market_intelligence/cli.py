@@ -42,6 +42,7 @@ from market_intelligence.features.momentum import (
     SmiProvider,
 )
 from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
+from market_intelligence.features.technical import TechnicalMarketContextProvider
 from market_intelligence.features.trend import (
     InclusiveVolumeSma10Provider,
     InclusiveVolumeSma20Provider,
@@ -68,6 +69,10 @@ from market_intelligence.persistence.postgres.confluence import PostgresConfluen
 from market_intelligence.persistence.postgres.ma_research import (
     PostgresMaQualificationSource,
     PostgresMaResearchStore,
+)
+from market_intelligence.persistence.postgres.migrations import (
+    apply_migrations,
+    migration_status,
 )
 from market_intelligence.persistence.postgres.news import PostgresNewsStore
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
@@ -101,12 +106,28 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("config-check", help="DB ve Telegram ayarlarını doğrula")
 
-    init = subparsers.add_parser("db-init", help="PostgreSQL şemasını idempotent kur")
-    init.add_argument(
-        "--schema",
-        type=Path,
-        default=Path("db/postgres/001_initial.sql"),
+    init = subparsers.add_parser(
+        "db-init",
+        help="Geriye uyumlu alias: bekleyen PostgreSQL migration'larını uygula",
     )
+    init.add_argument("--directory", type=Path, default=Path("db/postgres"))
+
+    migrate = subparsers.add_parser(
+        "db-migrate",
+        help="Bekleyen PostgreSQL migration'larını sırayla uygula",
+    )
+    migrate.add_argument("--directory", type=Path, default=Path("db/postgres"))
+    migrate.add_argument("--dry-run", action="store_true")
+    migrate.add_argument(
+        "--baseline",
+        help="Mevcut şemayı belirtilen migration sürümüne kadar uygulanmış say.",
+    )
+
+    version = subparsers.add_parser(
+        "db-version",
+        help="Uygulanmış ve bekleyen PostgreSQL migration sürümlerini göster",
+    )
+    version.add_argument("--directory", type=Path, default=Path("db/postgres"))
 
     once = subparsers.add_parser(
         "publisher-once",
@@ -276,7 +297,7 @@ def _connect(database_url: str):
         import psycopg
     except ImportError as exc:
         raise RuntimeError(
-            "psycopg kurulu değil; python -m pip install -e \".[runtime]\" çalıştırın"
+            'psycopg kurulu değil; python -m pip install -e ".[runtime]" çalıştırın'
         ) from exc
     return psycopg.connect(database_url, autocommit=True)
 
@@ -300,14 +321,35 @@ def _config_check(settings: ApplicationSettings) -> int:
     return 0
 
 
-def _db_init(settings: ApplicationSettings, schema_path: Path) -> int:
-    if not schema_path.is_file():
-        raise ValueError(f"Şema dosyası bulunamadı: {schema_path}")
-    sql = schema_path.read_text(encoding="utf-8")
+def _db_migrate(
+    settings: ApplicationSettings,
+    directory: Path,
+    *,
+    dry_run: bool = False,
+    baseline: str | None = None,
+) -> int:
     with _connect(settings.runtime.database_url) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(sql)
-    print("PostgreSQL şeması hazır.")
+        result = apply_migrations(
+            connection,
+            directory,
+            dry_run=dry_run,
+            baseline=baseline,
+        )
+    if dry_run:
+        pending = ", ".join(result.pending) or "yok"
+        print(f"Bekleyen migration: {pending}")
+    else:
+        applied = ", ".join(result.applied) or "yok"
+        print(f"PostgreSQL migration tamamlandı: uygulanan={applied}")
+    return 0
+
+
+def _db_version(settings: ApplicationSettings, directory: Path) -> int:
+    with _connect(settings.runtime.database_url) as connection:
+        result = migration_status(connection, directory)
+    applied = ", ".join(result.skipped) or "yok"
+    pending = ", ".join(result.pending) or "yok"
+    print(f"Uygulanmış migration: {applied}\nBekleyen migration: {pending}")
     return 0
 
 
@@ -373,9 +415,7 @@ def _listener(settings: ApplicationSettings, connection) -> TelegramListener:
     source = HttpxTelegramUpdateSource(settings.telegram.bot_token)
     telegram_settings = settings.telegram
     if telegram_settings.allow_chat_admins:
-        administrator_ids = source.fetch_chat_administrator_ids(
-            chat_id=telegram_settings.chat_id
-        )
+        administrator_ids = source.fetch_chat_administrator_ids(chat_id=telegram_settings.chat_id)
         telegram_settings = replace(
             telegram_settings,
             allowed_user_ids=telegram_settings.allowed_user_ids | administrator_ids,
@@ -515,6 +555,7 @@ def _feature_engine(connection) -> FeatureEngine:
         LegacyTrendMaProvider(),
         InclusiveVolumeSma10Provider(),
         InclusiveVolumeSma20Provider(),
+        TechnicalMarketContextProvider(),
         QualifiedMaResearchProvider(PostgresMaQualificationSource(connection)),
     ):
         registry.register(provider)
@@ -605,9 +646,7 @@ def _ma_research_universe(
         runtime = PostgresRuntimeRepository(connection)
         instruments = runtime.list_universe(universe_id, as_of=evaluation_time.date())
         if not instruments:
-            raise ValueError(
-                f"Universe boş: {universe_id}; önce universe-sync --apply çalıştırın"
-            )
+            raise ValueError(f"Universe boş: {universe_id}; önce universe-sync --apply çalıştırın")
         for instrument in instruments:
             try:
                 _stored, instrument_qualified = _research_instrument(
@@ -621,8 +660,7 @@ def _ma_research_universe(
             except Exception as exc:
                 failed += 1
                 print(
-                    f"MA Research hatası: {instrument.symbol} · "
-                    f"{type(exc).__name__}: {exc}",
+                    f"MA Research hatası: {instrument.symbol} · {type(exc).__name__}: {exc}",
                     file=sys.stderr,
                 )
             else:
@@ -717,8 +755,7 @@ def _scan_symbol(
                 finished_at=datetime.now(settings.runtime.timezone),
             )
     statuses = ", ".join(
-        f"{run.evaluation.scanner_id}={run.evaluation.status.value}"
-        for run in result.runs
+        f"{run.evaluation.scanner_id}={run.evaluation.status.value}" for run in result.runs
     )
     print(
         f"Tarama tamamlandı: {instrument.symbol} {timeframe.value} "
@@ -817,9 +854,7 @@ def _scan_worker(
 ) -> int:
     if poll_seconds < 5:
         raise ValueError("--poll-seconds en az 5 saniye olmalıdır")
-    timeframes = tuple(
-        part.strip() for part in timeframes_raw.split(",") if part.strip()
-    )
+    timeframes = tuple(part.strip() for part in timeframes_raw.split(",") if part.strip())
     if not timeframes:
         raise ValueError("--timeframes en az bir değer içermelidir")
     for value in timeframes:
@@ -1119,8 +1154,7 @@ def _news_general_sync(
             except Exception as exc:
                 failed += 1
                 print(
-                    f"Genel haber kaynağı hatası ({source}): "
-                    f"{type(exc).__name__}: {exc}",
+                    f"Genel haber kaynağı hatası ({source}): {type(exc).__name__}: {exc}",
                     file=sys.stderr,
                 )
                 continue
@@ -1189,9 +1223,7 @@ def _telegram_smoke_symbol(
                 args=arguments,
             )
             reply = service.handle(command)
-            rendered_command = f"/{name.value}" + (
-                f" {' '.join(arguments)}" if arguments else ""
-            )
+            rendered_command = f"/{name.value}" + (f" {' '.join(arguments)}" if arguments else "")
             for part, text in enumerate(reply.messages, 1):
                 reply_topic_kind = {
                     CommandName.SCAN: TopicKind.SCANS,
@@ -1227,7 +1259,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "config-check":
             return _config_check(settings)
         if args.command == "db-init":
-            return _db_init(settings, args.schema)
+            return _db_migrate(settings, args.directory)
+        if args.command == "db-migrate":
+            return _db_migrate(
+                settings,
+                args.directory,
+                dry_run=args.dry_run,
+                baseline=args.baseline,
+            )
+        if args.command == "db-version":
+            return _db_version(settings, args.directory)
         if args.command == "publisher-once":
             return _publisher_once(settings, limit=args.limit)
         if args.command == "publisher-loop":

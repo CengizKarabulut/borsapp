@@ -9,6 +9,12 @@ taramabot,S-M-V-2,SMI MACD Full,signal.smi_macd_full,legacy_to_new,verified_code
 taramabot,S-M-2,SMI MACD Erken,signal.smi_macd_early,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:35
 taramabot,R-V-1,RSI Momentum,signal.rsi_momentum_volume,legacy_to_new,verified_code,_legacy/taramabot/performance_report.py:39
 market-telegram-suite,hacim_patlamasi,Hacim patlaması,technical.volume_spike,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:266
+market-telegram-suite,sikisma_hacim,Sıkışma + hacim,technical.squeeze_volume,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:260
+market-telegram-suite,asiri_bolge,Uç RSI bölgesi,technical.extreme_rsi,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:272
+market-telegram-suite,basarisiz_kirilim,Başarısız kırılım,technical.failed_breakout,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:278
+market-telegram-suite,karar_bolgesi,Karar bölgesi,technical.decision_zone,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:284
+market-telegram-suite,trend_devami,Trend devamı,technical.trend_continuation,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:290
+market-telegram-suite,tukenme,Tükenme denemesi,technical.exhaustion,legacy_to_new,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:296
 taramabot,M-1,MACD Pozitif Kesişim,signal.macd_positive_cross,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:36
 taramabot,S-M-1,SMI MACD Momentum,signal.smi_macd_positive,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:37
 taramabot,S-M-V-1,SMI MACD Güçlü Onay,signal.smi_macd_positive_volume_confirmed,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:38
@@ -19,3 +25,9 @@ taramabot,S-M-V-2,SMI MACD Full,signal.smi_macd_full,new_to_legacy,verified_code
 taramabot,S-M-2,SMI MACD Erken,signal.smi_macd_early,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:31
 taramabot,R-V-1,RSI Momentum,signal.rsi_momentum_volume,new_to_legacy,verified_code,_legacy/taramabot/main_legacy.py:32
 market-telegram-suite,hacim_patlamasi,Hacim patlaması,technical.volume_spike,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:269
+market-telegram-suite,sikisma_hacim,Sıkışma + hacim,technical.squeeze_volume,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:263
+market-telegram-suite,asiri_bolge,Uç RSI bölgesi,technical.extreme_rsi,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:275
+market-telegram-suite,basarisiz_kirilim,Başarısız kırılım,technical.failed_breakout,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:282
+market-telegram-suite,karar_bolgesi,Karar bölgesi,technical.decision_zone,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:288
+market-telegram-suite,trend_devami,Trend devamı,technical.trend_continuation,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:294
+market-telegram-suite,tukenme,Tükenme denemesi,technical.exhaustion,new_to_legacy,verified_code,_legacy/market-telegram-suite/apps/technical_bot/src/screener.py:300

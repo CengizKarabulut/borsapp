@@ -362,6 +362,12 @@ _SCANNER_LABELS = {
     "signal.smi_macd_full": "SMI + MACD tam sinyal",
     "signal.smi_macd_positive": "SMI + MACD pozitif",
     "signal.smi_macd_positive_volume_confirmed": "SMI + MACD + hacim onayı",
+    "technical.decision_zone": "Karar bölgesi",
+    "technical.exhaustion": "Tükenme denemesi",
+    "technical.extreme_rsi": "Aşırı RSI bölgesi",
+    "technical.failed_breakout": "Başarısız kırılım",
+    "technical.squeeze_volume": "Sıkışma + hacim",
+    "technical.trend_continuation": "Trend devamı",
     "technical.volume_spike": "Hacim artışı",
 }
 

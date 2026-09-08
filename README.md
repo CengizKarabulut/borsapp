@@ -48,15 +48,28 @@ Kullanıcı kurulumları:
 - [GitHub Actions ve repo ayarları](docs/setup/github.md)
 - [Çalıştırma, shadow ve canlıya geçiş](docs/setup/operations.md)
 
-İlk taşınan dikey dilim `technical.volume_spike` scanner'ıdır. Pilot kuralları
-[config/scanners.toml](config/scanners.toml), MACD referans kararı ise
-[ADR-0001](docs/adr/0001-macd-reference-implementation.md) içindedir.
+Tarayıcı kuralları [config/scanners.toml](config/scanners.toml), MACD referans
+kararı ise [ADR-0001](docs/adr/0001-macd-reference-implementation.md) içindedir.
+Katalog bugün 9 SIGNAL, 7 TECHNICAL ve 1 MA tarayıcısı içerir. Bu sayı, parity
+kanıtı veya legacy'nin kaldırıldığı anlamına gelmez; aşağıdaki tablo bu ayrımı
+açıkça gösterir.
 
 ## Güncel göç durumu
 
+| Alan | Çalışan durum | Kalan doğrulama / göç |
+| --- | --- | --- |
+| SIGNAL | 9 scanner canonical motor üzerinde | Gerçek legacy adapterleri ve kalıcı parity raporu |
+| TECHNICAL | Legacy screener'daki 7 ekran canonical motor üzerinde | Shadow parity; araştırma/grafik vendor kodunun ayrıştırılması |
+| MA | Live state ve günlük research seviyeleri | Legacy parity ve ortak ATR FeatureSpec ayrıştırması |
+| Telegram | Tek bot, topic routing, listener, outbox ve uzun iş kuyruğu | Kalıcı hosta geçiş ve sağlık gözlemi |
+| Haber | KAP canonical; genel haber compatibility adapteriyle çalışıyor | Genel haber kaynaklarını legacy importundan kurtarma |
+| Veritabanı | Sıralı/checksum'lı migration runner | Üretim migration gözlemi ve yedekleme prosedürü |
+| KARAR | Legacy kaynak korunuyor | `decision.panel_v645` henüz canonical scanner değil |
+| Sonuç ölçümü | Şema hazır | Outcome backfill/report henüz yok |
+
 - [x] Canonical bar ve snapshot kimliği
 - [x] Feature registry ve snapshot-aware cache
-- [x] İlk scanner: `technical.volume_spike`
+- [x] TECHNICAL ailesindeki yedi legacy ekranın canonical scanner karşılığı
 - [x] BIST seans çıpalı kapanışlar ve watermark catch-up
 - [x] Event + Telegram outbox atomik PostgreSQL adapter'ı
 - [x] Tek bot / çok topic yönlendirme sözleşmesi
@@ -87,5 +100,9 @@ Kullanıcı kurulumları:
       topic ayrımıyla taşınması
 - [ ] Kaynak repolarda bulunmayan aracı kurum PDF/bülten sağlayıcısının ayrı
       entegrasyon olarak eklenmesi
+- [ ] Gerçek legacy kodunu aynı snapshot üzerinde çalıştıran tam shadow/parity hattı
+- [ ] KARAR v6.4.5 ailesinin canonical scanner olarak taşınması
+- [ ] Compatibility katmanındaki araştırma, grafik ve genel haber kodunun ayrıştırılması
+- [ ] Sonuç/backfill ölçümü ve corporate action veri akışı
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.

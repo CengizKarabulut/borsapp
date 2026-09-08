@@ -34,6 +34,15 @@ from market_intelligence.scanning.signal.trend_volume import (
     SmaMacdVolumeScanner,
     TrendVolumeConfig,
 )
+from market_intelligence.scanning.technical.market_screens import (
+    DecisionZoneScanner,
+    ExhaustionScanner,
+    ExtremeRsiScanner,
+    FailedBreakoutScanner,
+    SqueezeVolumeScanner,
+    TechnicalScreenConfig,
+    TrendContinuationScanner,
+)
 from market_intelligence.scanning.technical.volume_spike import (
     TechnicalVolumeSpikeScanner,
     VolumeSpikeConfig,
@@ -125,6 +134,36 @@ def load_scanner_catalog(
                 calendar_version=calendar_version,
             )
         )
+
+    for scanner_type in (
+        SqueezeVolumeScanner,
+        ExtremeRsiScanner,
+        FailedBreakoutScanner,
+        DecisionZoneScanner,
+        TrendContinuationScanner,
+        ExhaustionScanner,
+    ):
+        technical_section = _section(document, scanner_type.id)
+        technical_config = TechnicalScreenConfig(
+            minimum_average_turnover=float(
+                technical_section["minimum_average_turnover"]
+            ),
+            minimum_price=float(technical_section["minimum_price"]),
+            bb_rank_max=float(technical_section["bb_rank_max"]),
+            squeeze_rvol_min=float(technical_section["squeeze_rvol_min"]),
+            extreme_rvol_min=float(technical_section["extreme_rvol_min"]),
+            trend_adx_min=float(technical_section["trend_adx_min"]),
+            trend_rvol_min=float(technical_section["trend_rvol_min"]),
+        )
+        if bool(technical_section.get("enabled", True)):
+            bindings.append(
+                _binding(
+                    scanner_type(technical_config),
+                    technical_config,
+                    technical_section,
+                    calendar_version=calendar_version,
+                )
+            )
 
     macd_section = _section(document, MacdPositiveCrossScanner.id)
     macd_config = MacdPositiveCrossConfig(

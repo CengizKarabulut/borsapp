@@ -15,6 +15,12 @@ class ScannerCatalogTests(unittest.TestCase):
         self.assertEqual(
             {binding.scanner.id for binding in bindings},
             {
+                "technical.decision_zone",
+                "technical.exhaustion",
+                "technical.extreme_rsi",
+                "technical.failed_breakout",
+                "technical.squeeze_volume",
+                "technical.trend_continuation",
                 "technical.volume_spike",
                 "signal.macd_positive_cross",
                 "signal.smi_macd_positive",
