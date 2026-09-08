@@ -29,7 +29,7 @@ class TelegramUpdateRepository(Protocol):
         self,
         *,
         update_id: int,
-        envelope: OutboxEnvelope | None,
+        envelopes: tuple[OutboxEnvelope, ...],
     ) -> None: ...
 
 
@@ -75,24 +75,28 @@ class TelegramListener:
                 ignored += 1
                 continue
             command = self.parser.parse(update, self.settings)
-            envelope = None
+            envelopes: tuple[OutboxEnvelope, ...] = ()
             if command is None:
                 ignored += 1
             else:
                 if self.settings.delivery_mode is DeliveryMode.LIVE:
                     reply = self.command_service.handle(command)
-                    envelope = self.router.route(
-                        publication_kind=PublicationKind.COMMAND_REPLY,
-                        semantic_identity={
-                            "update_id": update_id,
-                            "message_id": command.message_id,
-                            "command": command.name.value,
-                        },
-                        payload={"text": reply.text},
-                        origin_topic_id=command.topic_id,
+                    envelopes = tuple(
+                        self.router.route(
+                            publication_kind=PublicationKind.COMMAND_REPLY,
+                            semantic_identity={
+                                "update_id": update_id,
+                                "message_id": command.message_id,
+                                "command": command.name.value,
+                                "part": part,
+                            },
+                            payload={"text": text},
+                            origin_topic_id=command.topic_id,
+                        )
+                        for part, text in enumerate(reply.messages, 1)
                     )
                 accepted += 1
-            self.repository.commit_update(update_id=update_id, envelope=envelope)
+            self.repository.commit_update(update_id=update_id, envelopes=envelopes)
             offset = update_id + 1
         ignored += len(received) - len(updates)
         return ListenerBatchResult(len(received), accepted, ignored)

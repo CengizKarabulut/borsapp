@@ -4,7 +4,11 @@ import unittest
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from market_intelligence.application.symbol_commands import SymbolCommandService, SymbolSnapshot
+from market_intelligence.application.symbol_commands import (
+    CommandReply,
+    SymbolCommandService,
+    SymbolSnapshot,
+)
 from market_intelligence.application.telegram_listener import TelegramListener
 from market_intelligence.delivery.telegram.config import DeliveryMode, TelegramSettings, TopicKind
 
@@ -27,8 +31,8 @@ class FakeRepository:
     def next_offset(self) -> int:
         return self.offset
 
-    def commit_update(self, *, update_id: int, envelope) -> None:
-        self.committed.append((update_id, envelope))
+    def commit_update(self, *, update_id: int, envelopes) -> None:
+        self.committed.append((update_id, envelopes))
         self.offset = max(self.offset, update_id + 1)
 
 
@@ -41,6 +45,11 @@ class FakeSymbolStore:
         if symbol != "ASELS":
             return None
         return SymbolSnapshot("instrument-1", "ASELS")
+
+
+class MultipartCommandService:
+    def handle(self, command):
+        return CommandReply("Birinci parça", additional_texts=("İkinci parça",))
 
 
 def settings(mode: DeliveryMode = DeliveryMode.LIVE) -> TelegramSettings:
@@ -81,8 +90,10 @@ class TelegramListenerTests(unittest.TestCase):
         result = listener.run_once(timeout_seconds=0)
 
         self.assertEqual(result.accepted, 1)
-        update_id, envelope = repository.committed[0]
+        update_id, envelopes = repository.committed[0]
         self.assertEqual(update_id, 7)
+        self.assertEqual(len(envelopes), 1)
+        envelope = envelopes[0]
         self.assertEqual(envelope.message_thread_id, settings().topic_id(TopicKind.COMMAND))
         self.assertIn("ASELS", envelope.payload["text"])
 
@@ -98,7 +109,7 @@ class TelegramListenerTests(unittest.TestCase):
         result = listener.run_once(timeout_seconds=0)
 
         self.assertEqual(result.ignored, 1)
-        self.assertEqual(repository.committed, [(8, None)])
+        self.assertEqual(repository.committed, [(8, ())])
 
     def test_disabled_mode_checkpoints_command_without_stale_reply_backlog(self) -> None:
         repository = FakeRepository()
@@ -113,8 +124,27 @@ class TelegramListenerTests(unittest.TestCase):
         result = listener.run_once(timeout_seconds=0)
 
         self.assertEqual(result.accepted, 1)
-        self.assertEqual(repository.committed, [(9, None)])
+        self.assertEqual(repository.committed, [(9, ())])
         self.assertEqual(store.calls, 0)
+
+    def test_multipart_reply_is_committed_as_distinct_outbox_messages(self) -> None:
+        repository = FakeRepository()
+        listener = TelegramListener(
+            settings=settings(),
+            source=FakeSource([update(10, text="/haber ASELS")]),
+            repository=repository,
+            command_service=MultipartCommandService(),
+        )
+
+        result = listener.run_once(timeout_seconds=0)
+
+        self.assertEqual(result.accepted, 1)
+        _, envelopes = repository.committed[0]
+        self.assertEqual(
+            [item.payload["text"] for item in envelopes],
+            ["Birinci parça", "İkinci parça"],
+        )
+        self.assertNotEqual(envelopes[0].semantic_key, envelopes[1].semantic_key)
 
 
 if __name__ == "__main__":

@@ -80,6 +80,11 @@ deposuna yazar ve bir bildirimi birden fazla BIST hissesine bağlayabilir. İlk
 göndermez. `--notify` yalnız `DELIVERY_MODE=live` iken kabul edilir ve yeni,
 BIST ile eşleşmiş bildirimleri `TELEGRAM_TOPIC_NEWS` konusuna bırakır.
 
+`/haber SYMBOL` komutu çalıştırıldığı Türkiye gününe ait saklanmış tüm KAP
+bildirimlerini ve daha eski tarihlerden yalnızca en yeni üç bildirimi getirir.
+Telegram mesaj sınırı aşılırsa sonuç, hiçbir bildirim atılmadan ardışık
+mesajlara bölünür.
+
 GitHub Actions zamanlaması varsayılan olarak kapalıdır. Hazır olduğunda
 `ENABLE_SCHEDULED_NEWS=true` tanımlanır. Bildirimleri açmak ayrıca
 `NEWS_DELIVERY_MODE=live` gerektirir; bu ikinci anahtar eklenmedikçe iş yalnız

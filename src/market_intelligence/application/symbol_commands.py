@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 
 from market_intelligence.core.enums import Direction, EvaluationStatus
@@ -32,6 +33,7 @@ class StoredNews:
     headline: str
     published_at: datetime
     url: str | None = None
+    source: str = "kap"
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,11 @@ class LongJobQueue(Protocol):
 class CommandReply:
     text: str
     queued_job_id: str | None = None
+    additional_texts: tuple[str, ...] = ()
+
+    @property
+    def messages(self) -> tuple[str, ...]:
+        return (self.text, *self.additional_texts)
 
 
 class SymbolCommandService:
@@ -71,9 +78,11 @@ class SymbolCommandService:
         self,
         store: SymbolReadStore,
         job_queue: LongJobQueue | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.store = store
         self.job_queue = job_queue
+        self.clock = clock or (lambda: datetime.now(UTC))
 
     def handle(self, command: IncomingCommand) -> CommandReply:
         if command.name is CommandName.HELP:
@@ -110,7 +119,8 @@ class SymbolCommandService:
         if command.name is CommandName.SCANS:
             return CommandReply(self._scans(snapshot))
         if command.name is CommandName.NEWS:
-            return CommandReply(self._news(snapshot))
+            chunks = self._news(snapshot)
+            return CommandReply(chunks[0], additional_texts=chunks[1:])
         artifact_kind = "analysis" if command.name is CommandName.ANALYSIS else "chart"
         return CommandReply(self._artifact(snapshot, artifact_kind))
 
@@ -159,17 +169,59 @@ class SymbolCommandService:
         suffix = f"\n{artifact.uri}" if artifact.uri else ""
         return f"{snapshot.symbol} · {artifact.summary}{suffix}"
 
-    @staticmethod
-    def _news(snapshot: SymbolSnapshot) -> str:
-        if not snapshot.news:
-            return f"{snapshot.symbol} için saklanmış haber yok."
-        lines = [f"{snapshot.symbol} · son haberler"]
-        for item in sorted(
-            snapshot.news,
+    def _news(self, snapshot: SymbolSnapshot) -> tuple[str, ...]:
+        kap_items = sorted(
+            (item for item in snapshot.news if item.source == "kap"),
             key=lambda news: news.published_at,
             reverse=True,
-        )[:5]:
-            lines.append(f"- {item.published_at.date().isoformat()} · {item.headline}")
+        )
+        if not kap_items:
+            return (f"{snapshot.symbol} için saklanmış KAP bildirimi yok.",)
+        now = self.clock()
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("Komut saati timezone-aware olmalıdır")
+        today = now.date()
+        today_items = [
+            item
+            for item in kap_items
+            if item.published_at.astimezone(now.tzinfo).date() == today
+        ]
+        previous_items = [
+            item
+            for item in kap_items
+            if item.published_at.astimezone(now.tzinfo).date() < today
+        ][:3]
+        selected = (*today_items, *previous_items)
+        if not selected:
+            return (f"{snapshot.symbol} için bugüne kadar saklanmış KAP bildirimi yok.",)
+        header = (
+            f"{snapshot.symbol} · bugün {len(today_items)} KAP"
+            f" · önceki {len(previous_items)} KAP"
+        )
+        entries = []
+        for item in selected:
+            timestamp = item.published_at.astimezone(now.tzinfo).strftime("%d.%m.%Y %H:%M")
+            entry = f"- {timestamp} · {item.headline}"
             if item.url:
-                lines.append(f"  {item.url}")
-        return "\n".join(lines)
+                entry += f"\n  {item.url}"
+            entries.append(entry)
+        return self._chunk_lines(header, entries)
+
+    @staticmethod
+    def _chunk_lines(
+        header: str,
+        entries: list[str],
+        *,
+        limit: int = 3900,
+    ) -> tuple[str, ...]:
+        chunks: list[str] = []
+        current = header
+        for entry in entries:
+            candidate = f"{current}\n{entry}"
+            if len(candidate) <= limit:
+                current = candidate
+                continue
+            chunks.append(current)
+            current = f"{header} · devam\n{entry}"
+        chunks.append(current)
+        return tuple(chunks)

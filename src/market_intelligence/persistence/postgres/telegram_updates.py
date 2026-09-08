@@ -53,11 +53,11 @@ class PostgresTelegramUpdateRepository:
         self,
         *,
         update_id: int,
-        envelope: OutboxEnvelope | None,
+        envelopes: tuple[OutboxEnvelope, ...],
     ) -> None:
         with self.connection.transaction():
             with self.connection.cursor() as cursor:
-                if envelope is not None:
+                for envelope in envelopes:
                     payload: dict[str, Any] = {
                         "publication_kind": envelope.publication_kind.value,
                         "chat_id": envelope.chat_id,

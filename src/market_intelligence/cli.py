@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 import time
+import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,10 +22,11 @@ from market_intelligence.application.scheduled_scan import (
 from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.application.telegram_listener import TelegramListener
 from market_intelligence.core.timeframes import parse_timeframe
-from market_intelligence.delivery.telegram.commands import CommandName
-from market_intelligence.delivery.telegram.config import DeliveryMode
+from market_intelligence.delivery.telegram.commands import CommandName, IncomingCommand
+from market_intelligence.delivery.telegram.config import DeliveryMode, TopicKind
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.delivery.telegram.publisher import TelegramPublisher
+from market_intelligence.delivery.telegram.routing import PublicationKind, TopicRouter
 from market_intelligence.delivery.telegram.updates import HttpxTelegramUpdateSource
 from market_intelligence.features.ma import QualifiedMaResearchProvider
 from market_intelligence.features.momentum import (
@@ -225,6 +227,17 @@ def _parser() -> argparse.ArgumentParser:
     )
     news_kap.add_argument("--lookback-days", type=int, default=1)
     news_kap.add_argument("--notify", action="store_true")
+
+    telegram_smoke = subparsers.add_parser(
+        "telegram-smoke-symbol",
+        help="Bir sembol için tüm Telegram komut yanıtlarını canlı kuyruğa yaz",
+    )
+    telegram_smoke.add_argument("symbol")
+    telegram_smoke.add_argument(
+        "--confirm-live",
+        action="store_true",
+        help="Gerçek Telegram grubuna mesaj gönderimini açıkça onaylar.",
+    )
     return parser
 
 
@@ -334,6 +347,7 @@ def _listener(settings: ApplicationSettings, connection) -> TelegramListener:
         command_service=SymbolCommandService(
             PostgresSymbolReadStore(connection),
             PostgresLongJobQueue(connection),
+            clock=lambda: datetime.now(settings.runtime.timezone),
         ),
     )
 
@@ -917,6 +931,74 @@ def _news_kap_sync(
     return 0
 
 
+def _telegram_smoke_symbol(
+    settings: ApplicationSettings,
+    *,
+    symbol: str,
+    confirm_live: bool,
+) -> int:
+    if settings.telegram.delivery_mode is not DeliveryMode.LIVE or not confirm_live:
+        raise ValueError(
+            "Canlı deneme için DELIVERY_MODE=live ve --confirm-live birlikte gereklidir"
+        )
+    canonical = symbol.strip().upper()
+    if not canonical:
+        raise ValueError("Sembol boş olamaz")
+    run_id = str(uuid.uuid4())
+    topic_id = settings.telegram.topic_id(TopicKind.COMMAND)
+    user_id = min(settings.telegram.allowed_user_ids)
+    specifications = (
+        (CommandName.HELP, ()),
+        (CommandName.SCAN, (canonical,)),
+        (CommandName.SCANS, (canonical,)),
+        (CommandName.NEWS, (canonical,)),
+        (CommandName.ANALYSIS, (canonical,)),
+        (CommandName.CHART, (canonical,)),
+        (CommandName.SCAN, (canonical, "--FORCE")),
+    )
+    with _connect(settings.runtime.database_url) as connection:
+        service = SymbolCommandService(
+            PostgresSymbolReadStore(connection),
+            PostgresLongJobQueue(connection),
+            clock=lambda: datetime.now(settings.runtime.timezone),
+        )
+        router = TopicRouter(settings.telegram)
+        envelopes = []
+        for command_index, (name, arguments) in enumerate(specifications, 1):
+            command = IncomingCommand(
+                update_id=-command_index,
+                message_id=-command_index,
+                user_id=user_id,
+                chat_id=settings.telegram.chat_id,
+                topic_id=topic_id,
+                name=name,
+                args=arguments,
+            )
+            reply = service.handle(command)
+            rendered_command = f"/{name.value}" + (
+                f" {' '.join(arguments)}" if arguments else ""
+            )
+            for part, text in enumerate(reply.messages, 1):
+                envelopes.append(
+                    router.route(
+                        publication_kind=PublicationKind.COMMAND_REPLY,
+                        semantic_identity={
+                            "smoke_run_id": run_id,
+                            "command": rendered_command,
+                            "part": part,
+                        },
+                        payload={"text": f"🧪 {rendered_command}\n\n{text}"},
+                        origin_topic_id=topic_id,
+                    )
+                )
+        inserted = PostgresOutboxRepository(connection).enqueue(tuple(envelopes))
+    print(
+        f"Telegram ASELS komut denemesi kuyruğa yazıldı: "
+        f"symbol={canonical}, messages={inserted}, run_id={run_id}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -1017,6 +1099,12 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 lookback_days=args.lookback_days,
                 notify=args.notify,
+            )
+        if args.command == "telegram-smoke-symbol":
+            return _telegram_smoke_symbol(
+                settings,
+                symbol=args.symbol,
+                confirm_live=args.confirm_live,
             )
     except (RuntimeError, ValueError) as exc:
         print(f"Hata: {exc}", file=sys.stderr)

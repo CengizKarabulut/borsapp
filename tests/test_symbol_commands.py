@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from market_intelligence.application.symbol_commands import (
     StoredNews,
@@ -135,6 +136,73 @@ class SymbolCommandServiceTests(unittest.TestCase):
             command(CommandName.NEWS, "ASELS")
         )
         self.assertIn("https://example.com", reply.text)
+
+    def test_news_returns_all_kap_from_local_day_and_only_three_older(self) -> None:
+        timezone = ZoneInfo("Europe/Istanbul")
+        now = datetime(2026, 9, 8, 15, 30, tzinfo=timezone)
+        source = snapshot()
+        today_items = tuple(
+            StoredNews(
+                f"Bugünün KAP bildirimi {index}",
+                now - timedelta(hours=index),
+                f"https://example.com/today/{index}",
+            )
+            for index in range(1, 6)
+        )
+        older_items = tuple(
+            StoredNews(
+                f"Eski KAP bildirimi {index}",
+                now - timedelta(days=index),
+                f"https://example.com/old/{index}",
+            )
+            for index in range(1, 6)
+        )
+        non_kap = StoredNews("Başka kaynak", now, source="other")
+        news_snapshot = SymbolSnapshot(
+            source.instrument_id,
+            source.symbol,
+            news=(*today_items, *older_items, non_kap),
+        )
+
+        reply = SymbolCommandService(
+            FakeStore(news_snapshot),
+            clock=lambda: now,
+        ).handle(command(CommandName.NEWS, "ASELS"))
+        combined = "\n".join(reply.messages)
+
+        self.assertIn("bugün 5 KAP · önceki 3 KAP", combined)
+        for index in range(1, 6):
+            self.assertIn(f"Bugünün KAP bildirimi {index}", combined)
+        for index in range(1, 4):
+            self.assertIn(f"Eski KAP bildirimi {index}", combined)
+        self.assertNotIn("Eski KAP bildirimi 4", combined)
+        self.assertNotIn("Eski KAP bildirimi 5", combined)
+        self.assertNotIn("Başka kaynak", combined)
+
+    def test_news_chunks_preserve_all_selected_disclosures(self) -> None:
+        timezone = ZoneInfo("Europe/Istanbul")
+        now = datetime(2026, 9, 8, 15, 30, tzinfo=timezone)
+        source = snapshot()
+        items = tuple(
+            StoredNews(
+                f"KAP-{index:02d}-" + ("X" * 700),
+                now - timedelta(minutes=index),
+                f"https://example.com/{index}",
+            )
+            for index in range(12)
+        )
+        news_snapshot = SymbolSnapshot(source.instrument_id, source.symbol, news=items)
+
+        reply = SymbolCommandService(
+            FakeStore(news_snapshot),
+            clock=lambda: now,
+        ).handle(command(CommandName.NEWS, "ASELS"))
+        combined = "\n".join(reply.messages)
+
+        self.assertGreater(len(reply.messages), 1)
+        self.assertTrue(all(len(message) <= 3900 for message in reply.messages))
+        for index in range(12):
+            self.assertIn(f"KAP-{index:02d}-", combined)
 
 
 if __name__ == "__main__":

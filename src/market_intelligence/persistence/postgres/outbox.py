@@ -4,13 +4,18 @@ import json
 from datetime import datetime, timedelta
 from typing import Any, Protocol
 
+from market_intelligence.core.identity import canonical_json
 from market_intelligence.delivery.telegram.publisher import PendingTelegramMessage
+from market_intelligence.delivery.telegram.routing import OutboxEnvelope
+from market_intelligence.persistence.postgres.scan_store import OUTBOX_SQL
 
 
 class Cursor(Protocol):
     def execute(self, query: str, params: tuple[Any, ...]) -> Any: ...
 
     def fetchall(self) -> list[tuple[Any, ...]]: ...
+
+    def fetchone(self) -> tuple[Any, ...] | None: ...
 
     def __enter__(self) -> Cursor: ...
 
@@ -67,6 +72,31 @@ class PostgresOutboxRepository:
     def __init__(self, connection: Connection, *, lease_minutes: int = 5) -> None:
         self.connection = connection
         self.lease_minutes = lease_minutes
+
+    def enqueue(self, envelopes: tuple[OutboxEnvelope, ...]) -> int:
+        inserted = 0
+        with self.connection.transaction():
+            with self.connection.cursor() as cursor:
+                for envelope in envelopes:
+                    payload = {
+                        "publication_kind": envelope.publication_kind.value,
+                        "chat_id": envelope.chat_id,
+                        "message_thread_id": envelope.message_thread_id,
+                        "message": envelope.payload,
+                    }
+                    cursor.execute(
+                        OUTBOX_SQL,
+                        (
+                            envelope.semantic_key,
+                            envelope.publication_kind.value,
+                            envelope.topic_kind.value,
+                            envelope.chat_id,
+                            envelope.message_thread_id,
+                            canonical_json(payload),
+                        ),
+                    )
+                    inserted += int(cursor.fetchone() is not None)
+        return inserted
 
     def claim(
         self,

@@ -54,12 +54,11 @@ LIMIT 20
 """
 
 NEWS_SQL = """
-SELECT DISTINCT n.headline, n.published_at, n.url
+SELECT DISTINCT n.headline, n.published_at, n.url, n.source
 FROM news_items n
 LEFT JOIN news_item_instruments link ON link.news_id = n.news_id
 WHERE n.instrument_id = %s OR link.instrument_id = %s
 ORDER BY n.published_at DESC
-LIMIT 20
 """
 
 ENQUEUE_SQL = """
@@ -98,7 +97,8 @@ class PostgresSymbolReadStore:
             )
             cursor.execute(NEWS_SQL, (instrument_id, instrument_id))
             news = tuple(
-                StoredNews(str(row[0]), row[1], row[2]) for row in cursor.fetchall()
+                StoredNews(str(row[0]), row[1], row[2], str(row[3]))
+                for row in cursor.fetchall()
             )
         return SymbolSnapshot(instrument_id, canonical_symbol, results, artifacts, news)
 
