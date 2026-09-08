@@ -64,8 +64,8 @@ jobs:
           fi
           deadline=$((SECONDS + duration))
           while [ "$SECONDS" -lt "$deadline" ]; do
-            borsapp publisher-once --limit 50
-            borsapp listener-once --timeout 20
-            borsapp command-worker-once --timeframe 1h --bars 250
-            borsapp publisher-once --limit 50
+            borsapp publisher-once --limit 50 || true
+            borsapp listener-once --timeout 20 || true
+            borsapp command-worker-once --timeframe 1h --bars 250 || true
+            borsapp publisher-once --limit 50 || true
           done

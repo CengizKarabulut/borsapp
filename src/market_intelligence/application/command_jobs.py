@@ -71,8 +71,10 @@ class CommandJobRunner:
             self.executor(job)
         except Exception as exc:
             error = f"{type(exc).__name__}: {str(exc)[:500]}"
-        if job.command in {CommandName.ANALYSIS, CommandName.REPORT}:
+        if job.command is CommandName.ANALYSIS:
             success_text = f"{job.symbol} analizi tamamlandı; Analizler konusuna gönderildi."
+        elif job.command is CommandName.REPORT:
+            success_text = f"{job.symbol} raporu tamamlandı; Raporlar konusuna gönderildi."
         elif job.command is CommandName.FUNDAMENTAL:
             success_text = (
                 f"{job.symbol} temel analizi tamamlandı; Analizler konusuna gönderildi."

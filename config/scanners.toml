@@ -21,7 +21,7 @@ accepted_level_classes = ["strong_level", "level"]
 maximum_levels_per_side = 2
 partial_bar_policy = "drop"
 shadow_timeframes = ["1h", "4h", "1d", "1wk", "1mo"]
-notification_timeframes = ["4h", "1d"]
+notification_timeframes = ["1h", "4h", "1d"]
 
 [signal.macd_positive_cross]
 enabled = true

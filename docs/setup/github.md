@@ -17,11 +17,13 @@ ancak ortamlar arasında değiştiğinden Actions **Variables** altında tutulur
 - `TELEGRAM_ALLOWED_USERS`
 - `TELEGRAM_ALLOW_CHAT_ADMINS=true`: Komut Merkezi'nde grup yöneticilerini
   dinamik olarak yetkilendirir; yanlış statik kullanıcı ID'sinin botu kilitlemesini önler
+- `TELEGRAM_ALLOW_CHAT_MEMBERS=true`: yalnız yapılandırılmış özel gruptaki tüm
+  üyelerin komut vermesine izin verir; başka gruplar kabul edilmez
 - sekiz adet `TELEGRAM_TOPIC_...` değeri
 
-İlk shadow döneminde Telegram teslimatı kapalı tutulmalıdır. Canlı yayın için
-ayrıca daha sonra eklenecek `DELIVERY_MODE=live` kapısı açılır; sadece secret
-eklemek yayını başlatmamalıdır.
+Canlı zamanlanmış tarama yalnız `1h`, `4h` ve `1d` sonuçlarını Taramalar
+konusuna yollar. `15m`, `30m`, `45m` ve `2h` hesaplanır ve saklanır fakat
+Telegram'a yayınlanmaz.
 
 ## Repo ayarları
 

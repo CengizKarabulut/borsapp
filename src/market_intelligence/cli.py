@@ -882,10 +882,17 @@ def _command_job_executor(
             )
             return
         target = Path("runtime_artifacts") / job.job_id / job.command.value
-        if job.command in {CommandName.ANALYSIS, CommandName.REPORT}:
+        if job.command is CommandName.ANALYSIS:
             generate_and_send_research(
                 symbol=job.symbol,
                 topic_id=settings.telegram.topic_id(TopicKind.ANALYSIS),
+                target=target,
+            )
+            return
+        if job.command is CommandName.REPORT:
+            generate_and_send_research(
+                symbol=job.symbol,
+                topic_id=settings.telegram.topic_id(TopicKind.REPORTS),
                 target=target,
             )
             return

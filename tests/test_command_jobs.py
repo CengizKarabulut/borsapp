@@ -145,6 +145,18 @@ class CommandJobRunnerTests(unittest.TestCase):
 
         self.assertIn("/taramalar ASELS", repository.finished[0]["envelope"].payload["text"])
 
+    def test_report_job_points_to_reports_topic(self) -> None:
+        source = job()
+        repository = FakeRepository(replace(source, command=CommandName.REPORT))
+
+        CommandJobRunner(
+            settings=live_settings(),
+            repository=repository,
+            executor=lambda _job: None,
+        ).run_once(now=datetime(2026, 9, 7, tzinfo=UTC))
+
+        self.assertIn("Raporlar konusuna", repository.finished[0]["envelope"].payload["text"])
+
     def test_disabled_mode_does_not_claim_jobs(self) -> None:
         repository = FakeRepository(job())
         settings = TelegramSettings.from_mapping(environment())

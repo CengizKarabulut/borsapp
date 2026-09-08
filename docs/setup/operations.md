@@ -92,11 +92,12 @@ veritabanını günceller.
 
 ## GitHub Actions
 
-`Shadow scan` workflow'u manuel olarak çalıştırılabilir. Zamanlanmış hafta içi
+`Scheduled BIST scan` workflow'u manuel olarak çalıştırılabilir. Zamanlanmış hafta içi
 çalışmalar, Neon depolama optimizasyonu tamamlandıktan sonra repository variable
 olarak `ENABLE_SCHEDULED_SCANS=true` verilerek açılır. `DATABASE_URL` yoksa
-başarıyla ve hiçbir şey yapmadan çıkar. Workflow `DELIVERY_MODE=shadow` değerini
-zorlar ve doğrudan Telegram yayını yapmaz.
+başarıyla ve hiçbir şey yapmadan çıkar. Zamanlanmış çalışmada `15m`, `30m`,
+`45m` ve `2h` sonuçları yalnız saklanır; `1h`, `4h` ve `1d` için kurallarca
+izin verilen yeni olay/durum geçişleri Taramalar konusuna yayınlanır.
 
 Manuel çalıştırmada varsayılan kapsam `symbol`, sembol `ASELS`'tir; bu seçenek
 tek hisselik güvenli smoke testidir. `due-universe` kapsamı seçilirse ilgili
