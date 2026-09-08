@@ -64,9 +64,15 @@ jobs:
       - name: Execute queued analysis, report, fundamental, chart and force jobs
         shell: bash
         run: |
+          failed=0
           for _ in {1..8}; do
-            borsapp command-worker-once --timeframe 1h --bars 250
+            borsapp command-worker-once --timeframe 1h --bars 250 || failed=1
             borsapp publisher-once --limit 100
           done
+          exit "$failed"
       - name: Publish remaining completions
+        if: always()
         run: borsapp publisher-once --limit 100
+      - name: Show safe command job diagnostics
+        if: always()
+        run: borsapp command-jobs-status --limit 20

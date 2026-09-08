@@ -230,6 +230,12 @@ def _parser() -> argparse.ArgumentParser:
     command_loop.add_argument("--interval", type=float, default=2.0)
     command_loop.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
 
+    command_status = subparsers.add_parser(
+        "command-jobs-status",
+        help="Son Telegram uzun işlerinin güvenli durum ve hata özetini göster",
+    )
+    command_status.add_argument("--limit", type=int, default=20)
+
     news_kap = subparsers.add_parser(
         "news-kap-sync",
         help="KAP bildirimlerini canonical haber deposuna eşitle",
@@ -966,6 +972,36 @@ def _command_worker_loop(
     return 0
 
 
+def _command_jobs_status(settings: ApplicationSettings, *, limit: int) -> int:
+    if limit < 1 or limit > 100:
+        raise ValueError("--limit 1 ile 100 arasında olmalıdır")
+    query = """
+    SELECT command_name, symbol_at_request, status, attempt_count,
+           requested_at, finished_at, error_detail
+    FROM command_jobs
+    ORDER BY requested_at DESC
+    LIMIT %s
+    """
+    with _connect(settings.runtime.database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (limit,))
+            rows = cursor.fetchall()
+    print(f"Son command job kayıtları: {len(rows)}")
+    for row in rows:
+        error = str(row[6] or "-")
+        for secret in (
+            settings.telegram.bot_token,
+            settings.runtime.database_url,
+        ):
+            if secret:
+                error = error.replace(secret, "[REDACTED]")
+        print(
+            f"{row[0]} {row[1]} status={row[2]} attempt={row[3]} "
+            f"requested={row[4]} finished={row[5]} error={error[:500]}"
+        )
+    return 0
+
+
 def _news_kap_sync(
     settings: ApplicationSettings,
     *,
@@ -1270,6 +1306,8 @@ def main(argv: list[str] | None = None) -> int:
                 scanners_path=args.scanners,
                 interval=args.interval,
             )
+        if args.command == "command-jobs-status":
+            return _command_jobs_status(settings, limit=args.limit)
         if args.command == "news-kap-sync":
             return _news_kap_sync(
                 settings,
