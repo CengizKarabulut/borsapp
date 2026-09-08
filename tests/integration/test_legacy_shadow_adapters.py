@@ -22,8 +22,10 @@ class LegacyShadowAdapterIntegrationTests(unittest.TestCase):
         self.assertEqual(signal_result.snapshot_id, source.snapshot_id)
         self.assertEqual(technical_result.snapshot_id, source.snapshot_id)
         self.assertFalse(
-            any(value.startswith("legacy_error:") for value in signal_result.diagnostics)
+            any(value.startswith("legacy_error:") for value in signal_result.diagnostics),
+            signal_result.diagnostics,
         )
         self.assertFalse(
-            any(value.startswith("legacy_error:") for value in technical_result.diagnostics)
+            any(value.startswith("legacy_error:") for value in technical_result.diagnostics),
+            technical_result.diagnostics,
         )

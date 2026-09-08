@@ -25,11 +25,13 @@ class PostgresMigrationIntegrationTests(unittest.TestCase):
         first = apply_migrations(self.connection, ROOT / "db/postgres")
         second = apply_migrations(self.connection, ROOT / "db/postgres")
 
-        self.assertIn("000", first.applied)
-        self.assertIn("001", first.applied)
-        self.assertIn("002", first.applied)
-        self.assertIn("003", first.applied)
+        # Entegrasyon sınıfları aynı tek kullanımlık CI veritabanını paylaşır;
+        # önce çalışan doctor testi şemayı hazırlamış olabilir. İlk çağrı her
+        # migration'ı ya uygular ya da doğrulanmış olarak atlar.
+        expected = {"000", "001", "002", "003", "004"}
+        self.assertEqual(set(first.applied) | set(first.skipped), expected)
         self.assertEqual(second.applied, ())
+        self.assertEqual(set(second.skipped), expected)
         with self.connection.cursor() as cursor:
             cursor.execute(
                 """

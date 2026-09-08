@@ -37,8 +37,8 @@ SELECT
     count(*) FILTER (WHERE category = 'unknown')
 FROM shadow_comparisons
 WHERE created_at >= %s
-  AND (%s IS NULL OR scanner_id = %s)
-  AND (%s IS NULL OR timeframe = %s)
+  AND (%s::text IS NULL OR scanner_id = %s::text)
+  AND (%s::text IS NULL OR timeframe = %s::text)
 GROUP BY scanner_id, timeframe
 ORDER BY scanner_id, timeframe
 """

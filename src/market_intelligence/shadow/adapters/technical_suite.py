@@ -71,24 +71,27 @@ class LegacyTechnicalSuiteSession:
     def _load(self) -> None:
         if self._screen is not None:
             return
-        with _legacy_imports(_technical_app(), {"MPLBACKEND": "Agg"}):
-            from src.screener import default_options, screen_symbol_detailed
+        from src.screener import default_options, screen_symbol_detailed
 
-            self._screen = screen_symbol_detailed
-            self._options = default_options()
+        self._screen = screen_symbol_detailed
+        self._options = default_options()
 
     def evaluate(self, frame: CanonicalFrame):
         if self._snapshot_id == frame.snapshot_id:
             return self._result, self._reason, self._error
         try:
-            self._load()
-            result, reason = self._screen(
-                frame.symbol_at_snapshot,
-                to_legacy_frame(frame),
-                dict(self._options or {}),
-                list(TECHNICAL_ALIASES.values()),
-                interval=frame.timeframe.value,
-            )
+            # Bazı legacy modüller fonksiyon çalışırken ``src.*`` içe aktarır.
+            # Uygulama kökü yalnızca ilk import sırasında değil değerlendirme
+            # boyunca da sys.path'in başında kalmalıdır.
+            with _legacy_imports(_technical_app(), {"MPLBACKEND": "Agg"}):
+                self._load()
+                result, reason = self._screen(
+                    frame.symbol_at_snapshot,
+                    to_legacy_frame(frame),
+                    dict(self._options or {}),
+                    list(TECHNICAL_ALIASES.values()),
+                    interval=frame.timeframe.value,
+                )
         except Exception as exc:
             result = None
             reason = "legacy_error"
