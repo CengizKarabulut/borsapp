@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from market_intelligence.application.symbol_commands import (
+    StoredCycle,
+    StoredMatch,
     StoredNews,
     StoredScannerResult,
     SymbolCommandService,
@@ -22,6 +24,16 @@ class FakeStore:
     def load_symbol(self, symbol: str) -> SymbolSnapshot | None:
         self.calls += 1
         return self.snapshot
+
+    def load_recent_matches(self, *, limit: int = 60):
+        now = datetime(2026, 9, 8, 12, tzinfo=UTC)
+        return (
+            StoredMatch("ASELS", "signal.macd_positive_cross", "1h", now, Direction.BULLISH),
+        )
+
+    def load_recent_cycles(self, *, limit: int = 10):
+        now = datetime(2026, 9, 8, 12, tzinfo=UTC)
+        return (StoredCycle("1h", now, "completed", 600, 2, 15),)
 
 
 class FakeQueue:
@@ -158,6 +170,20 @@ class SymbolCommandServiceTests(unittest.TestCase):
 
         self.assertIn("Borsapp çalışıyor", status.text)
         self.assertIn("/grafik ASELS", chart_help.text)
+
+    def test_list_and_history_read_canonical_scan_store(self) -> None:
+        service = SymbolCommandService(
+            FakeStore(snapshot()),
+            clock=lambda: datetime(2026, 9, 8, 15, tzinfo=ZoneInfo("Europe/Istanbul")),
+        )
+
+        recent = service.handle(command(CommandName.LIST))
+        history = service.handle(command(CommandName.HISTORY))
+
+        self.assertIn("ASELS", recent.text)
+        self.assertIn("MACD pozitif kesişim", recent.text)
+        self.assertIn("başarılı 600", history.text)
+        self.assertIn("eşleşme 15", history.text)
 
     def test_news_reply_includes_source_url(self) -> None:
         reply = SymbolCommandService(FakeStore(snapshot())).handle(

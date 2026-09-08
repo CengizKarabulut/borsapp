@@ -4,6 +4,8 @@ from typing import Any
 
 from market_intelligence.application.symbol_commands import (
     StoredArtifact,
+    StoredCycle,
+    StoredMatch,
     StoredNews,
     StoredScannerResult,
     SymbolSnapshot,
@@ -61,6 +63,24 @@ WHERE n.instrument_id = %s OR link.instrument_id = %s
 ORDER BY n.published_at DESC
 """
 
+RECENT_MATCHES_SQL = """
+SELECT symbol_at_event, scanner_id, timeframe, bar_time, direction
+FROM scan_events
+ORDER BY bar_time DESC, symbol_at_event, scanner_id
+LIMIT %s
+"""
+
+RECENT_CYCLES_SQL = """
+SELECT c.timeframe, c.bar_time, c.status,
+       c.successful_instruments, c.failed_instruments,
+       count(*) FILTER (WHERE e.status = 'match') AS matches
+FROM scan_cycles c
+LEFT JOIN scan_evaluations e ON e.cycle_id = c.cycle_id
+GROUP BY c.cycle_id
+ORDER BY c.started_at DESC
+LIMIT %s
+"""
+
 ENQUEUE_SQL = """
 INSERT INTO command_jobs (
     command_name, instrument_id, symbol_at_request, requested_by, requested_topic
@@ -101,6 +121,37 @@ class PostgresSymbolReadStore:
                 for row in cursor.fetchall()
             )
         return SymbolSnapshot(instrument_id, canonical_symbol, results, artifacts, news)
+
+    def load_recent_matches(self, *, limit: int = 60) -> tuple[StoredMatch, ...]:
+        with self.connection.cursor() as cursor:
+            cursor.execute(RECENT_MATCHES_SQL, (limit,))
+            rows = cursor.fetchall()
+        return tuple(
+            StoredMatch(
+                symbol=str(row[0]).upper(),
+                scanner_id=str(row[1]),
+                timeframe=str(row[2]),
+                bar_time=row[3],
+                direction=Direction(str(row[4])),
+            )
+            for row in rows
+        )
+
+    def load_recent_cycles(self, *, limit: int = 10) -> tuple[StoredCycle, ...]:
+        with self.connection.cursor() as cursor:
+            cursor.execute(RECENT_CYCLES_SQL, (limit,))
+            rows = cursor.fetchall()
+        return tuple(
+            StoredCycle(
+                timeframe=str(row[0]),
+                bar_time=row[1],
+                status=str(row[2]),
+                successful=int(row[3]),
+                failed=int(row[4]),
+                matches=int(row[5]),
+            )
+            for row in rows
+        )
 
     @staticmethod
     def _result(row: tuple[Any, ...]) -> StoredScannerResult:

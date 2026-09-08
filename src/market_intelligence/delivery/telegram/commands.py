@@ -17,6 +17,8 @@ class CommandName(StrEnum):
     CHART = "grafik"
     CHART_HELP = "grafikyardim"
     NEWS = "haber"
+    LIST = "liste"
+    HISTORY = "gecmis"
     STATUS = "durum"
     HELP = "yardim"
 
@@ -34,7 +36,13 @@ class IncomingCommand:
 
 _SYMBOL = re.compile(r"^[A-Z0-9._=-]{1,24}$")
 _NO_SYMBOL_COMMANDS = frozenset(
-    {CommandName.HELP, CommandName.CHART_HELP, CommandName.STATUS}
+    {
+        CommandName.HELP,
+        CommandName.CHART_HELP,
+        CommandName.LIST,
+        CommandName.HISTORY,
+        CommandName.STATUS,
+    }
 )
 
 

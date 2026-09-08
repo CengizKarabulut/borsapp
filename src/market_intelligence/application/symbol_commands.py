@@ -37,6 +37,25 @@ class StoredNews:
 
 
 @dataclass(frozen=True)
+class StoredMatch:
+    symbol: str
+    scanner_id: str
+    timeframe: str
+    bar_time: datetime
+    direction: Direction
+
+
+@dataclass(frozen=True)
+class StoredCycle:
+    timeframe: str
+    bar_time: datetime
+    status: str
+    successful: int
+    failed: int
+    matches: int
+
+
+@dataclass(frozen=True)
 class SymbolSnapshot:
     instrument_id: str
     symbol: str
@@ -47,6 +66,10 @@ class SymbolSnapshot:
 
 class SymbolReadStore(Protocol):
     def load_symbol(self, symbol: str) -> SymbolSnapshot | None: ...
+
+    def load_recent_matches(self, *, limit: int = 60) -> tuple[StoredMatch, ...]: ...
+
+    def load_recent_cycles(self, *, limit: int = 10) -> tuple[StoredCycle, ...]: ...
 
 
 class LongJobQueue(Protocol):
@@ -94,10 +117,16 @@ class SymbolCommandService:
                 "/temel SEMBOL — temel analiz kartı\n"
                 "/grafik SEMBOL — teknik gösterge grafiği\n"
                 "/haber SEMBOL — bugünün tüm KAP'ları + önceki 3 KAP\n"
+                "/liste — son eşleşen BIST taramaları\n"
+                "/gecmis — son tarama döngüleri\n"
                 "/durum — bot çalışma durumu\n"
                 "/grafikyardim — grafik açıklaması\n"
                 "/tara SEMBOL --force — verileri ve MA seviyelerini yenile"
             )
+        if command.name is CommandName.LIST:
+            return CommandReply(self._list())
+        if command.name is CommandName.HISTORY:
+            return CommandReply(self._history())
         if command.name is CommandName.STATUS:
             now = self._now()
             return CommandReply(
@@ -264,6 +293,35 @@ class SymbolCommandService:
         if now.tzinfo is None or now.utcoffset() is None:
             raise ValueError("Komut saati timezone-aware olmalıdır")
         return now
+
+    def _list(self) -> str:
+        matches = self.store.load_recent_matches(limit=60)
+        if not matches:
+            return "Henüz eşleşen saklanmış BIST taraması yok."
+        timezone = self._now().tzinfo
+        lines = ["Son eşleşen BIST taramaları"]
+        for item in matches:
+            scanner = _SCANNER_LABELS.get(item.scanner_id, item.scanner_id)
+            stamp = item.bar_time.astimezone(timezone).strftime("%d.%m %H:%M")
+            lines.append(
+                f"- {item.symbol} · {scanner} · {item.timeframe} · "
+                f"{_direction_label(item.direction)} · {stamp}"
+            )
+        return "\n".join(lines)[:3900]
+
+    def _history(self) -> str:
+        cycles = self.store.load_recent_cycles(limit=10)
+        if not cycles:
+            return "Henüz tamamlanmış tarama döngüsü yok."
+        timezone = self._now().tzinfo
+        lines = ["Son tarama döngüleri"]
+        for item in cycles:
+            stamp = item.bar_time.astimezone(timezone).strftime("%d.%m.%Y %H:%M")
+            lines.append(
+                f"- {stamp} · {item.timeframe} · {item.status} · "
+                f"başarılı {item.successful}, hata {item.failed}, eşleşme {item.matches}"
+            )
+        return "\n".join(lines)
 
     @staticmethod
     def _chunk_lines(
