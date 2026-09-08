@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import io
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,16 @@ class HttpxTelegramTransport:
                 raise TelegramDeliveryError("Telegram belgesi 49 MB sınırını aşıyor")
         data["chat_id"] = chat_id
         data["message_thread_id"] = message_thread_id
+        # Bot API multipart/form-data ve application/x-www-form-urlencoded
+        # isteklerinde nesne alanlarını JSON metni olarak bekler. httpx bir
+        # dict'i doğrudan form alanına koyduğunda Python gösterimi gönderilir
+        # ve Telegram \"can't parse ... JSON object\" ile bütün kuyruğu reddeder.
+        data = {
+            key: json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            if isinstance(value, (dict, list))
+            else value
+            for key, value in data.items()
+        }
         url = f"https://api.telegram.org/bot{self._bot_token}/{method}"
         body: dict[str, Any] = {}
         for attempt in range(5):

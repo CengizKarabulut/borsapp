@@ -67,6 +67,27 @@ class TelegramRetryTests(unittest.TestCase):
         self.assertEqual(fake_httpx.post.call_count, 2)
         sleep.assert_called_once_with(3.0)
 
+    def test_modern_transport_json_encodes_structured_bot_api_fields(self) -> None:
+        fake_httpx = SimpleNamespace(
+            post=Mock(
+                return_value=Response(
+                    200,
+                    {"ok": True, "result": {"message_id": 10, "message_thread_id": 5}},
+                )
+            )
+        )
+        with patch.dict(sys.modules, {"httpx": fake_httpx}):
+            HttpxTelegramTransport("token").send(
+                chat_id=-1001,
+                message_thread_id=5,
+                payload={
+                    "text": "test",
+                    "link_preview_options": {"is_disabled": False},
+                },
+            )
+        data = fake_httpx.post.call_args.kwargs["data"]
+        self.assertEqual(data["link_preview_options"], '{"is_disabled":false}')
+
     def test_modern_transport_uploads_pdf_document(self) -> None:
         fake_httpx = SimpleNamespace(
             post=Mock(

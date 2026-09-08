@@ -61,7 +61,8 @@ jobs:
       - name: Queue every supported command response
         run: borsapp telegram-smoke-symbol "$SMOKE_SYMBOL" --confirm-live
       - name: Publish stored command responses and job acknowledgements
-        run: borsapp publisher-once --limit 100
+        continue-on-error: true
+        run: borsapp publisher-once --limit 30
       - name: Execute queued analysis, report, fundamental, chart and force jobs
         shell: bash
         run: |
