@@ -120,6 +120,7 @@ class SymbolCommandService:
                 "/liste — son eşleşen BIST taramaları\n"
                 "/gecmis — son tarama döngüleri\n"
                 "/durum — bot çalışma durumu\n"
+                "/kimlik — Telegram kullanıcı kimliğiniz\n"
                 "/grafikyardim — grafik açıklaması\n"
                 "/tara SEMBOL --force — verileri ve MA seviyelerini yenile"
             )
@@ -134,6 +135,13 @@ class SymbolCommandService:
                 f"Saat: {now.strftime('%d.%m.%Y %H:%M')} (Türkiye)\n"
                 "Komut alımı: etkin\n"
                 "Veri modeli: saklanmış sonuç + açıkça istenen yenileme"
+            )
+        if command.name is CommandName.IDENTITY:
+            return CommandReply(
+                "🔐 Telegram kullanıcı kimliğiniz\n"
+                f"Kullanıcı ID: {command.user_id}\n"
+                "Bu sayıyı GitHub Actions değişkeni "
+                "TELEGRAM_ALLOWED_USERS için kullanın."
             )
         if command.name is CommandName.CHART_HELP:
             return CommandReply(

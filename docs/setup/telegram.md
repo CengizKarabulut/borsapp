@@ -53,8 +53,9 @@ Bu, her scanner için ayrı Telegram konusu açıp konuları çoğaltmayı önle
 
 - Grup chat ID değeri çoğunlukla `-100...` biçimindedir.
 - Topic ID, ilgili konu içindeki bir mesajın bağlantısındaki son sayıdır.
-- Kendi numeric user ID'nizi Telegram update çıktısından veya güvenilir bir
-  ID botundan öğrenin.
+- Canlı listener çalışırken kendi botunuza `/kimlik` gönderin. Botun döndürdüğü
+  `Kullanıcı ID` değerini `TELEGRAM_ALLOWED_USERS` olarak kaydedin; üçüncü taraf
+  bir ID botuna gerek yoktur.
 - Token'ı topic ID öğrenmek için üçüncü taraf sitelere yapıştırmayın.
 
 Hazırlanacak değerler:
@@ -69,6 +70,11 @@ Hazırlanacak değerler:
     TELEGRAM_TOPIC_CALENDAR=...
     TELEGRAM_TOPIC_REPORTS=...
     TELEGRAM_TOPIC_SYSTEM=...
+
+Kimlik doğrulandıktan sonra yalnız listedeki kullanıcıların komut verebilmesi
+için `TELEGRAM_ALLOW_CHAT_MEMBERS=false` yapın. Yalnızca statik izin listesini
+kullanmak istiyorsanız `TELEGRAM_ALLOW_CHAT_ADMINS=false` da olmalıdır. Birden
+fazla kullanıcı virgülle ayrılabilir: `123456789,987654321`.
 
 ## 4. Mesaj davranışı
 

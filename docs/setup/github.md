@@ -14,12 +14,18 @@ ancak ortamlar arasında değiştiğinden Actions **Variables** altında tutulur
 ## Actions variables
 
 - `APP_TIMEZONE=Europe/Istanbul`
-- `TELEGRAM_ALLOWED_USERS`
+- `TELEGRAM_ALLOWED_USERS`: Telegram'da kendi botunuza `/kimlik` göndererek
+  aldığınız gerçek kullanıcı ID'si; bot ID'si değildir
 - `TELEGRAM_ALLOW_CHAT_ADMINS=true`: Komut Merkezi'nde grup yöneticilerini
   dinamik olarak yetkilendirir; yanlış statik kullanıcı ID'sinin botu kilitlemesini önler
 - `TELEGRAM_ALLOW_CHAT_MEMBERS=true`: yalnız yapılandırılmış özel gruptaki tüm
   üyelerin komut vermesine izin verir; başka gruplar kabul edilmez
 - sekiz adet `TELEGRAM_TOPIC_...` değeri
+
+İlk kurulum tamamlanınca `/kimlik` yanıtındaki kullanıcı ID'sini kaydedin ve
+dar yetkilendirme için `TELEGRAM_ALLOW_CHAT_MEMBERS=false` ile
+`TELEGRAM_ALLOW_CHAT_ADMINS=false` yapın. `true` değerleri yalnız ilk kimlik
+tespiti veya bilinçli grup-geneli kullanım içindir.
 
 Canlı zamanlanmış tarama yalnız `1h`, `4h` ve `1d` sonuçlarını Taramalar
 konusuna yollar. `15m`, `30m`, `45m` ve `2h` hesaplanır ve saklanır fakat

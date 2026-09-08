@@ -20,6 +20,7 @@ class CommandName(StrEnum):
     LIST = "liste"
     HISTORY = "gecmis"
     STATUS = "durum"
+    IDENTITY = "kimlik"
     HELP = "yardim"
 
 
@@ -42,6 +43,7 @@ _NO_SYMBOL_COMMANDS = frozenset(
         CommandName.LIST,
         CommandName.HISTORY,
         CommandName.STATUS,
+        CommandName.IDENTITY,
     }
 )
 

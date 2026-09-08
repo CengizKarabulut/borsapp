@@ -134,6 +134,13 @@ class TelegramCommandParserTests(unittest.TestCase):
             self.parser.parse(self.update(text="/tara A;DROP"), self.settings)
         )
 
+    def test_identity_command_does_not_require_a_symbol(self) -> None:
+        command = self.parser.parse(self.update(text="/kimlik"), self.settings)
+        self.assertIsNotNone(command)
+        assert command is not None
+        self.assertEqual(command.name, CommandName.IDENTITY)
+        self.assertEqual(command.args, ())
+
 
 if __name__ == "__main__":
     unittest.main()
