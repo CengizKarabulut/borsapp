@@ -22,24 +22,19 @@ class Response:
 class TelegramRetryTests(unittest.TestCase):
     @patch("market_intelligence.compat.telegram_retry.time.sleep")
     def test_legacy_post_retries_429_and_rewinds_file(self, sleep: Mock) -> None:
-        import requests
-
         handle = io.BytesIO(b"image")
         responses = [
             Response(429, {"parameters": {"retry_after": 2}}),
             Response(200, {"ok": True}),
         ]
-        original = requests.post
-        requests.post = Mock(side_effect=responses)
-        mocked_post = requests.post
-        try:
+        mocked_post = Mock(side_effect=responses)
+        fake_requests = SimpleNamespace(post=mocked_post)
+        with patch.dict(sys.modules, {"requests": fake_requests}):
             with retry_legacy_telegram_posts():
-                response = requests.post(
+                response = fake_requests.post(
                     "https://api.telegram.org/botTOKEN/sendPhoto",
                     files={"photo": ("x.png", handle, "image/png")},
                 )
-        finally:
-            requests.post = original
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mocked_post.call_count, 2)
         sleep.assert_called_once_with(2.0)
