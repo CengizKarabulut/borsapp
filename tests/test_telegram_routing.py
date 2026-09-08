@@ -23,11 +23,12 @@ def environment() -> dict[str, str]:
 
 
 class TelegramSettingsTests(unittest.TestCase):
-    def test_commands_are_restricted_to_chat_user_and_command_topic(self) -> None:
+    def test_commands_are_restricted_to_chat_and_user_but_accept_any_topic(self) -> None:
         settings = TelegramSettings.from_mapping(environment())
         self.assertTrue(settings.accepts(chat_id=-100123, user_id=42, topic_id=10))
         self.assertFalse(settings.accepts(chat_id=-100123, user_id=99, topic_id=10))
-        self.assertFalse(settings.accepts(chat_id=-100123, user_id=42, topic_id=20))
+        self.assertTrue(settings.accepts(chat_id=-100123, user_id=42, topic_id=20))
+        self.assertTrue(settings.accepts(chat_id=-100123, user_id=42, topic_id=None))
 
     def test_all_topics_are_required(self) -> None:
         values = environment()
@@ -63,6 +64,17 @@ class TopicRouterTests(unittest.TestCase):
             origin_topic_id=10,
         )
         self.assertEqual(envelope.message_thread_id, 10)
+
+    def test_command_reply_can_be_routed_to_semantic_topic(self) -> None:
+        envelope = self.router.route(
+            publication_kind=PublicationKind.COMMAND_REPLY,
+            semantic_identity={"command_id": "command-2"},
+            payload={"text": "Tarama hazır"},
+            origin_topic_id=10,
+            reply_topic_kind=TopicKind.SCANS,
+        )
+        self.assertEqual(envelope.topic_kind, TopicKind.SCANS)
+        self.assertEqual(envelope.message_thread_id, 20)
 
     def test_semantic_key_is_stable_and_payload_independent(self) -> None:
         first = self.router.route(

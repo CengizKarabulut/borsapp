@@ -42,15 +42,12 @@ class TelegramCommandParser:
             return "message_missing"
         chat_id = message.get("chat", {}).get("id")
         user_id = message.get("from", {}).get("id")
-        topic_id = message.get("message_thread_id")
-        if not all(isinstance(value, int) for value in (chat_id, user_id, topic_id)):
+        if not all(isinstance(value, int) for value in (chat_id, user_id)):
             return "context_missing"
         if chat_id != settings.chat_id:
             return "chat_mismatch"
         if user_id not in settings.allowed_user_ids:
             return "user_not_allowed"
-        if topic_id != settings.topic_id(TopicKind.COMMAND):
-            return "topic_mismatch"
         text = str(message.get("text", "")).strip()
         if not text.startswith("/"):
             return "not_a_command"
@@ -78,10 +75,12 @@ class TelegramCommandParser:
         chat_id = message.get("chat", {}).get("id")
         user_id = message.get("from", {}).get("id")
         topic_id = message.get("message_thread_id")
-        if not all(isinstance(value, int) for value in (chat_id, user_id, topic_id)):
+        if not all(isinstance(value, int) for value in (chat_id, user_id)):
             return None
         if not settings.accepts(chat_id=chat_id, user_id=user_id, topic_id=topic_id):
             return None
+        if not isinstance(topic_id, int):
+            topic_id = settings.topic_id(TopicKind.COMMAND)
         text = str(message.get("text", "")).strip()
         if not text.startswith("/"):
             return None

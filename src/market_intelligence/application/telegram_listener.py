@@ -5,8 +5,12 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from market_intelligence.application.symbol_commands import SymbolCommandService
-from market_intelligence.delivery.telegram.commands import TelegramCommandParser
-from market_intelligence.delivery.telegram.config import DeliveryMode, TelegramSettings
+from market_intelligence.delivery.telegram.commands import CommandName, TelegramCommandParser
+from market_intelligence.delivery.telegram.config import (
+    DeliveryMode,
+    TelegramSettings,
+    TopicKind,
+)
 from market_intelligence.delivery.telegram.routing import (
     OutboxEnvelope,
     PublicationKind,
@@ -86,6 +90,11 @@ class TelegramListener:
             else:
                 if self.settings.delivery_mode is DeliveryMode.LIVE:
                     reply = self.command_service.handle(command)
+                    reply_topic_kind = {
+                        CommandName.SCAN: TopicKind.SCANS,
+                        CommandName.SCANS: TopicKind.SCANS,
+                        CommandName.NEWS: TopicKind.NEWS,
+                    }.get(command.name, TopicKind.COMMAND)
                     envelopes = tuple(
                         self.router.route(
                             publication_kind=PublicationKind.COMMAND_REPLY,
@@ -96,7 +105,7 @@ class TelegramListener:
                                 "part": part,
                             },
                             payload={"text": text},
-                            origin_topic_id=command.topic_id,
+                            reply_topic_kind=reply_topic_kind,
                         )
                         for part, text in enumerate(reply.messages, 1)
                     )

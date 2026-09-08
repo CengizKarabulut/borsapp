@@ -53,10 +53,15 @@ class TopicRouter:
         semantic_identity: dict[str, Any],
         payload: dict[str, Any],
         origin_topic_id: int | None = None,
+        reply_topic_kind: TopicKind | None = None,
     ) -> OutboxEnvelope:
         if publication_kind is PublicationKind.COMMAND_REPLY:
-            topic_kind = TopicKind.COMMAND
-            topic_id = origin_topic_id or self.settings.topic_id(topic_kind)
+            topic_kind = reply_topic_kind or TopicKind.COMMAND
+            topic_id = (
+                self.settings.topic_id(topic_kind)
+                if reply_topic_kind is not None
+                else origin_topic_id or self.settings.topic_id(topic_kind)
+            )
         else:
             topic_kind = DEFAULT_ROUTES[publication_kind]
             topic_id = self.settings.topic_id(topic_kind)

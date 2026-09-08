@@ -125,8 +125,8 @@ class TelegramCommandParserTests(unittest.TestCase):
         self.assertEqual(command.name, CommandName.SCAN)
         self.assertEqual(command.args, ("ASELS",))
 
-    def test_other_topic_or_user_is_ignored(self) -> None:
-        self.assertIsNone(self.parser.parse(self.update(topic=20), self.settings))
+    def test_other_topic_is_accepted_but_other_user_is_ignored(self) -> None:
+        self.assertIsNotNone(self.parser.parse(self.update(topic=20), self.settings))
         self.assertIsNone(self.parser.parse(self.update(user=99), self.settings))
 
     def test_invalid_symbol_is_rejected(self) -> None:

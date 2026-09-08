@@ -94,8 +94,25 @@ class TelegramListenerTests(unittest.TestCase):
         self.assertEqual(update_id, 7)
         self.assertEqual(len(envelopes), 1)
         envelope = envelopes[0]
-        self.assertEqual(envelope.message_thread_id, settings().topic_id(TopicKind.COMMAND))
+        self.assertEqual(envelope.message_thread_id, settings().topic_id(TopicKind.SCANS))
         self.assertIn("ASELS", envelope.payload["text"])
+
+    def test_command_without_forum_topic_is_accepted_and_routed(self) -> None:
+        item = update(11, text="/haber ASELS")
+        del item["message"]["message_thread_id"]
+        repository = FakeRepository()
+        listener = TelegramListener(
+            settings=settings(),
+            source=FakeSource([item]),
+            repository=repository,
+            command_service=SymbolCommandService(FakeSymbolStore()),
+        )
+
+        result = listener.run_once(timeout_seconds=0)
+
+        self.assertEqual(result.accepted, 1)
+        _, envelopes = repository.committed[0]
+        self.assertEqual(envelopes[0].message_thread_id, settings().topic_id(TopicKind.NEWS))
 
     def test_unauthorized_update_is_checkpointed_without_reply(self) -> None:
         repository = FakeRepository()

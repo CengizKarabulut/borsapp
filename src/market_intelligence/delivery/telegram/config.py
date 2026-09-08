@@ -111,8 +111,8 @@ class TelegramSettings:
             raise ValueError(f"Telegram topic yapılandırılmamış: {kind}") from exc
 
     def accepts(self, *, chat_id: int, user_id: int, topic_id: int | None) -> bool:
-        return (
-            chat_id == self.chat_id
-            and user_id in self.allowed_user_ids
-            and topic_id == self.topic_id(TopicKind.COMMAND)
-        )
+        # Commands are safe to accept from every topic in the configured forum.
+        # Authorization belongs to the chat and user; topic selection is a routing
+        # concern.  Restricting ingestion to one topic made valid commands vanish
+        # silently when Telegram clients posted them in General or another topic.
+        return chat_id == self.chat_id and user_id in self.allowed_user_ids
