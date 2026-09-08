@@ -9,6 +9,8 @@ from pathlib import Path
 from market_intelligence.compat.paths import repository_root
 from market_intelligence.compat.telegram_retry import retry_legacy_telegram_posts
 
+DEFAULT_CHART_INTERVALS = ("4h", "1d", "1wk", "1mo")
+
 
 def _technical_app() -> Path:
     return repository_root() / "_legacy" / "market-telegram-suite" / "apps" / "technical_bot"
@@ -107,7 +109,7 @@ def generate_and_send_chart(
     symbol: str,
     topic_id: int,
     target: Path,
-    intervals: tuple[str, ...] = ("1d",),
+    intervals: tuple[str, ...] = DEFAULT_CHART_INTERVALS,
 ) -> None:
     with _legacy_imports(
         _chart_app(),

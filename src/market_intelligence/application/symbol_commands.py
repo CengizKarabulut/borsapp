@@ -138,8 +138,8 @@ class SymbolCommandService:
         if command.name is CommandName.CHART_HELP:
             return CommandReply(
                 "Grafik kullanımı: /grafik ASELS\n"
-                "Günlük fiyat üzerinde trend, momentum, volatilite ve hacim "
-                "göstergelerini tek görselde üretir; sonuç Grafikler konusuna gelir."
+                "Varsayılan olarak 4 saatlik, günlük, haftalık ve aylık teknik "
+                "dashboard üretir; sonuçlar Grafikler konusuna gelir."
             )
         symbol = command.args[0]
         force = any(argument.casefold() == "--force" for argument in command.args[1:])

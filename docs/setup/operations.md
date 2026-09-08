@@ -90,6 +90,11 @@ GitHub Actions zamanlaması varsayılan olarak kapalıdır. Hazır olduğunda
 `NEWS_DELIVERY_MODE=live` gerektirir; bu ikinci anahtar eklenmedikçe iş yalnız
 veritabanını günceller.
 
+`ENABLE_GENERAL_NEWS=true` ile Bloomberg HT, Investing.com Türkiye, NTV Para,
+TRT Haber Ekonomi ve TradingView Haberler konusuna; Forex Factory yüksek etkili
+olayları Takvim konusuna bağlanır. Her kaynak ilk başarılı çalışmasında yalnız
+başlangıç referansı oluşturur ve geçmiş içerikleri Telegram'a göndermez.
+
 ## GitHub Actions
 
 `Scheduled BIST scan` workflow'u manuel olarak çalıştırılabilir. Zamanlanmış hafta içi

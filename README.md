@@ -83,6 +83,9 @@ Kullanıcı kurulumları:
 - [x] `taramabot` içindeki dokuz legacy sinyal kodunun yeni scanner kataloğuna taşınması
 - [x] `/analiz`, `/rapor`, `/temel` ve `/grafik` için kaynak üreticilerle uyumlu
       geçiş adapter'ları
-- [ ] Genel piyasa haberleri, ekonomik takvim ve aracı kurum bültenlerinin parity ile taşınması
+- [x] Genel piyasa haberleri ve ekonomik takvimin kaynak önceliği, bootstrap ve
+      topic ayrımıyla taşınması
+- [ ] Kaynak repolarda bulunmayan aracı kurum PDF/bülten sağlayıcısının ayrı
+      entegrasyon olarak eklenmesi
 
 Bu yazılım yatırım tavsiyesi veya otomatik emir sistemi değildir.
