@@ -68,7 +68,7 @@ jobs:
           failed=0
           for _ in {1..8}; do
             borsapp command-worker-once --timeframe 1h --bars 250 || failed=1
-            borsapp publisher-once --limit 100
+            borsapp publisher-once --limit 100 || failed=1
           done
           exit "$failed"
       - name: Publish remaining completions

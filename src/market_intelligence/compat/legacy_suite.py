@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from market_intelligence.compat.paths import repository_root
+from market_intelligence.compat.telegram_retry import retry_legacy_telegram_posts
 
 
 def _technical_app() -> Path:
@@ -32,7 +33,8 @@ def _legacy_imports(app_root: Path, environment: dict[str, str]) -> Iterator[Non
     sys.path.insert(0, str(app_root))
     os.environ.update(environment)
     try:
-        yield
+        with retry_legacy_telegram_posts():
+            yield
     finally:
         sys.path.remove(str(app_root))
         for name in tuple(sys.modules):

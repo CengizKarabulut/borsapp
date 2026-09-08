@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 
@@ -36,18 +37,28 @@ class HttpxTelegramTransport:
         data["chat_id"] = chat_id
         data["message_thread_id"] = message_thread_id
         url = f"https://api.telegram.org/bot{self._bot_token}/{method}"
-        try:
-            response = httpx.post(url, data=data, timeout=self.timeout_seconds)
-        except Exception as exc:
-            raise TelegramDeliveryError(
-                f"Telegram ağ hatası: {type(exc).__name__}"
-            ) from exc
-        try:
-            body = response.json()
-        except Exception as exc:
-            raise TelegramDeliveryError(
-                f"Telegram geçersiz yanıt döndürdü: HTTP {response.status_code}"
-            ) from exc
+        body: dict[str, Any] = {}
+        for attempt in range(5):
+            try:
+                response = httpx.post(url, data=data, timeout=self.timeout_seconds)
+            except Exception as exc:
+                raise TelegramDeliveryError(
+                    f"Telegram ağ hatası: {type(exc).__name__}"
+                ) from exc
+            try:
+                body = response.json()
+            except Exception as exc:
+                raise TelegramDeliveryError(
+                    f"Telegram geçersiz yanıt döndürdü: HTTP {response.status_code}"
+                ) from exc
+            if response.status_code != 429 or attempt == 4:
+                break
+            raw_delay = body.get("parameters", {}).get("retry_after", 1)
+            try:
+                delay = min(max(float(raw_delay), 1.0), 120.0)
+            except (TypeError, ValueError):
+                delay = 1.0
+            time.sleep(delay)
         if response.status_code >= 400 or not body.get("ok"):
             description = str(body.get("description", "Bot API isteği başarısız"))
             raise TelegramDeliveryError(description[:500])
