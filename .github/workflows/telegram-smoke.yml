@@ -8,6 +8,12 @@ on:
         required: true
         default: ASELS
         type: string
+      backfill_days:
+        description: Bildirim göndermeden doldurulacak KAP geçmişi; 0 devre dışı
+        required: true
+        default: "0"
+        type: choice
+        options: ["0", "30", "60", "90"]
 
 permissions:
   contents: read
@@ -37,6 +43,7 @@ jobs:
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
       SMOKE_SYMBOL: ${{ inputs.symbol }}
+      KAP_BACKFILL_DAYS: ${{ inputs.backfill_days }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -47,6 +54,9 @@ jobs:
         run: python -m pip install ".[runtime]"
       - name: Ensure database schema
         run: borsapp db-init
+      - name: Backfill KAP history without notifications
+        if: ${{ inputs.backfill_days != '0' }}
+        run: borsapp news-kap-backfill --days "$KAP_BACKFILL_DAYS" --chunk-days 3
       - name: Queue every supported command response
         run: borsapp telegram-smoke-symbol "$SMOKE_SYMBOL" --confirm-live
       - name: Publish stored command responses and force acknowledgement

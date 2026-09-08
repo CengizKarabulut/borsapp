@@ -136,23 +136,31 @@ class SymbolCommandService:
             current = family_status.get(result.family)
             if current is None or priorities[result.status] > priorities[current]:
                 family_status[result.family] = result.status
-        lines = [f"{snapshot.symbol} · saklanmış son durum"]
+        labels = {
+            "signal": "Sinyaller",
+            "technical": "Teknik taramalar",
+            "ma": "Hareketli ortalama",
+        }
+        lines = [f"{snapshot.symbol} · son saklanmış durum"]
         for family in ("signal", "technical", "ma"):
             status = family_status.get(family)
-            lines.append(f"{family.upper()}: {status.value if status else 'veri_yok'}")
-        lines.append(f"HABER: {len(snapshot.news)} kayıt")
+            rendered = _status_label(status) if status else "Henüz veri yok"
+            lines.append(f"{labels[family]}: {rendered}")
+        lines.append(f"KAP bildirimleri: {len(snapshot.news)} kayıt")
         return "\n".join(lines)
 
-    @staticmethod
-    def _scans(snapshot: SymbolSnapshot) -> str:
+    def _scans(self, snapshot: SymbolSnapshot) -> str:
         if not snapshot.results:
             return f"{snapshot.symbol} için saklanmış tarama sonucu yok."
-        lines = [f"{snapshot.symbol} · taramalar"]
+        now = self._now()
+        lines = [f"{snapshot.symbol} · tarama ayrıntıları (Türkiye saati)"]
         for result in snapshot.results:
-            direction = f" · {result.direction.value}" if result.direction else ""
+            direction = f" · {_direction_label(result.direction)}" if result.direction else ""
+            scanner_name = _SCANNER_LABELS.get(result.scanner_id, result.scanner_id)
+            bar_time = result.bar_time.astimezone(now.tzinfo).strftime("%d.%m.%Y %H:%M")
             lines.append(
-                f"- {result.scanner_id} · {result.timeframe} · "
-                f"{result.status.value}{direction} · {result.bar_time.isoformat()}"
+                f"- {scanner_name} · {result.timeframe} · "
+                f"{_status_label(result.status)}{direction} · {bar_time}"
             )
         return "\n".join(lines)
 
@@ -177,9 +185,7 @@ class SymbolCommandService:
         )
         if not kap_items:
             return (f"{snapshot.symbol} için saklanmış KAP bildirimi yok.",)
-        now = self.clock()
-        if now.tzinfo is None or now.utcoffset() is None:
-            raise ValueError("Komut saati timezone-aware olmalıdır")
+        now = self._now()
         today = now.date()
         today_items = [
             item
@@ -207,6 +213,12 @@ class SymbolCommandService:
             entries.append(entry)
         return self._chunk_lines(header, entries)
 
+    def _now(self) -> datetime:
+        now = self.clock()
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("Komut saati timezone-aware olmalıdır")
+        return now
+
     @staticmethod
     def _chunk_lines(
         header: str,
@@ -225,3 +237,35 @@ class SymbolCommandService:
             current = f"{header} · devam\n{entry}"
         chunks.append(current)
         return tuple(chunks)
+
+
+_SCANNER_LABELS = {
+    "ma.near_zone": "MA destek/direnç yakınlığı",
+    "signal.ema_trend_volume": "EMA trend + hacim",
+    "signal.macd_positive_cross": "MACD pozitif kesişim",
+    "signal.rsi_macd_volume": "RSI + MACD + hacim",
+    "signal.rsi_momentum_volume": "RSI momentum + hacim",
+    "signal.sma_macd_volume": "SMA + MACD + hacim",
+    "signal.smi_macd_early": "SMI + MACD erken sinyal",
+    "signal.smi_macd_full": "SMI + MACD tam sinyal",
+    "signal.smi_macd_positive": "SMI + MACD pozitif",
+    "signal.smi_macd_positive_volume_confirmed": "SMI + MACD + hacim onayı",
+    "technical.volume_spike": "Hacim artışı",
+}
+
+
+def _status_label(status: EvaluationStatus) -> str:
+    return {
+        EvaluationStatus.MATCH: "Eşleşti",
+        EvaluationStatus.NO_MATCH: "Eşleşme yok",
+        EvaluationStatus.UNKNOWN: "Veri yetersiz",
+    }[status]
+
+
+def _direction_label(direction: Direction) -> str:
+    return {
+        Direction.BULLISH: "Yükseliş",
+        Direction.BEARISH: "Düşüş",
+        Direction.NEUTRAL: "Nötr",
+        Direction.MIXED: "Karışık",
+    }[direction]

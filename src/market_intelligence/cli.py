@@ -228,6 +228,13 @@ def _parser() -> argparse.ArgumentParser:
     news_kap.add_argument("--lookback-days", type=int, default=1)
     news_kap.add_argument("--notify", action="store_true")
 
+    news_backfill = subparsers.add_parser(
+        "news-kap-backfill",
+        help="KAP geçmişini API sınırına takılmadan küçük tarih aralıklarıyla doldur",
+    )
+    news_backfill.add_argument("--days", type=int, default=60)
+    news_backfill.add_argument("--chunk-days", type=int, default=3)
+
     telegram_smoke = subparsers.add_parser(
         "telegram-smoke-symbol",
         help="Bir sembol için tüm Telegram komut yanıtlarını canlı kuyruğa yaz",
@@ -931,6 +938,49 @@ def _news_kap_sync(
     return 0
 
 
+def _news_kap_backfill(
+    settings: ApplicationSettings,
+    *,
+    days: int,
+    chunk_days: int,
+) -> int:
+    if days < 1 or days > 365:
+        raise ValueError("--days 1 ile 365 arasında olmalıdır")
+    if chunk_days < 1 or chunk_days > 7:
+        raise ValueError("--chunk-days 1 ile 7 arasında olmalıdır")
+    observed_at = datetime.now(settings.runtime.timezone)
+    first_date = observed_at.date() - timedelta(days=days)
+    period_end = observed_at.date()
+    totals = [0, 0, 0]
+    with _connect(settings.runtime.database_url) as connection:
+        service = NewsIngestionService(
+            provider=KapDisclosureProvider(timezone=settings.runtime.timezone),
+            store=PostgresNewsStore(connection),
+            telegram_settings=settings.telegram,
+        )
+        while period_end >= first_date:
+            period_start = max(
+                first_date,
+                period_end - timedelta(days=chunk_days - 1),
+            )
+            result = service.run(
+                from_date=period_start,
+                to_date=period_end,
+                observed_at=observed_at,
+                notify=False,
+            )
+            totals[0] += result.fetched
+            totals[1] += result.inserted
+            totals[2] += result.linked_items
+            period_end = period_start - timedelta(days=1)
+    print(
+        "KAP geçmişi dolduruldu: "
+        f"days={days}, bulunan={totals[0]}, yeni={totals[1]}, "
+        f"BIST_bağlantılı={totals[2]}, outbox=0"
+    )
+    return 0
+
+
 def _telegram_smoke_symbol(
     settings: ApplicationSettings,
     *,
@@ -1099,6 +1149,12 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 lookback_days=args.lookback_days,
                 notify=args.notify,
+            )
+        if args.command == "news-kap-backfill":
+            return _news_kap_backfill(
+                settings,
+                days=args.days,
+                chunk_days=args.chunk_days,
             )
         if args.command == "telegram-smoke-symbol":
             return _telegram_smoke_symbol(

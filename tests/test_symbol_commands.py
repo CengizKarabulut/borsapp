@@ -76,9 +76,9 @@ class SymbolCommandServiceTests(unittest.TestCase):
         store = FakeStore(snapshot())
         reply = SymbolCommandService(store).handle(command(CommandName.SCAN, "ASELS"))
         self.assertEqual(store.calls, 1)
-        self.assertIn("SIGNAL: match", reply.text)
-        self.assertIn("TECHNICAL: no_match", reply.text)
-        self.assertIn("MA: veri_yok", reply.text)
+        self.assertIn("Sinyaller: Eşleşti", reply.text)
+        self.assertIn("Teknik taramalar: Eşleşme yok", reply.text)
+        self.assertIn("Hareketli ortalama: Henüz veri yok", reply.text)
 
     def test_force_only_enqueues_long_job(self) -> None:
         store = FakeStore(snapshot())
@@ -121,7 +121,7 @@ class SymbolCommandServiceTests(unittest.TestCase):
         reply = SymbolCommandService(FakeStore(mixed)).handle(
             command(CommandName.SCAN, "ASELS")
         )
-        self.assertIn("SIGNAL: match", reply.text)
+        self.assertIn("Sinyaller: Eşleşti", reply.text)
 
     def test_force_is_restricted_to_scan_commands(self) -> None:
         queue = FakeQueue()
