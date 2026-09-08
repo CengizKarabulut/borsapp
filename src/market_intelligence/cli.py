@@ -347,9 +347,19 @@ def _publisher_loop(
 
 
 def _listener(settings: ApplicationSettings, connection) -> TelegramListener:
+    source = HttpxTelegramUpdateSource(settings.telegram.bot_token)
+    telegram_settings = settings.telegram
+    if telegram_settings.allow_chat_admins:
+        administrator_ids = source.fetch_chat_administrator_ids(
+            chat_id=telegram_settings.chat_id
+        )
+        telegram_settings = replace(
+            telegram_settings,
+            allowed_user_ids=telegram_settings.allowed_user_ids | administrator_ids,
+        )
     return TelegramListener(
-        settings=settings.telegram,
-        source=HttpxTelegramUpdateSource(settings.telegram.bot_token),
+        settings=telegram_settings,
+        source=source,
         repository=PostgresTelegramUpdateRepository(connection),
         command_service=SymbolCommandService(
             PostgresSymbolReadStore(connection),

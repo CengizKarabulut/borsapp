@@ -51,6 +51,7 @@ class TelegramSettings:
     allowed_user_ids: frozenset[int]
     topic_ids: Mapping[TopicKind, int]
     delivery_mode: DeliveryMode = DeliveryMode.DISABLED
+    allow_chat_admins: bool = False
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> TelegramSettings:
@@ -91,7 +92,17 @@ class TelegramSettings:
             )
         except ValueError as exc:
             raise ValueError("DELIVERY_MODE disabled, shadow veya live olmalıdır") from exc
-        return cls(token, chat_id, allowed, topics, delivery_mode)
+        allow_admins_raw = values.get("TELEGRAM_ALLOW_CHAT_ADMINS", "false").strip().casefold()
+        if allow_admins_raw not in {"true", "false"}:
+            raise ValueError("TELEGRAM_ALLOW_CHAT_ADMINS true veya false olmalıdır")
+        return cls(
+            token,
+            chat_id,
+            allowed,
+            topics,
+            delivery_mode,
+            allow_admins_raw == "true",
+        )
 
     def topic_id(self, kind: TopicKind) -> int:
         try:

@@ -35,6 +35,12 @@ class TelegramSettingsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "TELEGRAM_TOPIC_SYSTEM"):
             TelegramSettings.from_mapping(values)
 
+    def test_chat_admin_authorization_is_explicitly_enabled(self) -> None:
+        values = environment()
+        values["TELEGRAM_ALLOW_CHAT_ADMINS"] = "true"
+        settings = TelegramSettings.from_mapping(values)
+        self.assertTrue(settings.allow_chat_admins)
+
 
 class TopicRouterTests(unittest.TestCase):
     def setUp(self) -> None:

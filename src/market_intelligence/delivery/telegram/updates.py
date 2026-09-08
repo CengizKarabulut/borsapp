@@ -54,3 +54,42 @@ class HttpxTelegramUpdateSource:
         if not isinstance(result, list):
             raise TelegramUpdateError("getUpdates result listesi döndürmedi")
         return tuple(item for item in result if isinstance(item, dict))
+
+    def fetch_chat_administrator_ids(self, *, chat_id: int) -> frozenset[int]:
+        try:
+            import httpx
+        except ImportError as exc:
+            raise TelegramUpdateError(
+                "httpx kurulu değil; runtime bağımlılıklarını yükleyin"
+            ) from exc
+        url = f"https://api.telegram.org/bot{self._bot_token}/getChatAdministrators"
+        try:
+            response = httpx.get(
+                url,
+                params={"chat_id": chat_id},
+                timeout=self.request_timeout_seconds,
+            )
+        except Exception as exc:
+            raise TelegramUpdateError(
+                f"Telegram yönetici sorgusu ağ hatası: {type(exc).__name__}"
+            ) from exc
+        try:
+            body = response.json()
+        except Exception as exc:
+            raise TelegramUpdateError(
+                f"Telegram geçersiz yönetici yanıtı: HTTP {response.status_code}"
+            ) from exc
+        if response.status_code >= 400 or not body.get("ok"):
+            description = str(body.get("description", "getChatAdministrators başarısız"))
+            raise TelegramUpdateError(description[:500])
+        result = body.get("result")
+        if not isinstance(result, list):
+            raise TelegramUpdateError("getChatAdministrators result listesi döndürmedi")
+        return frozenset(
+            int(user_id)
+            for item in result
+            if isinstance(item, dict)
+            and isinstance(item.get("user"), dict)
+            and isinstance(user_id := item["user"].get("id"), int)
+            and not bool(item["user"].get("is_bot"))
+        )

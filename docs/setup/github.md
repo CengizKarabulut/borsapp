@@ -15,6 +15,8 @@ ancak ortamlar arasında değiştiğinden Actions **Variables** altında tutulur
 
 - `APP_TIMEZONE=Europe/Istanbul`
 - `TELEGRAM_ALLOWED_USERS`
+- `TELEGRAM_ALLOW_CHAT_ADMINS=true`: Komut Merkezi'nde grup yöneticilerini
+  dinamik olarak yetkilendirir; yanlış statik kullanıcı ID'sinin botu kilitlemesini önler
 - sekiz adet `TELEGRAM_TOPIC_...` değeri
 
 İlk shadow döneminde Telegram teslimatı kapalı tutulmalıdır. Canlı yayın için
