@@ -21,9 +21,13 @@ runtime = [
     "borsapy>=0.10,<1",
     "exchange-calendars>=4.13,<5",
     "httpx>=0.27,<1",
+    "matplotlib>=3.8,<4",
     "numpy>=1.26,<3",
     "pandas>=2,<3",
+    "pillow>=10,<13",
+    "plotly>=5.22,<7",
     "psycopg[binary]>=3.2,<4",
+    "requests>=2.31,<3",
     "yfinance>=0.2,<1",
 ]
 

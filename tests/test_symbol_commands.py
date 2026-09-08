@@ -131,6 +131,18 @@ class SymbolCommandServiceTests(unittest.TestCase):
         self.assertIn("yalnız /tara", reply.text)
         self.assertEqual(queue.calls, 0)
 
+    def test_analysis_and_chart_are_enqueued_as_long_jobs(self) -> None:
+        for name in (CommandName.ANALYSIS, CommandName.CHART):
+            with self.subTest(name=name):
+                queue = FakeQueue()
+                store = FakeStore(snapshot())
+                reply = SymbolCommandService(store, queue).handle(
+                    command(name, "ASELS")
+                )
+                self.assertEqual(store.calls, 0)
+                self.assertEqual(queue.calls, 1)
+                self.assertEqual(reply.queued_job_id, "job-1")
+
     def test_news_reply_includes_source_url(self) -> None:
         reply = SymbolCommandService(FakeStore(snapshot())).handle(
             command(CommandName.NEWS, "ASELS")

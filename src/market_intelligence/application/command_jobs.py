@@ -71,11 +71,15 @@ class CommandJobRunner:
             self.executor(job)
         except Exception as exc:
             error = f"{type(exc).__name__}: {str(exc)[:500]}"
-        follow_up = "/taramalar" if job.command is CommandName.SCANS else "/tara"
-        status_text = (
-            f"{job.symbol} yenilemesi tamamlandı. {follow_up} {job.symbol}"
-            if error is None
-            else f"{job.symbol} yenilemesi başarısız oldu: {type_name(error)}"
+        if job.command is CommandName.ANALYSIS:
+            success_text = f"{job.symbol} analizi tamamlandı; Analizler konusuna gönderildi."
+        elif job.command is CommandName.CHART:
+            success_text = f"{job.symbol} grafiği tamamlandı; Grafikler konusuna gönderildi."
+        else:
+            follow_up = "/taramalar" if job.command is CommandName.SCANS else "/tara"
+            success_text = f"{job.symbol} yenilemesi tamamlandı. {follow_up} {job.symbol}"
+        status_text = success_text if error is None else (
+            f"{job.symbol} {job.command.value} işi başarısız oldu: {type_name(error)}"
         )
         envelope = self.router.route(
             publication_kind=PublicationKind.COMMAND_REPLY,

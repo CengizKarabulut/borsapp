@@ -108,6 +108,21 @@ class SymbolCommandService:
                 queued_job_id=job_id,
             )
 
+        if command.name in {CommandName.ANALYSIS, CommandName.CHART}:
+            if self.job_queue is None:
+                return CommandReply("Uzun iş kuyruğu bu ortamda etkin değil.")
+            job_id = self.job_queue.enqueue(
+                command=command.name,
+                symbol=symbol,
+                requested_by=command.user_id,
+                requested_topic=command.topic_id,
+            )
+            output_name = "araştırma analizi" if command.name is CommandName.ANALYSIS else "grafiği"
+            return CommandReply(
+                f"{symbol} {output_name} hazırlanmak üzere kuyruğa alındı. İş: {job_id}",
+                queued_job_id=job_id,
+            )
+
         snapshot = self.store.load_symbol(symbol)
         if snapshot is None:
             return CommandReply(
@@ -121,8 +136,7 @@ class SymbolCommandService:
         if command.name is CommandName.NEWS:
             chunks = self._news(snapshot)
             return CommandReply(chunks[0], additional_texts=chunks[1:])
-        artifact_kind = "analysis" if command.name is CommandName.ANALYSIS else "chart"
-        return CommandReply(self._artifact(snapshot, artifact_kind))
+        raise ValueError(f"Desteklenmeyen komut: {command.name.value}")
 
     @staticmethod
     def _overview(snapshot: SymbolSnapshot) -> str:

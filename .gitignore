@@ -15,6 +15,7 @@ build/
 data/
 reports/
 out/
+runtime_artifacts/
 *.sqlite
 *.sqlite3
 *.db

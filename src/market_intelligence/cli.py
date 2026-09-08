@@ -21,6 +21,10 @@ from market_intelligence.application.scheduled_scan import (
 )
 from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.application.telegram_listener import TelegramListener
+from market_intelligence.compat.legacy_suite import (
+    generate_and_send_chart,
+    generate_and_send_research,
+)
 from market_intelligence.core.timeframes import parse_timeframe
 from market_intelligence.delivery.telegram.commands import CommandName, IncomingCommand
 from market_intelligence.delivery.telegram.config import DeliveryMode, TopicKind
@@ -842,16 +846,32 @@ def _command_job_executor(
     parse_timeframe(timeframe)
 
     def execute(job: CommandJob) -> None:
-        if job.command not in {CommandName.SCAN, CommandName.SCANS}:
-            raise ValueError(f"Desteklenmeyen force komutu: {job.command.value}")
-        _scan_symbol(
-            settings,
-            symbol=job.symbol,
-            timeframe_raw=timeframe,
-            bars=bars,
-            scanners_path=scanners_path,
-            notify=False,
-        )
+        if job.command in {CommandName.SCAN, CommandName.SCANS}:
+            _scan_symbol(
+                settings,
+                symbol=job.symbol,
+                timeframe_raw=timeframe,
+                bars=bars,
+                scanners_path=scanners_path,
+                notify=False,
+            )
+            return
+        target = Path("runtime_artifacts") / job.job_id / job.command.value
+        if job.command is CommandName.ANALYSIS:
+            generate_and_send_research(
+                symbol=job.symbol,
+                topic_id=settings.telegram.topic_id(TopicKind.ANALYSIS),
+                target=target,
+            )
+            return
+        if job.command is CommandName.CHART:
+            generate_and_send_chart(
+                symbol=job.symbol,
+                topic_id=settings.telegram.topic_id(TopicKind.CHARTS),
+                target=target,
+            )
+            return
+        raise ValueError(f"Desteklenmeyen uzun iş komutu: {job.command.value}")
 
     return execute
 

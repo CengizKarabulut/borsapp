@@ -8,6 +8,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src ./src
+COPY _legacy ./_legacy
 RUN python -m pip install --no-cache-dir ".[runtime]"
 
 COPY config ./config
