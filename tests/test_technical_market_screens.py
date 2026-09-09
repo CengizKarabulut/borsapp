@@ -12,10 +12,11 @@ from market_intelligence.scanning.engine import ScannerEngine
 from market_intelligence.scanning.technical.market_screens import (
     DecisionZoneScanner,
     ExhaustionScanner,
+    ExtremeRsiConfig,
     ExtremeRsiScanner,
     FailedBreakoutScanner,
+    SqueezeVolumeConfig,
     SqueezeVolumeScanner,
-    TechnicalScreenConfig,
     TrendContinuationScanner,
 )
 from tests.test_volume_spike import context, frame
@@ -150,11 +151,21 @@ class TechnicalMarketScreenTests(unittest.TestCase):
         self.assertEqual(run.findings[0].direction, Direction.BEARISH)
 
     def test_all_screens_apply_the_shared_liquidity_prefilter(self) -> None:
-        scanner = SqueezeVolumeScanner(
-            TechnicalScreenConfig(minimum_average_turnover=20_000_000.0)
-        )
+        scanner = SqueezeVolumeScanner(SqueezeVolumeConfig(minimum_average_turnover=20_000_000.0))
         run = self.run_scanner(scanner, technical(), average_turnover=1_000_000.0)
         self.assertEqual(run.evaluation.status, EvaluationStatus.NO_MATCH)
+
+    def test_scanner_specific_thresholds_are_configurable(self) -> None:
+        default_run = self.run_scanner(
+            ExtremeRsiScanner(),
+            technical(rsi=28.0),
+        )
+        configured_run = self.run_scanner(
+            ExtremeRsiScanner(ExtremeRsiConfig(lower_rsi=30.0, upper_rsi=70.0)),
+            technical(rsi=28.0),
+        )
+        self.assertEqual(default_run.evaluation.status, EvaluationStatus.NO_MATCH)
+        self.assertEqual(configured_run.evaluation.status, EvaluationStatus.MATCH)
 
 
 if __name__ == "__main__":

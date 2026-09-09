@@ -65,7 +65,7 @@ açıkça gösterir.
 | Haber | KAP canonical; genel haber compatibility adapteriyle çalışıyor | Genel haber kaynaklarını legacy importundan kurtarma |
 | Veritabanı | Sıralı/checksum'lı migration runner, gerçek PostgreSQL CI testi | Üretim yedekleme prosedürü |
 | KARAR | `decision.panel_v645` canonical günlük scanner ve gerçek legacy shadow adapter üzerinde | Saha parity örnekleri ve promosyon |
-| Araştırma | `/analiz` tek ekran canonical özet; `/rapor` 24 bölümlü PDF; `/temel` ortak finansal provider zinciri | MTF/Elliott feature'ları ve saha veri kapsamı |
+| Araştırma | `/analiz` canonical özet; `/hisse` ve `/rapor` 25 bölümlü PDF + makine-okunur JSON; 1h/1d MTF; `/temel` ortak finansal provider zinciri | 4h/haftalık/aylık point-in-time veri, sektör/peer ve tarihsel değerleme kapsamı |
 | Sonuç ölçümü | 5/10/20 bar yön-duyarlı MFE/MAE, XU100 excess return, backfill/report workflow | Yeterli saha örneği birikmesi |
 
 - [x] Canonical bar ve snapshot kimliği
@@ -98,8 +98,11 @@ açıkça gösterir.
 - [x] `taramabot` içindeki dokuz legacy sinyal kodunun yeni scanner kataloğuna taşınması
 - [x] `/analiz`, `/rapor` ve `/temel` için canonical uygulama servisi, BIST kamu
       finansalları + yfinance fallback ve transactional outbox
-- [x] `/rapor` için deterministik kimlikli 24 bölümlü PDF ve Telegram
+- [x] `/hisse` ve `/rapor` için deterministik kimlikli 25 bölümlü PDF, rapor sonu
+      makine-okunur JSON ve Telegram
       `sendDocument` teslimatı
+- [x] Rapor için 1 saat + günlük canonical çoklu zaman dilimi özeti; eksik
+      periyotların `UNKNOWN` kalması
 - [x] OHLCV ingestion için borsapy → yfinance fallback zinciri
 - [x] `/grafik` için kaynak üreticiyle uyumlu geçiş adapter'ı
 - [x] Genel piyasa haberleri ve ekonomik takvimin kaynak önceliği, bootstrap ve

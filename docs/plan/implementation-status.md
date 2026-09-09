@@ -6,7 +6,7 @@ yerine geçmez.
 
 | Açık | Durum | Kanıt / sıradaki iş |
 | --- | --- | --- |
-| G-01 Shadow parity | Kısmi | 18 scanner için gerçek legacy adapter, store, rapor ve gate hazır; MA Research parity ve saha kanıtı eksik |
+| G-01 Shadow parity | Kısmi | 18 scanner için gerçek legacy adapter, store, rapor ve gate hazır; 1d volume/MACD pilotu doğrulandı, MA Research saha kanıtı eksik |
 | G-02 Teslimat modu | Tamamlandı | `SCAN_DELIVERY_MODE`, varsayılan `shadow`, CLI `--notify` kilidi |
 | G-03 Docker context | Tamamlandı | Gerekli iki vendor ağacı image context'ine dahil; CI image build işi var |
 | G-04 Migration runner | Tamamlandı | `db-migrate`, `db-version`, checksum ve dry-run |
@@ -23,10 +23,11 @@ yerine geçmez.
 
 ## Araştırma komutları
 
-- `/analiz`: canonical günlük frame + ortak feature + finansal provider zincirinden
+- `/analiz`: canonical 1 saat + günlük frame, ortak feature + finansal provider zincirinden
   tek ekran özet; merkezi outbox.
-- `/rapor`: aynı modelin 24 bölümlü PDF görünümü; deterministik rapor kimliği,
-  `research_artifacts` kaydı ve dayanıklı `sendDocument` outbox payload'ı.
+- `/hisse` ve `/rapor`: aynı modelin 25 bölümlü PDF görünümü; deterministik rapor
+  kimliği, PDF sonu makine-okunur JSON, `research_artifacts` kaydı ve dayanıklı
+  `sendDocument` outbox payload'ı.
 - `/temel`: BIST kamu finansal tabloları birincil, yfinance alan bazlı fallback;
   kaynak/kapsam görünür ve eksik alanlar `UNKNOWN`.
 - OHLCV kullanan ingestion yolları borsapy birincil, yfinance fallback olacak
@@ -44,3 +45,8 @@ yerine geçmez.
 Canlı bildirim kapsamı, scanner'ın katalogda bulunmasından ayrıdır. Parity gate
 tamamlanıncaya kadar bir scanner'ın çalışması onun legacy ile doğrulandığı
 anlamına gelmez.
+
+İlk üretim kapısı yalnız `technical.volume_spike` ve
+`signal.macd_positive_cross` için `1d` zaman diliminde tanımlıdır. Diğer
+scanner'lar sonuç üretir ve saklar ancak yeterli saha parity örneği olmadan
+Telegram bildirimi göndermez.

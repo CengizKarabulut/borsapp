@@ -57,18 +57,25 @@ class ScannerCatalogTests(unittest.TestCase):
         )
         for binding in bindings:
             self.assertEqual(len(binding.ruleset_hash), 64)
-            self.assertTrue(
-                binding.notification_timeframes.issubset(binding.shadow_timeframes)
-            )
+            self.assertTrue(binding.notification_timeframes.issubset(binding.shadow_timeframes))
         volume = next(b for b in bindings if b.scanner.id == "technical.volume_spike")
         self.assertIn(Timeframe.H1, volume.shadow_timeframes)
-        self.assertEqual(volume.notification_timeframes, frozenset())
+        self.assertEqual(volume.notification_timeframes, frozenset({Timeframe.D1}))
+        macd = next(b for b in bindings if b.scanner.id == "signal.macd_positive_cross")
+        self.assertEqual(macd.notification_timeframes, frozenset({Timeframe.D1}))
 
     def test_notification_requires_verified_parity_evidence(self) -> None:
         source = (ROOT / "config/scanners.toml").read_text(encoding="utf-8")
         altered = source.replace(
-            "notification_timeframes = []",
+            'notification_timeframes = ["1d"]',
             'notification_timeframes = ["1h"]',
+            1,
+        ).replace(
+            "\n[technical.volume_spike.parity]\n"
+            'status = "verified"\n'
+            'verified_at = "2026-09-09"\n'
+            'adr = "docs/adr/0008-pilot-scanner-notifications.md"\n',
+            "\n",
             1,
         )
         with tempfile.TemporaryDirectory() as directory:
@@ -76,6 +83,28 @@ class ScannerCatalogTests(unittest.TestCase):
             path.write_text(altered, encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "doğrulanmış parity"):
                 load_scanner_catalog(path)
+
+    def test_unrelated_technical_threshold_does_not_change_other_ruleset(self) -> None:
+        source = (ROOT / "config/scanners.toml").read_text(encoding="utf-8")
+        altered = source.replace("minimum_adx = 25.0", "minimum_adx = 30.0", 1)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scanners.toml"
+            path.write_text(altered, encoding="utf-8")
+            original = {
+                binding.scanner.id: binding.ruleset_hash
+                for binding in load_scanner_catalog(ROOT / "config/scanners.toml")
+            }
+            changed = {
+                binding.scanner.id: binding.ruleset_hash for binding in load_scanner_catalog(path)
+            }
+        self.assertNotEqual(
+            original["technical.trend_continuation"],
+            changed["technical.trend_continuation"],
+        )
+        self.assertEqual(
+            original["technical.extreme_rsi"],
+            changed["technical.extreme_rsi"],
+        )
 
 
 if __name__ == "__main__":

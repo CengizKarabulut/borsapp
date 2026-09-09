@@ -9,9 +9,9 @@ taramabot,exit_engine.py,src/market_intelligence/features/risk.py,SPLIT,pending,
 ma-reaction-scanner,scanner/,src/market_intelligence/features/ma.py,MERGE,partial,qualification migrated; parity pending
 ma-reaction-scanner,scanner/,src/market_intelligence/scanning/ma/near_zone.py,SPLIT,implemented,event-state boundary
 market-telegram-suite,apps/technical_bot/src/screener.py,src/market_intelligence/scanning/technical/,SPLIT,implemented,7 legacy screens mapped to 7 scanners
-market-telegram-suite,apps/technical_bot/src/stock_dashboard.py,src/market_intelligence/features/technical.py,SPLIT,partial,scanner context migrated; research renderer remains vendor-backed
+market-telegram-suite,apps/technical_bot/src/stock_dashboard.py,src/market_intelligence/features/technical.py,SPLIT,implemented,scanner context and native 25-section research renderer migrated
 market-telegram-suite,apps/chart_bot/,src/market_intelligence/research/technical/,VENDOR,pending,runtime still uses compatibility adapter
-market-telegram-suite,apps/research_bot/,src/market_intelligence/research/fundamental/,VENDOR,pending,runtime still uses compatibility adapter
+market-telegram-suite,apps/research_bot/,src/market_intelligence/application/equity_reports.py,SPLIT,implemented,native report and financial provider chain; runtime has no legacy research import
 tradingview-haber-botu,kap.py,src/market_intelligence/news/kap.py,MOVE,implemented,canonical KAP ingestion
 tradingview-haber-botu,news_bot.py,src/market_intelligence/news/general.py,SPLIT,partial,general sources still load frozen legacy module
 tradingview-haber-botu,tv_news_bot.py,src/market_intelligence/news/tradingview.py,MOVE,pending,legacy source adapter remains

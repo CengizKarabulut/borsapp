@@ -14,37 +14,92 @@ from market_intelligence.scanning.contracts import Finding, ScanContext
 
 
 @dataclass(frozen=True)
-class TechnicalScreenConfig:
+class LiquidityScreenConfig:
     minimum_average_turnover: float = 20_000_000.0
     minimum_price: float = 1.0
-    bb_rank_max: float = 20.0
-    squeeze_rvol_min: float = 1.5
-    extreme_rvol_min: float = 1.0
-    trend_adx_min: float = 25.0
-    trend_rvol_min: float = 1.0
 
     def __post_init__(self) -> None:
         if self.minimum_average_turnover < 0 or self.minimum_price < 0:
             raise ValueError("Teknik tarama likidite eşikleri negatif olamaz")
+
+
+@dataclass(frozen=True)
+class SqueezeVolumeConfig(LiquidityScreenConfig):
+    bb_rank_max: float = 20.0
+    relative_volume_minimum: float = 1.5
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
         if not 0 <= self.bb_rank_max <= 100:
             raise ValueError("Bollinger yüzdelik eşiği 0 ile 100 arasında olmalıdır")
-        if min(self.squeeze_rvol_min, self.extreme_rvol_min, self.trend_rvol_min) < 0:
-            raise ValueError("RVOL eşikleri negatif olamaz")
-        if self.trend_adx_min < 0:
+        if self.relative_volume_minimum < 0:
+            raise ValueError("RVOL eşiği negatif olamaz")
+
+
+@dataclass(frozen=True)
+class ExtremeRsiConfig(LiquidityScreenConfig):
+    lower_rsi: float = 25.0
+    upper_rsi: float = 75.0
+    relative_volume_minimum: float = 1.0
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not 0 <= self.lower_rsi < self.upper_rsi <= 100:
+            raise ValueError("RSI uç bölge eşikleri geçersiz")
+        if self.relative_volume_minimum < 0:
+            raise ValueError("RVOL eşiği negatif olamaz")
+
+
+@dataclass(frozen=True)
+class DecisionZoneConfig(LiquidityScreenConfig):
+    bb_rank_max: float = 20.0
+    maximum_adx: float = 20.0
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not 0 <= self.bb_rank_max <= 100:
+            raise ValueError("Bollinger yüzdelik eşiği 0 ile 100 arasında olmalıdır")
+        if self.maximum_adx < 0:
             raise ValueError("ADX eşiği negatif olamaz")
+
+
+@dataclass(frozen=True)
+class TrendContinuationConfig(LiquidityScreenConfig):
+    minimum_adx: float = 25.0
+    relative_volume_minimum: float = 1.0
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.minimum_adx < 0:
+            raise ValueError("ADX eşiği negatif olamaz")
+        if self.relative_volume_minimum < 0:
+            raise ValueError("RVOL eşiği negatif olamaz")
+
+
+@dataclass(frozen=True)
+class ExhaustionConfig(LiquidityScreenConfig):
+    lower_rsi: float = 30.0
+    upper_rsi: float = 70.0
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not 0 <= self.lower_rsi < self.upper_rsi <= 100:
+            raise ValueError("RSI tükenme eşikleri geçersiz")
 
 
 class _TechnicalScreen:
     family = "technical"
-    version = "1.0.0"
+    version = "1.1.0"
     supported_timeframes = set(Timeframe)
     required_features = (TECHNICAL_MARKET_CONTEXT, RELATIVE_VOLUME_20)
     accepts_partial_bars = False
     result_kind = ResultKind.STATE
     label = ""
 
-    def __init__(self, config: TechnicalScreenConfig | None = None) -> None:
-        self.config = config or TechnicalScreenConfig()
+    config_type = LiquidityScreenConfig
+
+    def __init__(self, config: LiquidityScreenConfig | None = None) -> None:
+        self.config = config or self.config_type()
 
     @staticmethod
     def _values(
@@ -115,6 +170,7 @@ class _TechnicalScreen:
 class SqueezeVolumeScanner(_TechnicalScreen):
     id = "technical.squeeze_volume"
     label = "Dar Bollinger bandına ortalama üstü hacim katılımı geldi."
+    config_type = SqueezeVolumeConfig
 
     def prefilter(self, frame: CanonicalFrame, context: ScanContext) -> bool:
         values = self._values(context)
@@ -124,7 +180,7 @@ class SqueezeVolumeScanner(_TechnicalScreen):
         return (
             self._liquid(volume)
             and technical.bb_width_percentile <= self.config.bb_rank_max
-            and volume.relative_volume >= self.config.squeeze_rvol_min
+            and volume.relative_volume >= self.config.relative_volume_minimum
         )
 
     def evaluate(self, frame: CanonicalFrame, context: ScanContext) -> tuple[Finding, ...]:
@@ -138,6 +194,7 @@ class SqueezeVolumeScanner(_TechnicalScreen):
 class ExtremeRsiScanner(_TechnicalScreen):
     id = "technical.extreme_rsi"
     label = "RSI uç bölgede ve hacim katılımı en az normal düzeyde."
+    config_type = ExtremeRsiConfig
 
     def prefilter(self, frame: CanonicalFrame, context: ScanContext) -> bool:
         values = self._values(context)
@@ -146,8 +203,8 @@ class ExtremeRsiScanner(_TechnicalScreen):
         technical, volume = values
         return (
             self._liquid(volume)
-            and (technical.rsi <= 25 or technical.rsi >= 75)
-            and volume.relative_volume >= self.config.extreme_rvol_min
+            and (technical.rsi <= self.config.lower_rsi or technical.rsi >= self.config.upper_rsi)
+            and volume.relative_volume >= self.config.relative_volume_minimum
         )
 
     def evaluate(self, frame: CanonicalFrame, context: ScanContext) -> tuple[Finding, ...]:
@@ -155,7 +212,9 @@ class ExtremeRsiScanner(_TechnicalScreen):
         if values is None or not self.prefilter(frame, context):
             return ()
         technical, volume = values
-        direction = Direction.BULLISH if technical.rsi <= 25 else Direction.BEARISH
+        direction = (
+            Direction.BULLISH if technical.rsi <= self.config.lower_rsi else Direction.BEARISH
+        )
         return (self._finding(frame, context, technical, volume, direction),)
 
 
@@ -179,9 +238,7 @@ class FailedBreakoutScanner(_TechnicalScreen):
         if "reddedilme" not in technical.setup_name.casefold():
             return ()
         direction = (
-            Direction.BULLISH
-            if technical.setup_direction == "bullish"
-            else Direction.BEARISH
+            Direction.BULLISH if technical.setup_direction == "bullish" else Direction.BEARISH
         )
         return (self._finding(frame, context, technical, volume, direction),)
 
@@ -189,6 +246,7 @@ class FailedBreakoutScanner(_TechnicalScreen):
 class DecisionZoneScanner(_TechnicalScreen):
     id = "technical.decision_zone"
     label = "Fiyat düşük yönlülükte sıkışma ve karar bölgesinde."
+    config_type = DecisionZoneConfig
 
     def prefilter(self, frame: CanonicalFrame, context: ScanContext) -> bool:
         values = self._values(context)
@@ -198,7 +256,7 @@ class DecisionZoneScanner(_TechnicalScreen):
         return (
             self._liquid(volume)
             and technical.bb_width_percentile <= self.config.bb_rank_max
-            and technical.adx < 20
+            and technical.adx < self.config.maximum_adx
         )
 
     def evaluate(self, frame: CanonicalFrame, context: ScanContext) -> tuple[Finding, ...]:
@@ -214,6 +272,7 @@ class DecisionZoneScanner(_TechnicalScreen):
 class TrendContinuationScanner(_TechnicalScreen):
     id = "technical.trend_continuation"
     label = "Yapı, EMA dizilimi, yönlülük ve katılım aynı trendi destekliyor."
+    config_type = TrendContinuationConfig
 
     def prefilter(self, frame: CanonicalFrame, context: ScanContext) -> bool:
         values = self._values(context)
@@ -222,9 +281,9 @@ class TrendContinuationScanner(_TechnicalScreen):
         technical, volume = values
         return (
             self._liquid(volume)
-            and technical.adx >= self.config.trend_adx_min
+            and technical.adx >= self.config.minimum_adx
             and technical.stacked_direction is not None
-            and volume.relative_volume >= self.config.trend_rvol_min
+            and volume.relative_volume >= self.config.relative_volume_minimum
         )
 
     def evaluate(self, frame: CanonicalFrame, context: ScanContext) -> tuple[Finding, ...]:
@@ -235,9 +294,7 @@ class TrendContinuationScanner(_TechnicalScreen):
         if technical.setup_name != "Trend devamı":
             return ()
         direction = (
-            Direction.BULLISH
-            if technical.setup_direction == "bullish"
-            else Direction.BEARISH
+            Direction.BULLISH if technical.setup_direction == "bullish" else Direction.BEARISH
         )
         return (self._finding(frame, context, technical, volume, direction),)
 
@@ -245,6 +302,7 @@ class TrendContinuationScanner(_TechnicalScreen):
 class ExhaustionScanner(_TechnicalScreen):
     id = "technical.exhaustion"
     label = "Momentum aşırılığı, seviye yoğunlaşması ve teyitli uyumsuzluk birlikte."
+    config_type = ExhaustionConfig
 
     def prefilter(self, frame: CanonicalFrame, context: ScanContext) -> bool:
         values = self._values(context)
@@ -253,7 +311,7 @@ class ExhaustionScanner(_TechnicalScreen):
         technical, volume = values
         return (
             self._liquid(volume)
-            and (technical.rsi <= 30 or technical.rsi >= 70)
+            and (technical.rsi <= self.config.lower_rsi or technical.rsi >= self.config.upper_rsi)
             and (technical.pierced_down or technical.pierced_up)
         )
 

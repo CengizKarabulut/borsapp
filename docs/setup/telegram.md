@@ -90,8 +90,10 @@ fazla kullanıcı virgülle ayrılabilir: `123456789,987654321`.
 
 - `/analiz ASELS`: Analiz & Araştırma konusuna tek ekran canonical özet.
 - `/temel ASELS`: aynı konuya kaynak ve veri kapsamı etiketli finansal kart.
-- `/rapor ASELS`: Raporlar & Bültenler konusuna 24 bölümlü PDF belge.
+- `/hisse ASELS`: Raporlar & Bültenler konusuna 25 bölümlü PDF belge,
+  1h/1d MTF görünümü ve rapor sonu makine-okunur JSON.
+- `/rapor ASELS`: `/hisse` komutunun geriye uyumlu alias'ı.
 
-Bu üç komut uzun iş kuyruğuna alınır. Komut Merkezi önce iş kimliğini, işlem
+Bu dört komut uzun iş kuyruğuna alınır. Komut Merkezi önce iş kimliğini, işlem
 bitince de başarı veya hata durumunu gösterir. PDF doğrudan bot tarafından dosya
 olarak yüklenir; ayrı bir bağlantı veya ikinci bot gerekmez.

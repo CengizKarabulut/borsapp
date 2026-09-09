@@ -1192,10 +1192,11 @@ def _command_job_executor(
         instrument = runtime.resolve_instrument(job.symbol, as_of=generated_at.date())
         if instrument is None:
             raise ValueError(f"Aktif enstrüman bulunamadı: {job.symbol}")
-        frame = IngestionService(
+        ingestion = IngestionService(
             provider=_market_data_provider(settings),
             store=PostgresSnapshotStore(connection),
-        ).ingest(
+        )
+        frame = ingestion.ingest(
             IngestionRequest(
                 instrument_id=instrument.instrument_id,
                 symbol=instrument.symbol,
@@ -1207,6 +1208,26 @@ def _command_job_executor(
                 series_revision=1,
             )
         )
+        related_frames = []
+        try:
+            related_frames.append(
+                ingestion.ingest(
+                    IngestionRequest(
+                        instrument_id=instrument.instrument_id,
+                        symbol=instrument.symbol,
+                        provider_symbol=instrument.provider_symbol,
+                        market=instrument.market,
+                        timeframe=Timeframe.H1,
+                        bars=max(500, bars),
+                        as_of=generated_at,
+                        series_revision=1,
+                    )
+                )
+            )
+        except Exception:
+            # MTF zenginleştirme raporun tamamını düşürmemelidir; eksik periyot
+            # raporda UNKNOWN olarak görünür.
+            related_frames = []
         stored = PostgresSymbolReadStore(connection).load_symbol(job.symbol)
         if stored is None:
             raise ValueError(f"Araştırma snapshot'ı bulunamadı: {job.symbol}")
@@ -1214,7 +1235,7 @@ def _command_job_executor(
             feature_engine=_feature_engine(connection),
             financials=financial_chain(),
         )
-        return frame, stored, service
+        return frame, tuple(related_frames), stored, service
 
     def execute(job: CommandJob) -> CommandJobOutput | None:
         if job.command in {CommandName.SCAN, CommandName.SCANS}:
@@ -1237,11 +1258,14 @@ def _command_job_executor(
         if job.command is CommandName.ANALYSIS:
             generated_at = datetime.now(settings.runtime.timezone)
             with _connect(settings.runtime.database_url) as connection:
-                frame, stored, service = research_frame(connection, job, generated_at)
+                frame, related_frames, stored, service = research_frame(
+                    connection, job, generated_at
+                )
                 report = service.assemble(
                     frame=frame,
                     stored=stored,
                     generated_at=generated_at,
+                    related_frames=related_frames,
                 )
             envelope = TopicRouter(settings.telegram).route(
                 publication_kind=PublicationKind.ANALYSIS,
@@ -1256,7 +1280,9 @@ def _command_job_executor(
         if job.command in {CommandName.EQUITY, CommandName.REPORT}:
             generated_at = datetime.now(settings.runtime.timezone)
             with _connect(settings.runtime.database_url) as connection:
-                frame, stored, service = research_frame(connection, job, generated_at)
+                frame, related_frames, stored, service = research_frame(
+                    connection, job, generated_at
+                )
                 output_path = target / (
                     f"{job.symbol}_{frame.through_bar_time:%Y%m%d}_arastirma_raporu.pdf"
                 )
@@ -1265,6 +1291,7 @@ def _command_job_executor(
                     stored=stored,
                     generated_at=generated_at,
                     target=output_path,
+                    related_frames=related_frames,
                 )
             report_envelope = TopicRouter(settings.telegram).route(
                 publication_kind=PublicationKind.REPORT,

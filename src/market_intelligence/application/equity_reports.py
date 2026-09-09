@@ -47,12 +47,26 @@ class EquityReportService:
         frame: CanonicalFrame,
         stored: SymbolSnapshot,
         generated_at: datetime,
+        related_frames: tuple[CanonicalFrame, ...] = (),
     ) -> EquityResearchReport:
         resolution = self.feature_engine.resolve(frame, (RESEARCH_TECHNICAL_SNAPSHOT,))
         technical = resolution.values.get(RESEARCH_TECHNICAL_SNAPSHOT.feature_id)
         if not isinstance(technical, ResearchTechnicalSnapshot):
             missing = ",".join(resolution.unavailable) or "research.technical_snapshot"
             raise ValueError(f"Rapor feature verisi üretilemedi: {missing}")
+        timeframe_technicals = {frame.timeframe.value: technical}
+        for related in related_frames:
+            if related.instrument_id != frame.instrument_id or related.is_partial:
+                continue
+            related_resolution = self.feature_engine.resolve(
+                related,
+                (RESEARCH_TECHNICAL_SNAPSHOT,),
+            )
+            related_technical = related_resolution.values.get(
+                RESEARCH_TECHNICAL_SNAPSHOT.feature_id
+            )
+            if isinstance(related_technical, ResearchTechnicalSnapshot):
+                timeframe_technicals[related.timeframe.value] = related_technical
         financial = self.financials.fetch(frame.symbol_at_snapshot, as_of=frame.through_bar_time)
         return build_equity_research_report(
             frame=frame,
@@ -60,6 +74,7 @@ class EquityReportService:
             stored=stored,
             financial=financial,
             generated_at=generated_at,
+            timeframe_technicals=timeframe_technicals,
         )
 
     def generate(
@@ -69,11 +84,13 @@ class EquityReportService:
         stored: SymbolSnapshot,
         generated_at: datetime,
         target: Path,
+        related_frames: tuple[CanonicalFrame, ...] = (),
     ) -> GeneratedEquityReport:
         report = self.assemble(
             frame=frame,
             stored=stored,
             generated_at=generated_at,
+            related_frames=related_frames,
         )
         rendered = render_equity_research_pdf(report, target)
         return GeneratedEquityReport(

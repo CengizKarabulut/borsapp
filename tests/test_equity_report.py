@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import math
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -127,6 +129,35 @@ class EquityReportTests(unittest.TestCase):
         self.assertEqual(first.report_id, second.report_id)
         self.assertEqual(first.sections[4].status, "AVAILABLE")
         self.assertNotIn("AL/SAT", first.conclusion)
+        machine = json.loads(first.machine_readable_json())
+        self.assertEqual(machine["ticker"], "ASELS")
+        self.assertEqual(machine["timeframes"]["1d"]["status"], "AVAILABLE")
+        self.assertEqual(machine["timeframes"]["1h"], {})
+        self.assertIsNone(machine["technical"]["bos_level"])
+        self.assertTrue(
+            any(item.startswith("timeframes:") for item in machine["confidence"]["missing_data"])
+        )
+
+    def test_hourly_and_daily_snapshots_create_partial_mtf_dashboard(self) -> None:
+        daily = frame()
+        hourly = replace(daily, timeframe=Timeframe.H1, snapshot_id="snapshot-report-h1")
+        hourly_technical = technical_snapshot(hourly)
+        report = build_equity_research_report(
+            frame=daily,
+            technical=technical_snapshot(daily),
+            stored=SymbolSnapshot(daily.instrument_id, "ASELS"),
+            financial=financial(),
+            generated_at=datetime(2026, 9, 8, tzinfo=UTC),
+            timeframe_technicals={
+                "1h": hourly_technical,
+                "1d": technical_snapshot(daily),
+            },
+        )
+        machine = json.loads(report.machine_readable_json())
+        self.assertEqual(report.sections[15].status, "PARTIAL")
+        self.assertEqual(machine["timeframes"]["1h"]["status"], "AVAILABLE")
+        self.assertEqual(machine["timeframes"]["1d"]["status"], "AVAILABLE")
+        self.assertGreater(report.technical_coverage, 80.0)
 
     def test_pdf_is_created_with_all_section_titles(self) -> None:
         source = frame()

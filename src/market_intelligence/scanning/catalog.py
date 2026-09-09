@@ -39,12 +39,17 @@ from market_intelligence.scanning.signal.trend_volume import (
     TrendVolumeConfig,
 )
 from market_intelligence.scanning.technical.market_screens import (
+    DecisionZoneConfig,
     DecisionZoneScanner,
+    ExhaustionConfig,
     ExhaustionScanner,
+    ExtremeRsiConfig,
     ExtremeRsiScanner,
     FailedBreakoutScanner,
+    LiquidityScreenConfig,
+    SqueezeVolumeConfig,
     SqueezeVolumeScanner,
-    TechnicalScreenConfig,
+    TrendContinuationConfig,
     TrendContinuationScanner,
 )
 from market_intelligence.scanning.technical.volume_spike import (
@@ -103,9 +108,7 @@ def _binding(
     parity = section.get("parity")
     if notifications:
         verified = isinstance(parity, dict) and parity.get("status") == "verified"
-        has_evidence = bool(
-            verified and parity.get("verified_at") and parity.get("adr")
-        )
+        has_evidence = bool(verified and parity.get("verified_at") and parity.get("adr"))
         if not has_evidence:
             raise ValueError(
                 f"{scanner.id}: notification_timeframes için doğrulanmış parity "
@@ -150,26 +153,62 @@ def load_scanner_catalog(
             )
         )
 
-    for scanner_type in (
-        SqueezeVolumeScanner,
-        ExtremeRsiScanner,
-        FailedBreakoutScanner,
-        DecisionZoneScanner,
-        TrendContinuationScanner,
-        ExhaustionScanner,
-    ):
-        technical_section = _section(document, scanner_type.id)
-        technical_config = TechnicalScreenConfig(
-            minimum_average_turnover=float(
-                technical_section["minimum_average_turnover"]
+    def liquidity(section: dict[str, Any]) -> dict[str, float]:
+        return {
+            "minimum_average_turnover": float(section["minimum_average_turnover"]),
+            "minimum_price": float(section["minimum_price"]),
+        }
+
+    technical_definitions = (
+        (
+            SqueezeVolumeScanner,
+            lambda section: SqueezeVolumeConfig(
+                **liquidity(section),
+                bb_rank_max=float(section["bb_rank_max"]),
+                relative_volume_minimum=float(section["relative_volume_minimum"]),
             ),
-            minimum_price=float(technical_section["minimum_price"]),
-            bb_rank_max=float(technical_section["bb_rank_max"]),
-            squeeze_rvol_min=float(technical_section["squeeze_rvol_min"]),
-            extreme_rvol_min=float(technical_section["extreme_rvol_min"]),
-            trend_adx_min=float(technical_section["trend_adx_min"]),
-            trend_rvol_min=float(technical_section["trend_rvol_min"]),
-        )
+        ),
+        (
+            ExtremeRsiScanner,
+            lambda section: ExtremeRsiConfig(
+                **liquidity(section),
+                lower_rsi=float(section["lower_rsi"]),
+                upper_rsi=float(section["upper_rsi"]),
+                relative_volume_minimum=float(section["relative_volume_minimum"]),
+            ),
+        ),
+        (
+            FailedBreakoutScanner,
+            lambda section: LiquidityScreenConfig(**liquidity(section)),
+        ),
+        (
+            DecisionZoneScanner,
+            lambda section: DecisionZoneConfig(
+                **liquidity(section),
+                bb_rank_max=float(section["bb_rank_max"]),
+                maximum_adx=float(section["maximum_adx"]),
+            ),
+        ),
+        (
+            TrendContinuationScanner,
+            lambda section: TrendContinuationConfig(
+                **liquidity(section),
+                minimum_adx=float(section["minimum_adx"]),
+                relative_volume_minimum=float(section["relative_volume_minimum"]),
+            ),
+        ),
+        (
+            ExhaustionScanner,
+            lambda section: ExhaustionConfig(
+                **liquidity(section),
+                lower_rsi=float(section["lower_rsi"]),
+                upper_rsi=float(section["upper_rsi"]),
+            ),
+        ),
+    )
+    for scanner_type, config_factory in technical_definitions:
+        technical_section = _section(document, scanner_type.id)
+        technical_config = config_factory(technical_section)
         if bool(technical_section.get("enabled", True)):
             bindings.append(
                 _binding(
@@ -210,9 +249,7 @@ def load_scanner_catalog(
             )
         )
 
-    confirmed_section = _section(
-        document, SmiMacdPositiveVolumeConfirmedScanner.id
-    )
+    confirmed_section = _section(document, SmiMacdPositiveVolumeConfirmedScanner.id)
     confirmed_config = SmiMacdPositiveVolumeConfig(
         minimum_history=int(confirmed_section["minimum_history"]),
         volume_multiplier=float(confirmed_section["volume_multiplier"]),

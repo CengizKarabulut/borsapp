@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -14,7 +15,7 @@ from market_intelligence.fundamentals.providers import FinancialSnapshot
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.news.text import sentence_excerpt
 
-REPORT_TEMPLATE_VERSION = "equity-research-tr-2.0.0"
+REPORT_TEMPLATE_VERSION = "equity-research-tr-2.1.0"
 
 
 @dataclass(frozen=True)
@@ -59,12 +60,21 @@ class EquityResearchReport:
     technical_coverage: float
     valuation_status: str
     confidence_score: float
+    machine_readable: dict[str, object]
 
     @property
     def summary(self) -> str:
         return (
             f"{self.symbol} 25 bölümlü araştırma raporu · bar={self.as_of_bar.isoformat()} · "
             f"kanıt={self.evidence_available}/{self.evidence_total} · güven={self.confidence_score:.0f}/100"
+        )
+
+    def machine_readable_json(self) -> str:
+        return json.dumps(
+            self.machine_readable,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
         )
 
 
@@ -210,7 +220,11 @@ def _financial_score(financial: FinancialSnapshot | None):
     return score, coverage, rows, valuation, risks
 
 
-def _technical_score(technical: ResearchTechnicalSnapshot):
+def _technical_score(
+    technical: ResearchTechnicalSnapshot,
+    *,
+    multi_timeframe_score: float | None,
+):
     structure = {"positive": 85.0, "negative": 15.0, "warning": 45.0, "neutral": 50.0}.get(
         technical.structure_tone, 50.0
     )
@@ -250,7 +264,16 @@ def _technical_score(technical: ResearchTechnicalSnapshot):
             momentum,
             f"RSI {technical.rsi14:.1f}; MACD hist. {technical.macd_histogram:.3f}",
         ),
-        ("Çoklu zaman dilimi", 10.0, None, "Yalnız günlük canonical frame mevcut"),
+        (
+            "Çoklu zaman dilimi",
+            10.0,
+            multi_timeframe_score,
+            (
+                "1 saat ve günlük canonical görünüm, yüksek periyoda daha fazla ağırlıkla"
+                if multi_timeframe_score is not None
+                else "İkinci bir canonical zaman dilimi mevcut değil"
+            ),
+        ),
         (
             "Volatilite/risk",
             5.0,
@@ -260,8 +283,12 @@ def _technical_score(technical: ResearchTechnicalSnapshot):
         (
             "Confluence",
             10.0,
-            75.0 if technical.near_confluence else 45.0,
-            "Yakın bağımsız faktör kümesi" if technical.near_confluence else "Güçlü yakın küme yok",
+            None,
+            (
+                "Bağımsız faktör kümesi gözlendi; sözleşme gereği puana çevrilmedi"
+                if technical.near_confluence
+                else "Güçlü yakın küme yok; confluence puan değildir"
+            ),
         ),
     )
     return _weighted(components)
@@ -291,6 +318,96 @@ def _financial_tone(score: float | None) -> str:
         (35, "Zayıf"),
     )
     return next((label for threshold, label in labels if score >= threshold), "Çok zayıf")
+
+
+def _snapshot_momentum(technical: ResearchTechnicalSnapshot) -> str:
+    if technical.macd_histogram > 0 and technical.rsi14 >= 50:
+        return "Pozitif"
+    if technical.macd_histogram < 0 and technical.rsi14 < 50:
+        return "Negatif"
+    return "Karışık"
+
+
+def _snapshot_volume(technical: ResearchTechnicalSnapshot) -> str:
+    if technical.relative_volume_20d >= 1.5:
+        return "Güçlü katılım"
+    if technical.relative_volume_20d >= 1.2:
+        return "Artan katılım"
+    if technical.relative_volume_20d >= 0.8:
+        return "Normal"
+    return "Zayıf katılım"
+
+
+def _timeframe_rating(technical: ResearchTechnicalSnapshot) -> int:
+    structure = {
+        "positive": 1,
+        "negative": -1,
+    }.get(technical.structure_tone, 0)
+    trend = (
+        1
+        if technical.close > technical.sma20 > technical.sma50
+        else -1
+        if technical.close < technical.sma20 < technical.sma50
+        else 0
+    )
+    momentum = (
+        1
+        if technical.macd_histogram > 0 and technical.rsi14 >= 50
+        else -1
+        if technical.macd_histogram < 0 and technical.rsi14 < 50
+        else 0
+    )
+    raw = structure + trend + momentum
+    return 2 if raw >= 2 else 1 if raw == 1 else -2 if raw <= -2 else -1 if raw == -1 else 0
+
+
+def _multi_timeframe_analysis(
+    snapshots: dict[str, ResearchTechnicalSnapshot],
+) -> tuple[float | None, tuple[tuple[str, ...], ...]]:
+    weights = {
+        "5m": 0.5,
+        "15m": 0.75,
+        "30m": 1.0,
+        "1h": 1.25,
+        "2h": 1.5,
+        "4h": 2.0,
+        "1d": 3.0,
+        "1w": 4.0,
+        "1M": 5.0,
+    }
+    rows: list[tuple[str, ...]] = []
+    weighted = 0.0
+    total_weight = 0.0
+    labels = {
+        2: "Güçlü pozitif",
+        1: "Pozitif",
+        0: "Nötr",
+        -1: "Negatif",
+        -2: "Güçlü negatif",
+    }
+    for timeframe in weights:
+        item = snapshots.get(timeframe)
+        if item is None:
+            rows.append((timeframe, "Veri yok", "Veri yok", "Veri yok", "Veri yok", "UNKNOWN"))
+            continue
+        rating = _timeframe_rating(item)
+        weight = weights[timeframe]
+        weighted += rating * weight
+        total_weight += weight
+        rows.append(
+            (
+                timeframe,
+                labels[rating],
+                f"{item.high_label}/{item.low_label}",
+                _snapshot_momentum(item),
+                _snapshot_volume(item),
+                f"{rating:+d}",
+            )
+        )
+    score = None
+    if len(snapshots) >= 2 and total_weight > 0:
+        score = _clamp((weighted / total_weight + 2.0) / 4.0 * 100.0)
+    return score, tuple(rows)
 
 
 def _level_rows(technical: ResearchTechnicalSnapshot) -> tuple[tuple[str, ...], ...]:
@@ -342,11 +459,14 @@ def build_equity_research_report(
     stored: SymbolSnapshot,
     financial: FinancialSnapshot | None,
     generated_at: datetime,
+    timeframe_technicals: dict[str, ResearchTechnicalSnapshot] | None = None,
 ) -> EquityResearchReport:
     if frame.is_partial:
         raise ValueError("Rapor kısmi bar üzerinden üretilemez")
     if stored.instrument_id != frame.instrument_id:
         raise ValueError("Rapor snapshot enstrüman kimliği uyuşmuyor")
+    resolved_timeframes = dict(timeframe_technicals or {})
+    resolved_timeframes.setdefault(frame.timeframe.value, technical)
     report_id = stable_hash(
         {
             "instrument_id": frame.instrument_id,
@@ -355,6 +475,7 @@ def build_equity_research_report(
             "series_revision": frame.series_revision,
             "feature": RESEARCH_TECHNICAL_SNAPSHOT.identity_hash,
             "template_version": REPORT_TEMPLATE_VERSION,
+            "timeframe_technicals": resolved_timeframes,
         }
     )
     currency = financial.currency if financial and financial.currency else "TL"
@@ -366,7 +487,11 @@ def build_equity_research_report(
     financial_score, financial_coverage, financial_rows, valuation, risks = _financial_score(
         financial
     )
-    technical_score, technical_coverage, technical_rows = _technical_score(technical)
+    multi_timeframe_score, multi_timeframe_rows = _multi_timeframe_analysis(resolved_timeframes)
+    technical_score, technical_coverage, technical_rows = _technical_score(
+        technical,
+        multi_timeframe_score=multi_timeframe_score,
+    )
     trend = _tone(technical_score)
     support = technical.swing_low or (
         technical.support_levels[0] if technical.support_levels else None
@@ -388,22 +513,8 @@ def build_equity_research_report(
         if resistance is not None
         else "Teyitli swing direnci üretilemedi"
     )
-    momentum = (
-        "Pozitif"
-        if technical.macd_histogram > 0 and technical.rsi14 >= 50
-        else "Negatif"
-        if technical.macd_histogram < 0 and technical.rsi14 < 50
-        else "Karışık"
-    )
-    volume = (
-        "Güçlü katılım"
-        if technical.relative_volume_20d >= 1.5
-        else "Artan katılım"
-        if technical.relative_volume_20d >= 1.2
-        else "Normal"
-        if technical.relative_volume_20d >= 0.8
-        else "Zayıf katılım"
-    )
+    momentum = _snapshot_momentum(technical)
+    volume = _snapshot_volume(technical)
     financial_status = "AVAILABLE" if financial and financial.coverage > 0 else "UNKNOWN"
     news_status = "AVAILABLE" if stored.news else "UNKNOWN"
     if technical.atr_pct >= 4:
@@ -688,23 +799,18 @@ def build_equity_research_report(
             16,
             "Çoklu Zaman Dilimi",
             (
-                "Bu çağrıda yalnız günlük canonical frame var. Haftalık/aylık ve gün içi veri aynı snapshot ile sağlanmadığından günlük sonuç diğer periyotlara genellenmedi.",
+                (
+                    "1 saat ve günlük canonical görünümler birlikte değerlendirildi. "
+                    "Günlük periyot daha yüksek ağırlıktadır; eksik periyotlar genellenmedi."
+                    if multi_timeframe_score is not None
+                    else "Bu çağrıda yalnız günlük canonical frame var; sonuç diğer periyotlara genellenmedi."
+                ),
             ),
-            status="UNKNOWN",
+            status="PARTIAL" if multi_timeframe_score is not None else "UNKNOWN",
             tables=(
                 ReportTable(
                     ("TF", "Trend", "Yapı", "Momentum", "Hacim", "Durum"),
-                    (
-                        (
-                            "1D",
-                            trend,
-                            f"{technical.high_label}/{technical.low_label}",
-                            momentum,
-                            volume,
-                            "Mevcut",
-                        ),
-                        ("1W/1M", "Veri yok", "Veri yok", "Veri yok", "Veri yok", "Puan dışı"),
-                    ),
+                    multi_timeframe_rows,
                 ),
             ),
         ),
@@ -839,6 +945,100 @@ def build_equity_research_report(
     )
     available = sum(section.status == "AVAILABLE" for section in sections)
     conclusion = f"{frame.symbol_at_snapshot} için kanıt {trend.lower()} teknik yapı ve {valuation.lower()} değerleme gösteriyor. Karar seviyeleri yeni kapanış ve hacimde görüşü değiştiren referanslardır."
+    missing_data: list[str] = ["sector_peers", "historical_valuation"]
+    missing_timeframes = [
+        key
+        for key in ("5m", "15m", "30m", "2h", "4h", "1w", "1M")
+        if key not in resolved_timeframes
+    ]
+    if missing_timeframes:
+        missing_data.append("timeframes:" + ",".join(missing_timeframes))
+    if financial is None or financial.coverage <= 0:
+        missing_data.append("financial_statements")
+    if not stored.news:
+        missing_data.append("kap_and_news")
+    if technical.profile_poc is None:
+        missing_data.append("volume_profile")
+    warnings = [
+        "Confluence kanıt sayımıdır; ağırlıklı sinyal puanına dönüştürülmemiştir.",
+        "BOS ve CHOCH seviyeleri teyitli olay kaydı yoksa null bırakılır.",
+    ]
+    timeframes: dict[str, object] = {}
+    for key in ("5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w", "1M"):
+        item = resolved_timeframes.get(key)
+        timeframes[key] = (
+            {}
+            if item is None
+            else {
+                "trend": _tone(_technical_score(item, multi_timeframe_score=None)[0]),
+                "structure": f"{item.high_label}/{item.low_label}",
+                "momentum": _snapshot_momentum(item),
+                "volume": _snapshot_volume(item),
+                "critical_level": {
+                    "support": item.swing_low,
+                    "resistance": item.swing_high,
+                },
+                "status": "AVAILABLE",
+            }
+        )
+    machine_readable: dict[str, object] = {
+        "ticker": frame.symbol_at_snapshot,
+        "analysis_date": generated_at.isoformat(),
+        "last_price": technical.close,
+        "fundamental": {
+            "score": financial_score,
+            "status": _financial_tone(financial_score),
+            "financial_health_score": financial_score,
+            "valuation_status": valuation,
+            "catalysts": [],
+            "risks": list(risks),
+        },
+        "technical": {
+            "score": technical_score,
+            "trend": trend,
+            "market_structure": f"{technical.high_label}/{technical.low_label}",
+            "momentum": momentum,
+            "volume": volume,
+            "volatility": (
+                "Çok yüksek"
+                if technical.atr_pct >= 6
+                else "Yüksek"
+                if technical.atr_pct >= 4
+                else "Normal"
+                if technical.atr_pct >= 2
+                else "Düşük"
+            ),
+            "main_support": support,
+            "main_resistance": resistance,
+            "positive_confirmation": confirmation,
+            "structural_invalidation": invalidation,
+            "bos_level": None,
+            "choch_level": None,
+        },
+        "timeframes": timeframes,
+        "scenarios": {
+            "positive": {
+                "trigger": confirmation,
+                "confirmation": "Kalıcı kapanış ve RVOL teyidi",
+                "zones": list(technical.resistance_levels),
+                "invalidation": support,
+            },
+            "neutral": {
+                "range": [value for value in (support, resistance) if value is not None],
+                "condition": "Teyit veya geçersizlik oluşana kadar karar bölgesi",
+            },
+            "negative": {
+                "trigger": invalidation,
+                "zones": list(technical.support_levels),
+                "invalidation": resistance,
+            },
+        },
+        "confidence": {
+            "score": confidence,
+            "missing_data": missing_data,
+            "warnings": warnings,
+        },
+    }
     return EquityResearchReport(
         report_id,
         REPORT_TEMPLATE_VERSION,
@@ -863,4 +1063,5 @@ def build_equity_research_report(
         technical_coverage,
         valuation,
         confidence,
+        machine_readable,
     )

@@ -48,6 +48,7 @@ def render_equity_research_pdf(
         LongTable,
         PageBreak,
         Paragraph,
+        Preformatted,
         SimpleDocTemplate,
         Spacer,
         Table,
@@ -116,6 +117,16 @@ def render_equity_research_pdf(
         leading=10,
         textColor=colors.HexColor("#627D98"),
     )
+    json_style = ParagraphStyle(
+        "BorsappJson",
+        parent=small,
+        fontName=regular_font,
+        fontSize=5.2,
+        leading=6.4,
+        textColor=colors.HexColor("#334E68"),
+        leftIndent=2 * mm,
+        rightIndent=2 * mm,
+    )
     callout = ParagraphStyle(
         "BorsappCallout",
         parent=body,
@@ -177,8 +188,18 @@ def render_equity_research_pdf(
             [
                 ["Analiz güveni", f"{report.confidence_score:.0f}/100"],
                 ["Kanıt kapsamı", f"{report.evidence_available}/{report.evidence_total} bölüm"],
-                ["Finansal sağlık", f"{report.financial_health_score:.0f}/100" if report.financial_health_score is not None else "Veri yok"],
-                ["Teknik puan", f"{report.technical_score:.0f}/100" if report.technical_score is not None else "Veri yok"],
+                [
+                    "Finansal sağlık",
+                    f"{report.financial_health_score:.0f}/100"
+                    if report.financial_health_score is not None
+                    else "Veri yok",
+                ],
+                [
+                    "Teknik puan",
+                    f"{report.technical_score:.0f}/100"
+                    if report.technical_score is not None
+                    else "Veri yok",
+                ],
                 ["Değerleme", report.valuation_status],
                 ["Veri politikası", "Point-in-time · eksik alan UNKNOWN · otomatik AL/SAT yok"],
             ],
@@ -213,6 +234,7 @@ def render_equity_research_pdf(
             ]
         )
     )
+
     def table_widths(column_count: int) -> list[float]:
         usable = 172 * mm
         if column_count == 2:
@@ -226,10 +248,7 @@ def render_equity_research_pdf(
     def render_table(item: ReportTable):
         rows = [
             [Paragraph(escape(value), table_head) for value in item.columns],
-            *[
-                [Paragraph(escape(value), table_cell) for value in row]
-                for row in item.rows
-            ],
+            *[[Paragraph(escape(value), table_cell) for value in row] for row in item.rows],
         ]
         table = LongTable(
             rows,
@@ -243,7 +262,12 @@ def render_equity_research_pdf(
                 [
                     ("FONTNAME", (0, 0), (-1, 0), bold_font),
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0B7285")),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F8FA")]),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.white, colors.HexColor("#F4F8FA")],
+                    ),
                     ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#BCCCDC")),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
                     ("LEFTPADDING", (0, 0), (-1, -1), 4),
@@ -286,6 +310,18 @@ def render_equity_research_pdf(
                 "kaynağı belirtilen finansal alanlardan üretilir. Veri → bulgu → anlam → koşul → "
                 "senaryo sırası korunur. Sonuçlar emir, hedef fiyat veya kişiye özel tavsiye değildir.",
                 small,
+            ),
+            PageBreak(),
+            Paragraph("Makine Okunabilir Özet (JSON)", heading),
+            Paragraph(
+                "Eksik kaynaklar null veya boş koleksiyon olarak korunur; bu blok raporla aynı "
+                "snapshot kimliğinden üretilmiştir.",
+                small,
+            ),
+            Preformatted(
+                escape(report.machine_readable_json()),
+                json_style,
+                maxLineLength=92,
             ),
         ]
     )
