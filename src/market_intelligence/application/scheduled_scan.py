@@ -52,6 +52,15 @@ class ScheduledScanResult:
     successful_instruments: int
     failed_instruments: int
 
+    @property
+    def total_failure(self) -> bool:
+        """Whether due work ran without a single successful instrument."""
+        return (
+            bool(self.due_bars)
+            and self.successful_instruments == 0
+            and self.failed_instruments > 0
+        )
+
 
 class ScheduledScanService:
     def __init__(

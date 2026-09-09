@@ -46,6 +46,8 @@ Zamanlanmış yeni akışlar ayrı repo değişkenleriyle açılır:
 - `ENABLE_SCHEDULED_NEWS=true`: KAP haber eşitlemesi
 - `NEWS_DELIVERY_MODE=live`: yeni KAP kayıtlarını Haberler & KAP konusuna yayınlar
 - `SCAN_DELIVERY_MODE=shadow`: taramaları saklar fakat doğrulanmış sinyal yayını yapmaz
+- `SCAN_DELIVERY_MODE=live`: yalnız parity kapısı ve `notification_timeframes`
+  izni bulunan scanner'ların yeni bulgularını yayınlar
 - `ENABLE_SHADOW_PARITY=true`: aynı snapshot üzerinde legacy ve yeni motoru
   birlikte çalıştırıp karşılaştırmaları PostgreSQL'e yazar
 - `ENABLE_TELEGRAM_PULSE=true`: kalıcı host kurulana kadar gecikmeli canlı komut botu

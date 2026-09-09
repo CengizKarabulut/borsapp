@@ -1118,7 +1118,9 @@ def _scan_due(
         f"completed={result.completed_bars}, success={result.successful_instruments}, "
         f"failed={result.failed_instruments}"
     )
-    return 0 if result.failed_instruments == 0 else 1
+    # Instrument-level provider failures are persisted on the cycle and must not
+    # abort the remaining timeframe jobs.
+    return 1 if result.total_failure else 0
 
 
 def _scan_worker(

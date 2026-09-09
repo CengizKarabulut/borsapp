@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from market_intelligence.application.scheduled_scan import (
     ScheduledScanRequest,
+    ScheduledScanResult,
     ScheduledScanService,
 )
 from market_intelligence.core.timeframes import Timeframe
@@ -66,6 +67,27 @@ class Binding:
 
 
 class ScheduledScanServiceTests(unittest.TestCase):
+    def test_partial_instrument_failure_is_not_an_operational_failure(self) -> None:
+        result = ScheduledScanResult(
+            due_bars=(datetime(2026, 9, 7, 13, 0, tzinfo=ISTANBUL),),
+            completed_bars=1,
+            successful_instruments=583,
+            failed_instruments=1,
+        )
+        self.assertFalse(result.total_failure)
+
+    def test_all_instruments_failing_is_an_operational_failure(self) -> None:
+        result = ScheduledScanResult(
+            due_bars=(datetime(2026, 9, 7, 13, 0, tzinfo=ISTANBUL),),
+            completed_bars=1,
+            successful_instruments=0,
+            failed_instruments=584,
+        )
+        self.assertTrue(result.total_failure)
+
+    def test_no_due_bar_is_not_an_operational_failure(self) -> None:
+        self.assertFalse(ScheduledScanResult((), 0, 0, 0).total_failure)
+
     def test_only_freshest_catchup_bar_can_notify(self) -> None:
         repository = Repository()
         coordinator = Coordinator()

@@ -20,6 +20,11 @@ on:
         default: 1h
         type: choice
         options: [15m, 30m, 45m, 1h, 2h, 4h, 1d]
+      notify:
+        description: Publish eligible findings (requires SCAN_DELIVERY_MODE=live)
+        required: true
+        default: false
+        type: boolean
   schedule:
     - cron: "*/15 7-14 * * 1-5"
     - cron: "0 15 * * 1-5"
@@ -28,13 +33,96 @@ permissions:
   contents: read
 
 concurrency:
-  group: borsapp-shadow-scan
+  group: borsapp-scan-${{ github.event_name }}-${{ inputs.symbol || 'scheduled' }}
   cancel-in-progress: false
 
 jobs:
-  scan:
+  prepare:
     if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_SCANS == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Skip until PostgreSQL is configured
+        if: ${{ env.DATABASE_URL == '' }}
+        run: echo "DATABASE_URL secret is not configured; scan skipped."
+      - name: Install runtime
+        if: ${{ env.DATABASE_URL != '' }}
+        run: python -m pip install ".[runtime]"
+      - name: Apply database migrations
+        if: ${{ env.DATABASE_URL != '' }}
+        run: borsapp db-migrate
+
+  manual-scan:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DELIVERY_MODE: ${{ vars.SCAN_DELIVERY_MODE || 'shadow' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      MANUAL_SCOPE: ${{ inputs.scope }}
+      MANUAL_SYMBOL: ${{ inputs.symbol }}
+      MANUAL_TIMEFRAME: ${{ inputs.timeframe }}
+      MANUAL_NOTIFY: ${{ inputs.notify }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install runtime
+        if: ${{ env.DATABASE_URL != '' }}
+        run: python -m pip install ".[runtime]"
+      - name: Run requested scan
+        if: ${{ env.DATABASE_URL != '' }}
+        shell: bash
+        run: |
+          notify_flag=()
+          if [ "$DELIVERY_MODE" = "live" ] && [ "$MANUAL_NOTIFY" = "true" ]; then
+            notify_flag=(--notify)
+          fi
+          if [ "$MANUAL_SCOPE" = "symbol" ]; then
+            borsapp scan-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME" "${notify_flag[@]}"
+          else
+            borsapp scan-due --timeframe "$MANUAL_TIMEFRAME" "${notify_flag[@]}"
+          fi
+          if [ ${#notify_flag[@]} -gt 0 ]; then
+            borsapp publisher-once --limit 100
+          fi
+
+  scheduled-scan:
+    if: ${{ github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_SCANS == 'true' }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        timeframe: [15m, 30m, 45m, 1h, 2h, 4h, 1d]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
       APP_ENV: production
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
@@ -59,40 +147,21 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Skip until PostgreSQL is configured
-        if: ${{ env.DATABASE_URL == '' }}
-        run: echo "DATABASE_URL secret is not configured; shadow scan skipped."
       - name: Install runtime
         if: ${{ env.DATABASE_URL != '' }}
         run: python -m pip install ".[runtime]"
-      - name: Apply database migrations
-        if: ${{ env.DATABASE_URL != '' }}
-        run: borsapp db-migrate
-      - name: Run requested or scheduled shadow scans
+      - name: Scan one isolated timeframe
         if: ${{ env.DATABASE_URL != '' }}
         shell: bash
         env:
-          MANUAL_SCOPE: ${{ inputs.scope }}
-          MANUAL_SYMBOL: ${{ inputs.symbol }}
-          MANUAL_TIMEFRAME: ${{ inputs.timeframe }}
+          SCAN_TIMEFRAME: ${{ matrix.timeframe }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ "$MANUAL_SCOPE" = "symbol" ]; then
-              borsapp scan-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME"
-            else
-              borsapp scan-due --timeframe "$MANUAL_TIMEFRAME"
-            fi
-          else
-            for timeframe in 15m 30m 45m 2h; do
-              borsapp scan-due --timeframe "$timeframe"
-            done
-            notify_flag=""
-            if [ "$DELIVERY_MODE" = "live" ]; then notify_flag="--notify"; fi
-            for timeframe in 1h 4h 1d; do
-              borsapp scan-due --timeframe "$timeframe" $notify_flag
-            done
-            borsapp publisher-once --limit 100
-            if [ "$ENABLE_SHADOW_PARITY" = "true" ]; then
-              borsapp shadow-report --days 30
-            fi
-          fi
+          notify_flag=()
+          if [ "$DELIVERY_MODE" = "live" ]; then notify_flag=(--notify); fi
+          borsapp scan-due --timeframe "$SCAN_TIMEFRAME" "${notify_flag[@]}"
+      - name: Publish eligible findings
+        if: ${{ env.DATABASE_URL != '' && always() }}
+        run: borsapp publisher-once --limit 100
+      - name: Report shadow parity
+        if: ${{ env.DATABASE_URL != '' && env.ENABLE_SHADOW_PARITY == 'true' && matrix.timeframe == '1d' }}
+        run: borsapp shadow-report --days 30

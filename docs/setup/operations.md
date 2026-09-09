@@ -98,15 +98,23 @@ başlangıç referansı oluşturur ve geçmiş içerikleri Telegram'a göndermez
 ## GitHub Actions
 
 `Scheduled BIST scan` workflow'u manuel olarak çalıştırılabilir. Zamanlanmış hafta içi
-çalışmalar, Neon depolama optimizasyonu tamamlandıktan sonra repository variable
-olarak `ENABLE_SCHEDULED_SCANS=true` verilerek açılır. `DATABASE_URL` yoksa
-başarıyla ve hiçbir şey yapmadan çıkar. Zamanlanmış çalışmada `15m`, `30m`,
-`45m` ve `2h` sonuçları yalnız saklanır; `1h`, `4h` ve `1d` için kurallarca
-izin verilen yeni olay/durum geçişleri Taramalar konusuna yayınlanır.
+çalışmalar repository variable olarak `ENABLE_SCHEDULED_SCANS=true` verilerek
+açılır. `DATABASE_URL` yoksa başarıyla ve hiçbir şey yapmadan çıkar. Yedi
+canonical timeframe ayrı matrix job'larında çalışır; bir timeframe'in uzun
+sürmesi veya tekil enstrüman hatası diğer timeframe'leri durdurmaz. Kısmi
+başarısızlıklar cycle kaydında saklanır, ancak yalnız bütün enstrümanların
+başarısız olması job'u hata durumuna getirir.
+
+`SCAN_DELIVERY_MODE=live` olduğunda yalnız katalogdaki parity kapısını geçmiş
+scanner/timeframe çiftleri Taramalar konusuna yayın yapabilir. İlk pilot
+`technical.volume_spike` ve `signal.macd_positive_cross` için yalnız `1d`'dir;
+diğer bütün sonuçlar hesaplanır ve saklanır.
 
 Manuel çalıştırmada varsayılan kapsam `symbol`, sembol `ASELS`'tir; bu seçenek
-tek hisselik güvenli smoke testidir. `due-universe` kapsamı seçilirse ilgili
-timeframe için zamanı gelen bütün BIST hisseleri taranır.
+tek hisselik güvenli smoke testidir. `notify=true` ancak
+`SCAN_DELIVERY_MODE=live` ile birlikte verilirse uygun bulguları yayınlar.
+`due-universe` kapsamı seçilirse ilgili timeframe için zamanı gelen bütün BIST
+hisseleri taranır.
 
 Bu iki zamanlama anahtarı varsayılan olarak kapalıdır. Böylece tüm BIST üzerinde
 tam frame kopyaları henüz seyreltilmeden ücretsiz Neon kotası kendiliğinden
