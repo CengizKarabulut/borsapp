@@ -13,7 +13,7 @@ market-telegram-suite,apps/technical_bot/src/stock_dashboard.py,src/market_intel
 market-telegram-suite,apps/chart_bot/,src/market_intelligence/research/technical/,VENDOR,pending,runtime still uses compatibility adapter
 market-telegram-suite,apps/research_bot/,src/market_intelligence/application/equity_reports.py,SPLIT,implemented,native report and financial provider chain; runtime has no legacy research import
 tradingview-haber-botu,kap.py,src/market_intelligence/news/kap.py,MOVE,implemented,canonical KAP ingestion
-tradingview-haber-botu,news_bot.py,src/market_intelligence/news/general.py,SPLIT,partial,general sources still load frozen legacy module
-tradingview-haber-botu,tv_news_bot.py,src/market_intelligence/news/tradingview.py,MOVE,pending,legacy source adapter remains
+tradingview-haber-botu,news_bot.py,src/market_intelligence/news/general.py,SPLIT,implemented,six general/calendar sources are native; KAP has its dedicated canonical provider
+tradingview-haber-botu,tv_news_bot.py,src/market_intelligence/news/general.py,MERGE,implemented,TradingView JSON flow is fetched and normalized natively
 all,telegram senders,src/market_intelligence/delivery/telegram/,MERGE,implemented,single listener router publisher and outbox
 all,mutable JSON state,src/market_intelligence/persistence/postgres/,REPLACE,implemented,canonical runtime persistence

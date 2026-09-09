@@ -19,8 +19,11 @@ ENRICHED_IDS_SQL = """
 SELECT news_id
 FROM news_items
 WHERE news_id = ANY(%s)
-  AND source = 'kap'
-  AND jsonb_typeof(payload -> 'raw' -> 'detail') = 'object'
+  AND (
+    (source = 'kap' AND jsonb_typeof(payload -> 'raw' -> 'detail') = 'object')
+    OR
+    (source <> 'kap' AND COALESCE(payload -> 'raw' ->> 'enriched', 'false') = 'true')
+  )
 """
 RESOLVE_SYMBOLS_SQL = """
 SELECT DISTINCT ON (upper(s.symbol)) upper(s.symbol), i.instrument_id
@@ -72,7 +75,7 @@ class PostgresNewsStore:
             return {str(row[0]) for row in cursor.fetchall()}
 
     def enriched_ids(self, news_ids: tuple[str, ...]) -> set[str]:
-        """Return KAP rows that already contain the official detail payload.
+        """Return rows that already contain their source-specific detail payload.
 
         Existing list-only rows are deliberately omitted so a later sync can
         backfill their complete Turkish summary without creating a new outbox

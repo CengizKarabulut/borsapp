@@ -73,11 +73,11 @@ from market_intelligence.market_data.universe import (
     build_universe_sync_plan,
     validate_universe_sync_plan,
 )
-from market_intelligence.news.kap import KapDisclosureProvider
-from market_intelligence.news.legacy_general import (
+from market_intelligence.news.general import (
     SUPPORTED_SOURCES,
-    LegacyGeneralNewsProvider,
+    GeneralNewsProvider,
 )
+from market_intelligence.news.kap import KapDisclosureProvider
 from market_intelligence.operations.doctor import inspect_runtime
 from market_intelligence.persistence.postgres.command_jobs import (
     PostgresCommandJobRepository,
@@ -1542,7 +1542,7 @@ def _news_general_sync(
         for source in sources:
             try:
                 result = NewsIngestionService(
-                    provider=LegacyGeneralNewsProvider(
+                    provider=GeneralNewsProvider(
                         source,
                         timezone=settings.runtime.timezone,
                     ),

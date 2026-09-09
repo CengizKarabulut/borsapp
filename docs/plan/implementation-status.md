@@ -11,7 +11,7 @@ yerine geçmez.
 | G-03 Docker context | Tamamlandı | Gerekli iki vendor ağacı image context'ine dahil; CI image build işi var |
 | G-04 Migration runner | Tamamlandı | `db-migrate`, `db-version`, checksum ve dry-run |
 | G-05 Teknik/research legacy bağı | Kısmi | `/analiz`, `/rapor`, `/temel` canonical servis + outbox üzerinde; yalnız grafik renderer compatibility katmanında |
-| G-06 Genel haber legacy bağı | Açık | Canonical KAP hazır; genel haber legacy modül adapterini kullanıyor |
+| G-06 Genel haber legacy bağı | Tamamlandı | Altı genel/takvim kaynağı native canonical provider'da; article metadata/paragraf zenginleştirmesi ve tekrar-fetch kapısı var |
 | G-07 KARAR ailesi | Tamamlandı | `decision.panel_v645`, günlük 252-bar warmup, golden legacy testi ve shadow adapter hazır |
 | G-08 PostgreSQL entegrasyon | Tamamlandı | PostgreSQL 16 CI service ve migration idempotency testi |
 | G-09 Kullanılmayan tablolar | Kısmi | `canonical_bars` 002 ile düşüyor; outcomes kullanılıyor, corporate action ingestion bekliyor |
