@@ -42,6 +42,9 @@ PostgreSQL geliştirme servisi:
 
     docker compose up -d postgres
 
+Windows bilgisayarda Neon olmadan, açılışta otomatik çalışan tam kurulum için
+[yerel Windows kurulum rehberine](docs/setup/windows-local.md) bakın.
+
 Kullanıcı kurulumları:
 
 - [Telegram forum ve topic kurulumu](docs/setup/telegram.md)

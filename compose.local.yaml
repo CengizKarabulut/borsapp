@@ -1,0 +1,102 @@
+services:
+  universe-worker:
+    profiles: ["runtime"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      DELIVERY_MODE: disabled
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          borsapp universe-sync --universe BIST_ALL --apply || true
+          sleep 21600
+        done
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  news-worker:
+    profiles: ["runtime"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      DELIVERY_MODE: live
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          borsapp news-kap-sync --lookback-days 1 --notify || true
+          borsapp news-general-sync --lookback-days 1 --notify || true
+          sleep 600
+        done
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  research-worker:
+    profiles: ["runtime"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      DELIVERY_MODE: disabled
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 900
+        while true; do
+          borsapp ma-research-universe --universe BIST_ALL --timeframe 4h --bars 1000 || true
+          borsapp ma-research-universe --universe BIST_ALL --timeframe 1d --bars 1000 || true
+          sleep 86400
+        done
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  outcomes-worker:
+    profiles: ["runtime"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      DELIVERY_MODE: disabled
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 1800
+        while true; do
+          borsapp outcomes-backfill --days 90 --horizon 5,10,20 || true
+          sleep 86400
+        done
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  backup-worker:
+    profiles: ["runtime"]
+    image: postgres:16-alpine
+    env_file: .env
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          pg_dump -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" \
+            | gzip > "/backups/borsapp-$$(date -u +%Y%m%d-%H%M%S).sql.gz"
+          find /backups -type f -name 'borsapp-*.sql.gz' -mtime +14 -delete
+          sleep 86400
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
