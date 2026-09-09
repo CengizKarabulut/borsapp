@@ -9,6 +9,11 @@ on:
         default: "1"
         type: choice
         options: ["0", "1", "3", "7"]
+      notify:
+        description: Manuel çalışmada yeni kayıtları Telegram'a gönder
+        required: true
+        default: false
+        type: boolean
   schedule:
     - cron: "*/10 6-20 * * 1-5"
 
@@ -67,7 +72,8 @@ jobs:
             lookback="$MANUAL_LOOKBACK"
           fi
           notify_args=()
-          if [ "$DELIVERY_MODE" = "live" ]; then
+          if [ "$DELIVERY_MODE" = "live" ] && \
+             { [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.notify }}" = "true" ]; }; then
             notify_args+=(--notify)
           fi
           borsapp news-kap-sync --lookback-days "$lookback" "${notify_args[@]}"
@@ -76,7 +82,8 @@ jobs:
         shell: bash
         run: |
           notify_args=()
-          if [ "$DELIVERY_MODE" = "live" ]; then
+          if [ "$DELIVERY_MODE" = "live" ] && \
+             { [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.notify }}" = "true" ]; }; then
             notify_args+=(--notify)
           fi
           borsapp news-general-sync --lookback-days 1 "${notify_args[@]}"
