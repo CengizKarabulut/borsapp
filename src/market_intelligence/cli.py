@@ -1429,10 +1429,33 @@ def _command_jobs_status(settings: ApplicationSettings, *, limit: int) -> int:
     ORDER BY requested_at DESC
     LIMIT %s
     """
+    storage_query = """
+    SELECT current_database(), pg_database_size(current_database())
+    """
+    table_query = """
+    SELECT c.relname, pg_total_relation_size(c.oid),
+           GREATEST(c.reltuples::bigint, 0)
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'r'
+    ORDER BY pg_total_relation_size(c.oid) DESC
+    LIMIT 20
+    """
     with _connect(settings.runtime.database_url) as connection:
         with connection.cursor() as cursor:
+            cursor.execute(storage_query)
+            database_name, database_bytes = cursor.fetchone()
+            cursor.execute(table_query)
+            table_rows = cursor.fetchall()
             cursor.execute(query, (limit,))
             rows = cursor.fetchall()
+    print(f"Veritabanı: {database_name} · toplam={int(database_bytes) / 1_048_576:.1f} MiB")
+    print("En büyük tablolar:")
+    for table_name, table_bytes, estimated_rows in table_rows:
+        print(
+            f"- {table_name}: {int(table_bytes) / 1_048_576:.1f} MiB "
+            f"(yaklaşık {int(estimated_rows)} satır)"
+        )
     print(f"Son command job kayıtları: {len(rows)}")
     for row in rows:
         error = str(row[6] or "-")
