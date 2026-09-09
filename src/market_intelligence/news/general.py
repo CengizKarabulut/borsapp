@@ -123,7 +123,7 @@ class GeneralNewsProvider:
         timezone: ZoneInfo | None = None,
         session: Any = requests,
         limit: int = 100,
-        detail_limit: int = 20,
+        detail_limit: int = 5,
         row_fetcher: RowFetcher | None = None,
     ) -> None:
         normalized = source.strip().casefold()
@@ -205,7 +205,7 @@ class GeneralNewsProvider:
                 response = self.session.get(
                     item.url,
                     headers=_headers(item.url),
-                    timeout=25,
+                    timeout=12,
                 )
                 response.raise_for_status()
                 response.encoding = response.encoding or "utf-8"
