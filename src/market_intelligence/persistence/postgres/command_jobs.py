@@ -46,8 +46,12 @@ INSERT INTO research_artifacts (
     artifact_id, instrument_id, artifact_kind, timeframe, bar_time,
     summary, storage_uri, content_hash, created_at
 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-ON CONFLICT (instrument_id, artifact_kind, timeframe, bar_time, content_hash)
-DO UPDATE SET summary = EXCLUDED.summary, storage_uri = EXCLUDED.storage_uri
+ON CONFLICT (artifact_id)
+DO UPDATE SET
+    summary = EXCLUDED.summary,
+    storage_uri = EXCLUDED.storage_uri,
+    content_hash = EXCLUDED.content_hash,
+    created_at = EXCLUDED.created_at
 """
 
 

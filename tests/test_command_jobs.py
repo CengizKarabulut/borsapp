@@ -23,6 +23,7 @@ from market_intelligence.delivery.telegram.routing import (
     PublicationKind,
 )
 from market_intelligence.persistence.postgres.command_jobs import (
+    INSERT_ARTIFACT_SQL,
     PostgresCommandJobRepository,
 )
 from tests.test_telegram_routing import environment
@@ -218,6 +219,9 @@ class CommandJobRunnerTests(unittest.TestCase):
 
 
 class PostgresCommandJobRepositoryTests(unittest.TestCase):
+    def test_repeated_report_updates_the_deterministic_artifact_id(self) -> None:
+        self.assertIn("ON CONFLICT (artifact_id)", INSERT_ARTIFACT_SQL)
+
     def test_claim_uses_lease_and_maps_job(self) -> None:
         connection = FakeConnection(
             ("job-1", "tara", "asels", 42, 10, 3, "instrument-1")
