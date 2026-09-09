@@ -17,8 +17,10 @@ borsapp = "market_intelligence.cli:main"
 
 [project.optional-dependencies]
 dev = [
+    "beautifulsoup4>=4.13,<5",
     "numpy>=1.26,<3",
     "pandas>=2,<3",
+    "requests>=2.31,<3",
     "reportlab>=4.2,<5",
     "ruff>=0.5,<1",
 ]
