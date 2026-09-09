@@ -110,6 +110,10 @@ scanner/timeframe çiftleri Taramalar konusuna yayın yapabilir. İlk pilot
 `technical.volume_spike` ve `signal.macd_positive_cross` için yalnız `1d`'dir;
 diğer bütün sonuçlar hesaplanır ve saklanır.
 
+`ENABLE_SHADOW_PARITY=true` karşılaştırma yükünü yalnız `1d` matrix job'unda
+açar. Böylece diğer timeframe'lerin çalışma süresi iki katına çıkmadan kalan
+scanner'lar için gerçek saha parity örnekleri birikir.
+
 Manuel çalıştırmada varsayılan kapsam `symbol`, sembol `ASELS`'tir; bu seçenek
 tek hisselik güvenli smoke testidir. `notify=true` ancak
 `SCAN_DELIVERY_MODE=live` ile birlikte verilirse uygun bulguları yayınlar.
