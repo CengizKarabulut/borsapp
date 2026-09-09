@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import math
 import re
 from dataclasses import dataclass, field, replace
@@ -8,8 +9,17 @@ from typing import Any, Protocol
 
 import pandas as pd
 
+from market_intelligence.fundamentals.text_quality import prefer_turkish_name
+
 ALIASES: dict[str, tuple[str, ...]] = {
-    "revenue": ("total revenue", "revenue", "sales revenue", "net sales", "hasılat"),
+    "revenue": (
+        "total revenue",
+        "revenue",
+        "sales revenue",
+        "net sales",
+        "hasılat",
+        "satış gelirleri",
+    ),
     "gross_profit": ("gross profit", "brüt kar"),
     "operating_profit": ("operating income", "operating profit", "faaliyet karı"),
     "ebitda": ("ebitda", "normalized ebitda", "favök"),
@@ -41,6 +51,7 @@ class FinancialSnapshot:
     errors: tuple[str, ...] = ()
     series: dict[str, tuple[float, ...]] = field(default_factory=dict)
     metadata: dict[str, str | float | None] = field(default_factory=dict)
+    flow_period: datetime | None = None
 
     @property
     def coverage(self) -> float:
@@ -77,6 +88,11 @@ def _finite(value: Any) -> float | None:
 
 
 def _period(value: Any) -> datetime | None:
+    quarter = re.fullmatch(r"(\d{4})\s*Q([1-4])", str(value).strip(), re.IGNORECASE)
+    if quarter:
+        year = int(quarter.group(1))
+        month = int(quarter.group(2)) * 3
+        return datetime(year, month, calendar.monthrange(year, month)[1])
     try:
         parsed = pd.Timestamp(value)
     except Exception:
@@ -98,7 +114,20 @@ def _filter_as_of(frame: pd.DataFrame | None, as_of: datetime) -> pd.DataFrame |
     return frame.loc[:, allowed]
 
 
-def _series(frame: pd.DataFrame | None, key: str) -> list[float]:
+FLOW_KEYS = frozenset(
+    {
+        "revenue",
+        "gross_profit",
+        "operating_profit",
+        "ebitda",
+        "net_income",
+        "cfo",
+        "capex",
+    }
+)
+
+
+def _pairs(frame: pd.DataFrame | None, key: str) -> list[tuple[datetime, float]]:
     if frame is None or frame.empty:
         return []
     labels = [(_norm(index), index) for index in frame.index]
@@ -126,7 +155,53 @@ def _series(frame: pd.DataFrame | None, key: str) -> list[float]:
         numeric = _finite(value)
         if numeric is not None:
             pairs.append((_period(column) or datetime.min, numeric))
-    return [value for _, value in sorted(pairs, reverse=True)]
+    return sorted(pairs, key=lambda item: item[0], reverse=True)
+
+
+def _series(frame: pd.DataFrame | None, key: str) -> list[float]:
+    return [value for _, value in _pairs(frame, key)]
+
+
+def _quarter(period: datetime) -> tuple[int, int]:
+    return period.year, (period.month - 1) // 3 + 1
+
+
+def _shift_quarter(year: int, quarter: int, delta: int) -> tuple[int, int]:
+    absolute = year * 4 + quarter - 1 + delta
+    shifted_year, shifted_zero_based_quarter = divmod(absolute, 4)
+    return shifted_year, shifted_zero_based_quarter + 1
+
+
+def _at(pairs: list[tuple[datetime, float]], year: int, quarter: int) -> float | None:
+    return next(
+        (value for period, value in pairs if _quarter(period) == (year, quarter)),
+        None,
+    )
+
+
+def _ttm_cumulative(
+    pairs: list[tuple[datetime, float]],
+    lag_quarters: int = 0,
+) -> float | None:
+    """Build TTM from cumulative YTD flows using exact calendar quarters."""
+
+    if lag_quarters < 0:
+        raise ValueError("lag_quarters negatif olamaz")
+    ordered = sorted(pairs, key=lambda item: item[0], reverse=True)
+    if not ordered:
+        return None
+    latest_year, latest_quarter = _quarter(ordered[0][0])
+    year, quarter = _shift_quarter(latest_year, latest_quarter, -lag_quarters)
+    value = _at(ordered, year, quarter)
+    if value is None:
+        return None
+    if quarter == 4:
+        return value
+    prior_full_year = _at(ordered, year - 1, 4)
+    prior_same_period = _at(ordered, year - 1, quarter)
+    if prior_full_year is None or prior_same_period is None:
+        return None
+    return value + prior_full_year - prior_same_period
 
 
 def _latest(values: list[float], lag: int = 0) -> float | None:
@@ -171,12 +246,13 @@ def _snapshot_from_frames(
     cashflow: pd.DataFrame | None,
     info: dict[str, Any],
     fast: dict[str, Any],
+    cumulative_flows: bool = False,
 ) -> FinancialSnapshot:
     balance = _filter_as_of(balance, as_of)
     income = _filter_as_of(income, as_of)
     cashflow = _filter_as_of(cashflow, as_of)
-    values = {
-        key: _series(frame, key)
+    dated = {
+        key: _pairs(frame, key)
         for key, frame in {
             "revenue": income,
             "gross_profit": income,
@@ -195,19 +271,28 @@ def _snapshot_from_frames(
             "long_debt": balance,
         }.items()
     }
-    revenue = _sum4(values["revenue"])
-    previous_revenue = _sum4(values["revenue"], 4)
-    gross_profit = _sum4(values["gross_profit"])
-    previous_gross_profit = _sum4(values["gross_profit"], 4)
-    operating_profit = _sum4(values["operating_profit"])
-    previous_operating_profit = _sum4(values["operating_profit"], 4)
-    ebitda = _sum4(values["ebitda"])
-    previous_ebitda = _sum4(values["ebitda"], 4)
-    net_income = _sum4(values["net_income"])
-    previous_net_income = _sum4(values["net_income"], 4)
-    cfo = _sum4(values["cfo"])
-    previous_cfo = _sum4(values["cfo"], 4)
-    capex = _sum4(values["capex"])
+    values = {key: [value for _, value in pairs] for key, pairs in dated.items()}
+
+    def flow(key: str, lag: int = 0) -> float | None:
+        if key not in FLOW_KEYS:
+            raise ValueError(f"TTM yalnız akım kalemlerine uygulanabilir: {key}")
+        if cumulative_flows:
+            return _ttm_cumulative(dated[key], lag)
+        return _sum4(values[key], lag)
+
+    revenue = flow("revenue")
+    previous_revenue = flow("revenue", 4)
+    gross_profit = flow("gross_profit")
+    previous_gross_profit = flow("gross_profit", 4)
+    operating_profit = flow("operating_profit")
+    previous_operating_profit = flow("operating_profit", 4)
+    ebitda = flow("ebitda")
+    previous_ebitda = flow("ebitda", 4)
+    net_income = flow("net_income")
+    previous_net_income = flow("net_income", 4)
+    cfo = flow("cfo")
+    previous_cfo = flow("cfo", 4)
+    capex = flow("capex")
     assets = _latest(values["assets"])
     equity = _latest(values["equity"])
     liabilities = _latest(values["liabilities"])
@@ -287,9 +372,23 @@ def _snapshot_from_frames(
     for frame in (balance, income, cashflow):
         if frame is not None:
             periods.update(str(column) for column in frame.columns)
-    company_name = next((str(info[key]) for key in ("longName", "shortName", "companyName", "name") if info.get(key)), None)
+    company_name = prefer_turkish_name(
+        *(
+            str(info[key])
+            for key in ("longName", "shortName", "companyName", "name")
+            if info.get(key)
+        )
+    )
     sector = next((str(info[key]) for key in ("sector", "industry", "sektor") if info.get(key)), None)
     currency = next((str(info[key]) for key in ("currency", "financialCurrency") if info.get(key)), None)
+    flow_period = next(
+        (
+            dated[key][0][0]
+            for key in ("revenue", "net_income", "ebitda")
+            if dated[key] and dated[key][0][0] != datetime.min
+        ),
+        None,
+    )
     return FinancialSnapshot(
         symbol=symbol,
         as_of=as_of,
@@ -309,6 +408,7 @@ def _snapshot_from_frames(
             "paid_in_capital": info.get("paidInCapital"),
             "exchange": info.get("exchange") or info.get("fullExchangeName") or "BIST",
         },
+        flow_period=flow_period,
     )
 
 
@@ -332,10 +432,10 @@ class BorsapyKapFinancialProvider:
             fast = {}
         sector = str(info.get("sector") or info.get("industry") or "").casefold()
         group = "UFRS" if "bank" in sector or "banka" in sector else "XI_29"
-        balance = ticker.get_balance_sheet(quarterly=True, financial_group=group, last_n=8)
-        income = ticker.get_income_stmt(quarterly=True, financial_group=group, last_n=8)
+        balance = ticker.get_balance_sheet(quarterly=True, financial_group=group, last_n=12)
+        income = ticker.get_income_stmt(quarterly=True, financial_group=group, last_n=12)
         try:
-            cashflow = ticker.get_cashflow(quarterly=True, financial_group=group, last_n=8)
+            cashflow = ticker.get_cashflow(quarterly=True, financial_group=group, last_n=12)
         except Exception:
             cashflow = None
         return _snapshot_from_frames(
@@ -347,6 +447,7 @@ class BorsapyKapFinancialProvider:
             cashflow=cashflow,
             info=info,
             fast=fast,
+            cumulative_flows=True,
         )
 
 
@@ -375,6 +476,7 @@ class YFinanceFinancialProvider:
             cashflow=ticker.quarterly_cash_flow,
             info=info,
             fast=fast,
+            cumulative_flows=False,
         )
 
 
@@ -408,7 +510,10 @@ class FinancialProviderChain:
                     sources[key] = fallback.metric_sources.get(key, fallback.providers_used[0])
         return replace(
             primary,
-            company_name=primary.company_name or next((item.company_name for item in snapshots[1:] if item.company_name), None),
+            company_name=prefer_turkish_name(
+                primary.company_name,
+                *(item.company_name for item in snapshots[1:]),
+            ),
             sector=primary.sector or next((item.sector for item in snapshots[1:] if item.sector), None),
             currency=primary.currency or next((item.currency for item in snapshots[1:] if item.currency), None),
             metrics=metrics,
@@ -427,4 +532,6 @@ class FinancialProviderChain:
                 )
                 for key in set().union(*(item.metadata for item in snapshots))
             },
+            flow_period=primary.flow_period
+            or next((item.flow_period for item in snapshots[1:] if item.flow_period), None),
         )

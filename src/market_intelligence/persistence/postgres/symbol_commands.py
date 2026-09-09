@@ -57,7 +57,8 @@ LIMIT 20
 
 NEWS_SQL = """
 SELECT DISTINCT n.headline, n.published_at, n.url, n.source,
-       COALESCE(n.payload->>'summary', '') AS summary
+       COALESCE(n.payload->>'summary', '') AS summary,
+       COALESCE(n.payload->>'provider', '') AS provider
 FROM news_items n
 LEFT JOIN news_item_instruments link ON link.news_id = n.news_id
 WHERE n.instrument_id = %s OR link.instrument_id = %s
@@ -117,10 +118,7 @@ class PostgresSymbolReadStore:
                 for row in cursor.fetchall()
             )
             cursor.execute(NEWS_SQL, (instrument_id, instrument_id))
-            news = tuple(
-                StoredNews(str(row[0]), row[1], row[2], str(row[3]), str(row[4] or ""))
-                for row in cursor.fetchall()
-            )
+            news = tuple(self._news(row) for row in cursor.fetchall())
         return SymbolSnapshot(instrument_id, canonical_symbol, results, artifacts, news)
 
     def load_recent_matches(self, *, limit: int = 60) -> tuple[StoredMatch, ...]:
@@ -164,6 +162,17 @@ class PostgresSymbolReadStore:
             bar_time=row[3],
             status=EvaluationStatus(str(row[4])),
             direction=direction,
+        )
+
+    @staticmethod
+    def _news(row: tuple[Any, ...]) -> StoredNews:
+        return StoredNews(
+            headline=str(row[0]),
+            published_at=row[1],
+            url=row[2],
+            source=str(row[3]),
+            summary=str(row[4] or ""),
+            provider=str(row[5] or ""),
         )
 
 

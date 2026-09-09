@@ -57,6 +57,7 @@ from market_intelligence.features.trend import (
 )
 from market_intelligence.features.volatility import WilderAtr14Provider
 from market_intelligence.features.volume import RelativeVolume20Provider
+from market_intelligence.fundamentals.inflation import BorsapyTcmbInflationProvider
 from market_intelligence.fundamentals.presentation import fundamental_message
 from market_intelligence.fundamentals.providers import (
     BorsapyKapFinancialProvider,
@@ -1236,6 +1237,7 @@ def _command_job_executor(
         service = EquityReportService(
             feature_engine=_feature_engine(connection),
             financials=financial_chain(),
+            inflation=BorsapyTcmbInflationProvider(),
         )
         return frame, tuple(related_frames), stored, service
 

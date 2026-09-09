@@ -20,8 +20,9 @@ Durum: Kabul edildi
   ve kapsamıyla açıklanır; confluence puana çevrilmez. Seviye yıldızları yalnız
   bağımsız kanıt sayısının görsel gösterimidir.
 - `report_id`; instrument, as-of bar, snapshot/revizyon, MTF feature
-  değerleri, feature kimliği ve
-  template sürümünden deterministik üretilir. Üretim saati kimliğe girmez.
+  değerleri, finansal ve saklanmış tarama/haber snapshot'ı, dönemsel TÜFE
+  girdisi, feature kimliği ve template sürümünden deterministik üretilir.
+  Üretim saati kimliğe girmez.
 - PDF artifact kaydı, belge outbox'ı ve komut tamamlanma yanıtı tek PostgreSQL
   transaction'ında tamamlanır.
 - GitHub Actions çalışanları geçici olduğundan PDF içeriği outbox payload'ında

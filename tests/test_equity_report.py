@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from market_intelligence.application.symbol_commands import SymbolSnapshot
+from market_intelligence.application.symbol_commands import StoredNews, SymbolSnapshot
 from market_intelligence.core.enums import PriceBasis
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.features.decision import DecisionPanelV645Provider
@@ -158,6 +158,44 @@ class EquityReportTests(unittest.TestCase):
         self.assertEqual(machine["timeframes"]["1h"]["status"], "AVAILABLE")
         self.assertEqual(machine["timeframes"]["1d"]["status"], "AVAILABLE")
         self.assertGreater(report.technical_coverage, 80.0)
+
+    def test_kap_title_and_inflation_are_report_inputs(self) -> None:
+        source = frame()
+        stored = SymbolSnapshot(
+            source.instrument_id,
+            "ASELS",
+            news=(
+                StoredNews(
+                    "Finansal rapor",
+                    datetime(2026, 9, 8, tzinfo=UTC),
+                    source="kap",
+                    provider="ASELSAN ELEKTRONİK SANAYİ VE TİCARET A.Ş.",
+                ),
+            ),
+        )
+        kwargs = {
+            "frame": source,
+            "technical": technical_snapshot(source),
+            "stored": stored,
+            "financial": financial(),
+            "generated_at": datetime(2026, 9, 8, tzinfo=UTC),
+        }
+
+        report = build_equity_research_report(**kwargs, inflation_yoy_pct=32.11)
+        other_inflation = build_equity_research_report(
+            **kwargs,
+            inflation_yoy_pct=30.0,
+        )
+
+        company_row = report.sections[1].tables[0].rows[0]
+        self.assertEqual(company_row[1], "ASELSAN ELEKTRONİK SANAYİ VE TİCARET A.Ş.")
+        revenue_row = report.sections[4].tables[0].rows[0]
+        self.assertIn("TÜFE %+32.1", revenue_row[3])
+        self.assertNotEqual(report.report_id, other_inflation.report_id)
+        self.assertEqual(
+            report.machine_readable["fundamental"]["inflation"]["yoy_pct"],
+            32.11,
+        )
 
     def test_pdf_is_created_with_all_section_titles(self) -> None:
         source = frame()

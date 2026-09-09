@@ -10,6 +10,7 @@ from market_intelligence.features.research import (
     RESEARCH_TECHNICAL_SNAPSHOT,
     ResearchTechnicalSnapshot,
 )
+from market_intelligence.fundamentals.inflation import InflationDataProvider
 from market_intelligence.fundamentals.providers import FinancialProviderChain
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.research.equity_report_v2 import (
@@ -37,9 +38,11 @@ class EquityReportService:
         *,
         feature_engine: FeatureEngine,
         financials: FinancialProviderChain,
+        inflation: InflationDataProvider | None = None,
     ) -> None:
         self.feature_engine = feature_engine
         self.financials = financials
+        self.inflation = inflation
 
     def assemble(
         self,
@@ -68,6 +71,15 @@ class EquityReportService:
             if isinstance(related_technical, ResearchTechnicalSnapshot):
                 timeframe_technicals[related.timeframe.value] = related_technical
         financial = self.financials.fetch(frame.symbol_at_snapshot, as_of=frame.through_bar_time)
+        inflation_yoy_pct = None
+        if self.inflation is not None and financial and financial.flow_period:
+            try:
+                inflation_yoy_pct = self.inflation.fetch_yoy(
+                    period_end=financial.flow_period
+                )
+            except Exception:
+                # Inflation enrichment must not make the complete report unavailable.
+                inflation_yoy_pct = None
         return build_equity_research_report(
             frame=frame,
             technical=technical,
@@ -75,6 +87,9 @@ class EquityReportService:
             financial=financial,
             generated_at=generated_at,
             timeframe_technicals=timeframe_technicals,
+            inflation_yoy_pct=inflation_yoy_pct,
+            inflation_provider_id=self.inflation.provider_id if self.inflation else None,
+            inflation_period=financial.flow_period if financial else None,
         )
 
     def generate(

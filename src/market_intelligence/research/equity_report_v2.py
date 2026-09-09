@@ -12,10 +12,15 @@ from market_intelligence.features.research import (
     ResearchTechnicalSnapshot,
 )
 from market_intelligence.fundamentals.providers import FinancialSnapshot
+from market_intelligence.fundamentals.text_quality import (
+    growth_verdict,
+    guard_provider_prose,
+    prefer_turkish_name,
+)
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.news.text import sentence_excerpt
 
-REPORT_TEMPLATE_VERSION = "equity-research-tr-2.1.0"
+REPORT_TEMPLATE_VERSION = "equity-research-tr-2.2.0"
 
 
 @dataclass(frozen=True)
@@ -460,6 +465,9 @@ def build_equity_research_report(
     financial: FinancialSnapshot | None,
     generated_at: datetime,
     timeframe_technicals: dict[str, ResearchTechnicalSnapshot] | None = None,
+    inflation_yoy_pct: float | None = None,
+    inflation_provider_id: str | None = None,
+    inflation_period: datetime | None = None,
 ) -> EquityResearchReport:
     if frame.is_partial:
         raise ValueError("Rapor kısmi bar üzerinden üretilemez")
@@ -476,14 +484,29 @@ def build_equity_research_report(
             "feature": RESEARCH_TECHNICAL_SNAPSHOT.identity_hash,
             "template_version": REPORT_TEMPLATE_VERSION,
             "timeframe_technicals": resolved_timeframes,
+            "financial": financial,
+            "stored": stored,
+            "inflation_yoy_pct": inflation_yoy_pct,
+            "inflation_provider_id": inflation_provider_id,
+            "inflation_period": inflation_period,
         }
     )
     currency = financial.currency if financial and financial.currency else "TL"
+    kap_title = prefer_turkish_name(
+        *(item.provider for item in stored.news if item.source == "kap" and item.provider)
+    )
     company = (
-        financial.company_name if financial and financial.company_name else frame.symbol_at_snapshot
+        prefer_turkish_name(
+            financial.company_name if financial else None,
+            kap_title,
+        )
+        or frame.symbol_at_snapshot
     )
     sector = financial.sector if financial and financial.sector else "Veri yok"
     metadata = financial.metadata if financial else {}
+    description_text, description_reason = guard_provider_prose(
+        str(metadata.get("description") or "")
+    )
     financial_score, financial_coverage, financial_rows, valuation, risks = _financial_score(
         financial
     )
@@ -581,7 +604,7 @@ def build_equity_research_report(
                 "Hasılat",
                 _money(_metric(financial, "revenue_ttm"), currency),
                 _pct(_metric(financial, "revenue_growth")),
-                "Reel yorum için enflasyon gerekir",
+                growth_verdict(_metric(financial, "revenue_growth"), inflation_yoy_pct),
             ),
             (
                 "FAVÖK",
@@ -593,7 +616,11 @@ def build_equity_research_report(
                 "Net kâr",
                 _money(_metric(financial, "net_income_ttm"), currency),
                 _pct(_metric(financial, "net_income_growth")),
-                f"Marj {_pct(_metric(financial, 'net_margin'))}",
+                f"Marj {_pct(_metric(financial, 'net_margin'))} · "
+                + growth_verdict(
+                    _metric(financial, "net_income_growth"),
+                    inflation_yoy_pct,
+                ),
             ),
             (
                 "Faaliyet nakdi",
@@ -651,14 +678,12 @@ def build_equity_research_report(
             3,
             "Yatırım Hikâyesi",
             (
-                sentence_excerpt(
-                    metadata.get("description")
-                    or "Şirket faaliyet açıklaması veri sağlayıcısından alınamadı.",
-                    max_chars=1500,
-                ),
+                sentence_excerpt(description_text, max_chars=1500)
+                if description_text
+                else f"Şirket faaliyet açıklaması rapora alınmadı: {description_reason}.",
                 f"Satış büyümesi {_pct(_metric(financial, 'revenue_growth'))}, net kâr büyümesi {_pct(_metric(financial, 'net_income_growth'))}, serbest nakit akımı {_money(_metric(financial, 'fcf_ttm'), currency)}. Hikâye, büyümenin nakde dönüşmesiyle teyit edilmelidir.",
             ),
-            status=financial_status,
+            status=financial_status if description_text else "PARTIAL",
         ),
         ReportSection(
             4,
@@ -992,6 +1017,11 @@ def build_equity_research_report(
             "valuation_status": valuation,
             "catalysts": [],
             "risks": list(risks),
+            "inflation": {
+                "yoy_pct": inflation_yoy_pct,
+                "period_end": inflation_period.isoformat() if inflation_period else None,
+                "provider": inflation_provider_id,
+            },
         },
         "technical": {
             "score": technical_score,

@@ -35,6 +35,7 @@ class StoredNews:
     url: str | None = None
     source: str = "kap"
     summary: str = ""
+    provider: str = ""
 
 
 @dataclass(frozen=True)
