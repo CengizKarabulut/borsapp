@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import date, datetime
 from typing import Any, Protocol
@@ -90,10 +91,14 @@ class KapDisclosureProvider:
         *,
         timezone: ZoneInfo | None = None,
         timeout_seconds: float = 30.0,
+        detail_workers: int = 8,
     ) -> None:
+        if detail_workers < 1:
+            raise ValueError("KAP detail_workers en az 1 olmalıdır")
         self.client = client
         self.timezone = timezone or ZoneInfo("Europe/Istanbul")
         self.timeout_seconds = timeout_seconds
+        self.detail_workers = detail_workers
 
     def fetch(self, *, from_date: date, to_date: date) -> tuple[NewsItem, ...]:
         if from_date > to_date:
@@ -162,40 +167,42 @@ class KapDisclosureProvider:
     def enrich(self, items: tuple[NewsItem, ...]) -> tuple[NewsItem, ...]:
         """Fetch full KAP bodies for new disclosures; each failure uses list data."""
 
+        if not items:
+            return ()
         client = self.client or self._default_client()
-        enriched: list[NewsItem] = []
-        for item in items:
-            disclosure_id = item.news_id.removeprefix("kap:")
-            try:
-                response = client.get(
-                    f"{KAP_DETAIL_URL}/{disclosure_id}",
-                    headers={
-                        "Accept": "application/json",
-                        "Referer": item.url or f"{KAP_BASE_URL}/tr/Bildirim/{disclosure_id}",
-                        "User-Agent": "borsapp/0.1 (+https://github.com/CengizKarabulut/borsapp)",
-                    },
-                    timeout=self.timeout_seconds,
-                )
-                response.raise_for_status()
-                body = response.json()
-                rows = body if isinstance(body, list) else []
-                detail = rows[0] if rows and isinstance(rows[0], Mapping) else {}
-                disclosure = detail.get("disclosure") if isinstance(detail, Mapping) else {}
-                basic = disclosure.get("disclosureBasic") if isinstance(disclosure, Mapping) else {}
-                basic_summary = _clean(basic.get("summary")) if isinstance(basic, Mapping) else ""
-                detail_text = _body_text(detail.get("disclosureBody"))
-                parts = list(dict.fromkeys(part for part in (basic_summary, detail_text) if part))
-                summary = sentence_excerpt("\n\n".join(parts), max_chars=6_000)
-                enriched.append(
-                    replace(
-                        item,
-                        summary=summary or item.summary,
-                        payload={**dict(item.payload), "detail": detail},
-                    )
-                )
-            except Exception:
-                enriched.append(item)
-        return tuple(enriched)
+        workers = min(self.detail_workers, len(items))
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="kap-detail") as pool:
+            return tuple(pool.map(lambda item: self._enrich_one(client, item), items))
+
+    def _enrich_one(self, client: HttpClient, item: NewsItem) -> NewsItem:
+        disclosure_id = item.news_id.removeprefix("kap:")
+        try:
+            response = client.get(
+                f"{KAP_DETAIL_URL}/{disclosure_id}",
+                headers={
+                    "Accept": "application/json",
+                    "Referer": item.url or f"{KAP_BASE_URL}/tr/Bildirim/{disclosure_id}",
+                    "User-Agent": "borsapp/0.1 (+https://github.com/CengizKarabulut/borsapp)",
+                },
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            body = response.json()
+            rows = body if isinstance(body, list) else []
+            detail = rows[0] if rows and isinstance(rows[0], Mapping) else {}
+            disclosure = detail.get("disclosure") if isinstance(detail, Mapping) else {}
+            basic = disclosure.get("disclosureBasic") if isinstance(disclosure, Mapping) else {}
+            basic_summary = _clean(basic.get("summary")) if isinstance(basic, Mapping) else ""
+            detail_text = _body_text(detail.get("disclosureBody"))
+            parts = list(dict.fromkeys(part for part in (basic_summary, detail_text) if part))
+            summary = sentence_excerpt("\n\n".join(parts), max_chars=6_000)
+            return replace(
+                item,
+                summary=summary or item.summary,
+                payload={**dict(item.payload), "detail": detail},
+            )
+        except Exception:
+            return item
 
     @staticmethod
     def _default_client() -> HttpClient:

@@ -108,6 +108,37 @@ class KapDisclosureProviderTests(unittest.TestCase):
         self.assertNotIn("English text", enriched.summary)
         self.assertEqual(client.calls[-1][0], f"{KAP_DETAIL_URL}/123")
 
+    def test_detail_enrichment_preserves_input_order_with_worker_pool(self) -> None:
+        rows = [
+            {
+                "disclosureIndex": value,
+                "publishDate": "07.09.2026 14:05",
+                "stockCodes": "ASELS",
+                "summary": f"Kısa {value}",
+            }
+            for value in (123, 124, 125)
+        ]
+        detail = [
+            {
+                "disclosure": {"disclosureBasic": {"summary": "Ayrıntılı açıklama"}},
+                "disclosureBody": [],
+            }
+        ]
+        provider = KapDisclosureProvider(FakeClient(rows, detail), detail_workers=3)
+        items = provider.fetch(from_date=date(2026, 9, 7), to_date=date(2026, 9, 7))
+
+        enriched = provider.enrich(items)
+
+        self.assertEqual(
+            tuple(item.news_id for item in enriched),
+            tuple(item.news_id for item in items),
+        )
+        self.assertTrue(all(item.summary == "Ayrıntılı açıklama" for item in enriched))
+
+    def test_detail_worker_count_must_be_positive(self) -> None:
+        with self.assertRaisesRegex(ValueError, "en az 1"):
+            KapDisclosureProvider(FakeClient([]), detail_workers=0)
+
 
 if __name__ == "__main__":
     unittest.main()
