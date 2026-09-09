@@ -95,7 +95,7 @@ class CommandJobRunner:
             output = CommandJobOutput()
         if job.command is CommandName.ANALYSIS:
             success_text = f"{job.symbol} analizi tamamlandı; Analizler konusuna gönderildi."
-        elif job.command is CommandName.REPORT:
+        elif job.command in {CommandName.EQUITY, CommandName.REPORT}:
             success_text = f"{job.symbol} raporu tamamlandı; Raporlar konusuna gönderildi."
         elif job.command is CommandName.FUNDAMENTAL:
             success_text = (

@@ -124,6 +124,16 @@ class TelegramCommandParserTests(unittest.TestCase):
         self.assertIsNotNone(command)
         assert command is not None
         self.assertEqual(command.name, CommandName.SCAN)
+
+    def test_hisse_command_is_parsed_as_full_equity_report(self) -> None:
+        command = self.parser.parse(
+            self.update(text="/hisse ASELS"),
+            self.settings,
+        )
+
+        self.assertIsNotNone(command)
+        assert command is not None
+        self.assertEqual(command.name, CommandName.EQUITY)
         self.assertEqual(command.args, ("ASELS",))
 
     def test_other_topic_is_accepted_but_other_user_is_ignored(self) -> None:

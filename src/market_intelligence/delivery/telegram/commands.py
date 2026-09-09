@@ -12,6 +12,7 @@ class CommandName(StrEnum):
     SCAN = "tara"
     SCANS = "taramalar"
     ANALYSIS = "analiz"
+    EQUITY = "hisse"
     REPORT = "rapor"
     FUNDAMENTAL = "temel"
     CHART = "grafik"

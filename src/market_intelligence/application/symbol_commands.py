@@ -115,7 +115,8 @@ class SymbolCommandService:
                 "/tara SEMBOL — son birleşik durum\n"
                 "/taramalar SEMBOL — tüm tarama ayrıntıları\n"
                 "/analiz SEMBOL — tek ekran birleşik araştırma özeti\n"
-                "/rapor SEMBOL — 25 bölümlü PDF araştırma raporu\n"
+                "/hisse SEMBOL — 25 bölümlü tam PDF araştırma paketi\n"
+                "/rapor SEMBOL — /hisse komutunun kısa adı\n"
                 "/temel SEMBOL — kaynak etiketli temel analiz kartı\n"
                 "/grafik SEMBOL — teknik gösterge grafiği\n"
                 "/haber SEMBOL — bugünün tüm KAP'ları + önceki 3 KAP\n"
@@ -171,6 +172,7 @@ class SymbolCommandService:
 
         if command.name in {
             CommandName.ANALYSIS,
+            CommandName.EQUITY,
             CommandName.REPORT,
             CommandName.FUNDAMENTAL,
             CommandName.CHART,
@@ -185,6 +187,7 @@ class SymbolCommandService:
             )
             output_name = {
                 CommandName.ANALYSIS: "araştırma analizi",
+                CommandName.EQUITY: "tam hisse araştırma paketi",
                 CommandName.REPORT: "araştırma raporu",
                 CommandName.FUNDAMENTAL: "temel analiz kartı",
                 CommandName.CHART: "grafiği",

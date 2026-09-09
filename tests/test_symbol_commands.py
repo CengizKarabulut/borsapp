@@ -146,6 +146,7 @@ class SymbolCommandServiceTests(unittest.TestCase):
     def test_analysis_report_fundamental_and_chart_are_enqueued_as_long_jobs(self) -> None:
         for name in (
             CommandName.ANALYSIS,
+            CommandName.EQUITY,
             CommandName.REPORT,
             CommandName.FUNDAMENTAL,
             CommandName.CHART,

@@ -160,6 +160,18 @@ class CommandJobRunnerTests(unittest.TestCase):
 
         self.assertIn("Raporlar konusuna", repository.finished[0]["envelopes"][-1].payload["text"])
 
+    def test_hisse_job_points_to_reports_topic(self) -> None:
+        source = job()
+        repository = FakeRepository(replace(source, command=CommandName.EQUITY))
+
+        CommandJobRunner(
+            settings=live_settings(),
+            repository=repository,
+            executor=lambda _job: None,
+        ).run_once(now=datetime(2026, 9, 7, tzinfo=UTC))
+
+        self.assertIn("Raporlar konusuna", repository.finished[0]["envelopes"][-1].payload["text"])
+
     def test_report_output_and_completion_are_finished_together(self) -> None:
         source = replace(job(), command=CommandName.REPORT)
         repository = FakeRepository(source)

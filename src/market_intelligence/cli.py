@@ -1245,11 +1245,15 @@ def _command_job_executor(
                 )
             envelope = TopicRouter(settings.telegram).route(
                 publication_kind=PublicationKind.ANALYSIS,
-                semantic_identity={"report_id": report.report_id, "view": "summary"},
+                semantic_identity={
+                    "report_id": report.report_id,
+                    "view": "summary",
+                    "request_job_id": job.job_id,
+                },
                 payload={"text": analysis_message(report)},
             )
             return CommandJobOutput(envelopes=(envelope,))
-        if job.command is CommandName.REPORT:
+        if job.command in {CommandName.EQUITY, CommandName.REPORT}:
             generated_at = datetime.now(settings.runtime.timezone)
             with _connect(settings.runtime.database_url) as connection:
                 frame, stored, service = research_frame(connection, job, generated_at)
@@ -1264,7 +1268,10 @@ def _command_job_executor(
                 )
             report_envelope = TopicRouter(settings.telegram).route(
                 publication_kind=PublicationKind.REPORT,
-                semantic_identity={"report_id": generated.report_id},
+                semantic_identity={
+                    "report_id": generated.report_id,
+                    "request_job_id": job.job_id,
+                },
                 payload={
                     "_method": "sendDocument",
                     "document_path": str(generated.rendered.path),
@@ -1563,6 +1570,7 @@ def _telegram_smoke_symbol(
         (CommandName.SCANS, (canonical,)),
         (CommandName.NEWS, (canonical,)),
         (CommandName.ANALYSIS, (canonical,)),
+        (CommandName.EQUITY, (canonical,)),
         (CommandName.REPORT, (canonical,)),
         (CommandName.FUNDAMENTAL, (canonical,)),
         (CommandName.CHART, (canonical,)),

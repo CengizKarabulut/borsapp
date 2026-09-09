@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from market_intelligence.cli import _feature_engine
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.scanning.catalog import load_scanner_catalog
 
@@ -11,6 +12,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ScannerCatalogTests(unittest.TestCase):
+    def test_every_scanner_feature_and_dependency_has_a_runtime_provider(self) -> None:
+        bindings = load_scanner_catalog(ROOT / "config/scanners.toml")
+        registry = _feature_engine(None).registry
+        visited: set[str] = set()
+
+        def assert_registered(spec) -> None:
+            if spec.identity_hash in visited:
+                return
+            visited.add(spec.identity_hash)
+            provider = registry.resolve(spec)
+            for dependency in getattr(provider, "dependencies", ()):
+                assert_registered(dependency)
+
+        for binding in bindings:
+            for spec in binding.scanner.required_features:
+                with self.subTest(scanner=binding.scanner.id, feature=spec.feature_id):
+                    assert_registered(spec)
+
     def test_all_migrated_scanners_load_from_resolved_toml(self) -> None:
         bindings = load_scanner_catalog(ROOT / "config/scanners.toml")
         self.assertEqual(
