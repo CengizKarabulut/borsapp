@@ -53,6 +53,33 @@ class GeneralNewsProviderTests(unittest.TestCase):
 
         self.assertEqual(items, ())
 
+    def test_fragmented_provider_title_is_replaced_by_complete_turkish_lead(self) -> None:
+        provider = GeneralNewsProvider(
+            "bloomberght",
+            row_fetcher=lambda _source, _now: [
+                {
+                    "id": "bht-1",
+                    "title": "OPENAI, YENLİK, UZMANI, PAUL, VAKIF YNETİM, ATADI",
+                    "published": "2026-09-08T10:00:00+03:00",
+                    "summary": (
+                        "OpenAI, güvenlik uzmanı Paul Christiano’yu vakıf yönetim "
+                        "kuruluna atadı. Atama bugün duyuruldu."
+                    ),
+                }
+            ],
+        )
+
+        item = provider.fetch(
+            from_date=date(2026, 9, 8),
+            to_date=date(2026, 9, 8),
+        )[0]
+
+        self.assertEqual(
+            item.headline,
+            "OpenAI, güvenlik uzmanı Paul Christiano’yu vakıf yönetim kuruluna atadı",
+        )
+        self.assertEqual(item.summary, "Atama bugün duyuruldu.")
+
     def test_article_enrichment_adds_complete_native_summary(self) -> None:
         class Response:
             text = (

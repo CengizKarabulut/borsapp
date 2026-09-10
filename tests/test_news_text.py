@@ -7,6 +7,7 @@ from market_intelligence.news.text import (
     canonical_news_url,
     news_dedup_key,
     normalize_news_text,
+    polish_news_copy,
     sentence_excerpt,
 )
 
@@ -23,6 +24,28 @@ class NewsTextTests(unittest.TestCase):
         excerpt = sentence_excerpt(text, max_chars=55)
         self.assertTrue(excerpt.startswith("İlk cümle bütün olarak kalmalıdır."))
         self.assertTrue(excerpt.endswith("…"))
+
+    def test_promotes_matching_complete_sentence_over_fragmented_headline(self) -> None:
+        headline, summary = polish_news_copy(
+            "OPENAI, YENLİK, UZMANI, PAUL, VAKIF YNETİM, ATADI",
+            "OpenAI, güvenlik uzmanı Paul Christiano’yu vakıf yönetim kuruluna atadı. "
+            "Şirket yeni yönetişim yapısını ayrıca duyurdu.",
+        )
+
+        self.assertEqual(
+            headline,
+            "OpenAI, güvenlik uzmanı Paul Christiano’yu vakıf yönetim kuruluna atadı",
+        )
+        self.assertEqual(summary, "Şirket yeni yönetişim yapısını ayrıca duyurdu.")
+
+    def test_keeps_healthy_headline_and_removes_exact_summary_repetition(self) -> None:
+        headline, summary = polish_news_copy(
+            "ASELS yeni ihracat sözleşmesi açıkladı",
+            "ASELS yeni ihracat sözleşmesi açıkladı. Teslimatlar üç yılda tamamlanacak.",
+        )
+
+        self.assertEqual(headline, "ASELS yeni ihracat sözleşmesi açıkladı")
+        self.assertEqual(summary, "Teslimatlar üç yılda tamamlanacak.")
 
     def test_tracking_parameters_do_not_create_duplicate_identity(self) -> None:
         first = canonical_news_url("https://example.com/haber?utm_source=x&id=3")

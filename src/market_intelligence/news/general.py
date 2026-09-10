@@ -16,7 +16,11 @@ from bs4 import BeautifulSoup
 
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.news.contracts import NewsItem
-from market_intelligence.news.text import normalize_news_text, sentence_excerpt
+from market_intelligence.news.text import (
+    normalize_news_text,
+    polish_news_copy,
+    sentence_excerpt,
+)
 
 SUPPORTED_SOURCES = (
     "bloomberght",
@@ -168,6 +172,7 @@ class GeneralNewsProvider:
                 row.get("detail") or row.get("summary") or "",
                 max_chars=6_000,
             )
+            headline, summary = polish_news_copy(headline, summary)
             payload = dict(row)
             payload.pop("detail", None)
             if self.source in {"forexfactory", "tradingview"}:
@@ -231,12 +236,17 @@ class GeneralNewsProvider:
                     )
                 )
                 combined = " ".join(part for part in (item.summary, *parts) if part)
+                headline, summary = polish_news_copy(
+                    item.headline,
+                    sentence_excerpt(combined, max_chars=6_000),
+                )
                 payload = dict(item.payload)
                 payload["enriched"] = True
                 enriched.append(
                     replace(
                         item,
-                        summary=sentence_excerpt(combined, max_chars=6_000),
+                        headline=headline,
+                        summary=summary,
                         payload=payload,
                     )
                 )

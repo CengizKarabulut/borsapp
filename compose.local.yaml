@@ -2,6 +2,7 @@ services:
   universe-worker:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
@@ -21,6 +22,7 @@ services:
   news-worker:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
@@ -41,6 +43,7 @@ services:
   research-worker:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
@@ -62,6 +65,7 @@ services:
   outcomes-worker:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}

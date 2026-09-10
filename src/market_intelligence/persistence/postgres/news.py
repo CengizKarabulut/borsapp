@@ -50,7 +50,12 @@ ON CONFLICT (news_id) DO UPDATE SET
     headline = EXCLUDED.headline,
     published_at = EXCLUDED.published_at,
     url = EXCLUDED.url,
-    payload = EXCLUDED.payload,
+    payload = CASE
+        WHEN length(COALESCE(news_items.payload ->> 'summary', ''))
+           > length(COALESCE(EXCLUDED.payload ->> 'summary', ''))
+        THEN news_items.payload
+        ELSE EXCLUDED.payload
+    END,
     observed_at = EXCLUDED.observed_at
 """
 LINK_NEWS_SQL = """

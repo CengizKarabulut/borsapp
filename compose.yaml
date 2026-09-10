@@ -13,11 +13,13 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 60
+      start_period: 180s
 
   migrate:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
@@ -30,6 +32,7 @@ services:
   scanner:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
@@ -52,6 +55,7 @@ services:
   listener:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
@@ -69,6 +73,7 @@ services:
   publisher:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
@@ -89,10 +94,12 @@ services:
   command-worker:
     profiles: ["runtime"]
     build: .
+    image: borsapp:local
     env_file: .env
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
       BORSAPP_ARTIFACT_ROOT: /app/runtime_artifacts
+      MPLCONFIGDIR: /tmp/matplotlib
     volumes:
       - borsapp-artifacts:/app/runtime_artifacts
     command: ["command-worker-loop", "--timeframe", "1h"]

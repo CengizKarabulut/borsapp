@@ -1,10 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = ""
+    [string]$RepositoryRoot = "",
+    [string]$TelegramChatId = ""
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+$utf8 = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
 if (-not $RepositoryRoot) {
     $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 }
@@ -48,25 +52,33 @@ function New-LocalEnvironment {
     param([string]$TargetPath)
 
     $templatePath = Join-Path $RepositoryRoot ".env.local.example"
-    $alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    $password = -join (1..36 | ForEach-Object {
-        $alphabet[[Security.Cryptography.RandomNumberGenerator]::GetInt32($alphabet.Length)]
-    })
+    $passwordMaterial = [Guid]::NewGuid().ToString("N") + [Guid]::NewGuid().ToString("N")
+    $password = $passwordMaterial.Substring(0, 36)
 
     do {
         $secureToken = Read-Host "Telegram bot tokenını girin" -AsSecureString
         $tokenPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
         try {
-            $telegramToken = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tokenPointer)
+            $tokenInput = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tokenPointer)
         }
         finally {
             [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tokenPointer)
         }
-    } until ($telegramToken -match "^\d+:[A-Za-z0-9_-]{30,}$")
+        $tokenMatch = [Regex]::Match($tokenInput, "\d{5,}:[A-Za-z0-9_-]{20,}")
+        $telegramToken = if ($tokenMatch.Success) { $tokenMatch.Value } else { "" }
+        if (-not $telegramToken) {
+            Write-Warning "Geçerli bot tokenı bulunamadı. BotFather değerini yeniden yapıştırın."
+        }
+    } until ($telegramToken)
 
-    do {
-        $telegramChatId = Read-Host "Telegram grup kimliğini girin (genellikle -100 ile başlar)"
-    } until ($telegramChatId -match "^-?\d+$")
+    if (-not $TelegramChatId) {
+        do {
+            $TelegramChatId = Read-Host "Telegram grup kimliğinin tam değerini girin (negatif sayı)"
+        } until ($TelegramChatId -match "^-?\d+$")
+    }
+    elseif ($TelegramChatId -notmatch "^-?\d+$") {
+        throw "Telegram grup kimliği tam sayı olmalıdır."
+    }
 
     $content = [IO.File]::ReadAllText($templatePath)
     $content = $content.Replace("POSTGRES_PASSWORD=CHANGE_ME", "POSTGRES_PASSWORD=$password")
@@ -79,7 +91,7 @@ function New-LocalEnvironment {
         "COMPOSE_DATABASE_URL=postgresql://borsapp:$password@postgres:5432/borsapp"
     )
     $content = $content.Replace("TELEGRAM_BOT_TOKEN=CHANGE_ME", "TELEGRAM_BOT_TOKEN=$telegramToken")
-    $content = $content.Replace("TELEGRAM_CHAT_ID=CHANGE_ME", "TELEGRAM_CHAT_ID=$telegramChatId")
+    $content = $content.Replace("TELEGRAM_CHAT_ID=CHANGE_ME", "TELEGRAM_CHAT_ID=$TelegramChatId")
     [IO.File]::WriteAllText($TargetPath, $content, [Text.UTF8Encoding]::new($false))
 
     & icacls.exe $TargetPath /inheritance:r /grant:r "$($env:USERNAME):(R,W)" *> $null
@@ -105,7 +117,11 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Compose yapılandırması geçersiz."
     }
-    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime up -d --build
+    & $docker build --tag borsapp:local .
+    if ($LASTEXITCODE -ne 0) {
+        throw "Borsapp Docker imajı oluşturulamadı."
+    }
+    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime up -d
     if ($LASTEXITCODE -ne 0) {
         throw "Borsapp servisleri başlatılamadı."
     }
@@ -117,7 +133,7 @@ finally {
 $startScript = Join-Path $RepositoryRoot "scripts\windows\start-local.ps1"
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File ""$startScript"""
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero)
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName "Borsapp Local" -Action $action -Trigger $trigger -Settings $settings -Description "Windows oturumu açılınca Borsapp Docker servislerini başlatır." -Force | Out-Null
 
 Write-Host "Borsapp yerel kurulumu tamamlandı."
