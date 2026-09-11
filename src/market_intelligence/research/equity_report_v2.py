@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from market_intelligence.application.symbol_commands import SymbolSnapshot
@@ -19,8 +19,9 @@ from market_intelligence.fundamentals.text_quality import (
 )
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.news.text import sentence_excerpt
+from market_intelligence.research.valuation import build_valuation_analysis
 
-REPORT_TEMPLATE_VERSION = "equity-research-tr-2.2.0"
+REPORT_TEMPLATE_VERSION = "equity-research-tr-2.3.0"
 
 
 @dataclass(frozen=True)
@@ -468,6 +469,7 @@ def build_equity_research_report(
     inflation_yoy_pct: float | None = None,
     inflation_provider_id: str | None = None,
     inflation_period: datetime | None = None,
+    valuation_assumptions: dict | None = None,
 ) -> EquityResearchReport:
     if frame.is_partial:
         raise ValueError("Rapor kısmi bar üzerinden üretilemez")
@@ -489,6 +491,7 @@ def build_equity_research_report(
             "inflation_yoy_pct": inflation_yoy_pct,
             "inflation_provider_id": inflation_provider_id,
             "inflation_period": inflation_period,
+            "valuation_assumptions": valuation_assumptions,
         }
     )
     currency = financial.currency if financial and financial.currency else "TL"
@@ -504,6 +507,10 @@ def build_equity_research_report(
     )
     sector = financial.sector if financial and financial.sector else "Veri yok"
     metadata = financial.metadata if financial else {}
+    valuation_analysis = build_valuation_analysis(financial,
+        current_price=metadata.get("quote_price"), price_currency=metadata.get("quote_currency"),
+        assumptions=valuation_assumptions)
+    dcf = valuation_analysis["dcf"]
     description_text, description_reason = guard_provider_prose(
         str(metadata.get("description") or "")
     )
@@ -604,7 +611,7 @@ def build_equity_research_report(
                 "Hasılat",
                 _money(_metric(financial, "revenue_ttm"), currency),
                 _pct(_metric(financial, "revenue_growth")),
-                growth_verdict(_metric(financial, "revenue_growth"), inflation_yoy_pct),
+                growth_verdict(_metric(financial, "revenue_growth"), inflation_yoy_pct, basis=str(metadata.get("inflation_basis", "unverified"))),
             ),
             (
                 "FAVÖK",
@@ -620,6 +627,7 @@ def build_equity_research_report(
                 + growth_verdict(
                     _metric(financial, "net_income_growth"),
                     inflation_yoy_pct,
+                    basis=str(metadata.get("inflation_basis", "unverified")),
                 ),
             ),
             (
@@ -650,7 +658,7 @@ def build_equity_research_report(
             2,
             "Şirket Kartı",
             (
-                f"Rapor {frame.through_bar_time:%d.%m.%Y} kapalı barına kadarki point-in-time veriyi kullanır.",
+                f"Teknik analiz {frame.through_bar_time:%d.%m.%Y} kapalı barını kullanır. Finansal ve fiyat kaynaklarının dönem/erişim tarihleri ayrıca gösterilir; yayın geçmişi doğrulanmayan veri geçmişte biliniyormuş gibi sunulmaz.",
             ),
             status=financial_status,
             tables=(
@@ -668,6 +676,16 @@ def build_equity_research_report(
                         ),
                         ("Piyasa değeri", _money(_metric(financial, "market_cap"), currency)),
                         ("Pay sayısı", _num(_metric(financial, "shares_outstanding"), 0)),
+                        ("Değerleme fiyatı", _num(metadata.get("quote_price"))),
+                        ("Fiyat kaynağı", str(metadata.get("quote_source") or "Veri yok")),
+                        ("Fiyat erişim zamanı", str(metadata.get("quote_observed_at") or "Veri yok")),
+                        ("Borsa zaman damgası", str(metadata.get("quote_market_time") or "Doğrulanmadı; gecikme bilinmiyor")),
+                        ("Finansal kaynak", str(metadata.get("statement_source") or " / ".join(financial.providers_used if financial else ()))),
+                        ("Finansal erişim zamanı", str(metadata.get("statement_observed_at") or "Doğrulanmadı")),
+                        ("KAP yayın zamanı", str(metadata.get("statement_published_at") or "Doğrulanmadı")),
+                        ("Parasal baz", str(metadata.get("inflation_basis") or "Doğrulanmadı")),
+                        ("Dönem normalizasyonu", str(metadata.get("normalization_method") or "Doğrulanmadı")),
+                        ("Bilanço dönemi", str(metadata.get("balance_period") or "Veri yok")),
                         ("Günlük hacim", _num(technical.daily_volume, 0)),
                         ("52 hafta", f"{_num(technical.low_52w)} - {_num(technical.high_52w)}"),
                     ),
@@ -724,6 +742,8 @@ def build_equity_research_report(
             (
                 f"Güncel çarpan görünümü {valuation.lower()}. Tarihsel seri ve sektör medyanı yoksa bu göreli değer hükmü değildir.",
                 "Düşük çarpan otomatik ucuz kabul edilmez; kalite, borç ve nakit üretimiyle birlikte okunur.",
+                f"DCF: {dcf['status']}. Hisse başına temel değer: {_num(dcf.get('value_per_share'))}. Teknik hedeflerden ayrı hesaplanır.",
+                "Eksik değerleme girdileri: " + ", ".join(dcf.get("missing_inputs", [])) if dcf.get("missing_inputs") else "Değerleme varsayımları ve duyarlılık hesabı raporun makine okunur ekindedir.",
             ),
             status=financial_status,
             tables=(
@@ -956,6 +976,34 @@ def build_equity_research_report(
             bullets=tuple(risks),
         ),
     )
+    supplemental_tables = []
+    if dcf.get("forecast_cashflows"):
+        supplemental_tables.append(ReportTable(
+            ("Yıl", "EBIT", "NOPAT", "Amortisman", "CapEx", "NİS değişimi", "FCFF"),
+            tuple(tuple([str(row["period"])] + [_money(row.get(key), currency) for key in
+                ("ebit", "nopat", "depreciation_amortization", "capex", "delta_operating_nwc", "fcff")])
+                for row in dcf["forecast_cashflows"]), "Açık varsayımlarla finansal projeksiyon"))
+    if dcf.get("sensitivity"):
+        supplemental_tables.append(ReportTable(("WACC", "Terminal büyüme", "Hisse değeri"),
+            tuple((_pct(row.get("wacc", 0) * 100), _pct(row.get("terminal_growth", 0) * 100), _num(row.get("value_per_share")))
+                  for row in dcf["sensitivity"]), "DCF duyarlılığı"))
+    try:
+        history = json.loads(str(metadata.get("financial_history") or "{}"))
+    except (ValueError, TypeError):
+        history = {}
+    periods = sorted(set().union(*(set(values) for values in history.values())), reverse=True)[:24] if history else []
+    history_table = ReportTable(("Dönem", "Hasılat", "Net kâr", "CFO", "CapEx", "Özkaynak"),
+        tuple(tuple([period] + [_money(history.get(key, {}).get(period), currency) for key in
+            ("revenue", "net_income", "cfo", "capex", "equity")]) for period in periods),
+        "Arşivden tarihsel finansallar · akım kalemleri yılbaşından itibaren kümülatif")
+    sections = tuple(
+        replace(section, tables=(*section.tables, *supplemental_tables)) if section.number == 7 else
+        replace(section, tables=(*section.tables, history_table), paragraphs=(*section.paragraphs,
+            "FAVÖK yaklaşımı (EBIT + amortisman): " + _money(_metric(financial, "ebitda_proxy_ttm"), currency)
+            + ". Bu yaklaşım şirketin açıkladığı düzeltilmiş FAVÖK yerine geçmez.",
+            "Tarihsel tutar bazı: " + str(metadata.get("monetary_base_date") or "doğrulanmadı")
+            + "; normalizasyon: " + str(metadata.get("normalization_method") or "doğrulanmadı")))
+        if section.number == 5 and periods else section for section in sections)
     top = (
         f"Yapı {technical.high_label}/{technical.low_label}; teknik görünüm {trend.lower()}.",
         f"Momentum {momentum.lower()}; RSI {technical.rsi14:.1f}, MACD histogram {technical.macd_histogram:.3f}.",
@@ -1015,6 +1063,12 @@ def build_equity_research_report(
             "status": _financial_tone(financial_score),
             "financial_health_score": financial_score,
             "valuation_status": valuation,
+            "valuation_analysis": valuation_analysis,
+            "metrics": dict(financial.metrics) if financial else {},
+            "metric_sources": dict(financial.metric_sources) if financial else {},
+            "statement_periods": list(financial.statement_periods) if financial else [],
+            "provenance": dict(financial.metadata) if financial else {},
+            "data_warnings": list(financial.errors) if financial else [],
             "catalysts": [],
             "risks": list(risks),
             "inflation": {

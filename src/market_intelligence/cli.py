@@ -29,7 +29,7 @@ from market_intelligence.application.scheduled_scan import (
 from market_intelligence.application.symbol_commands import SymbolCommandService
 from market_intelligence.application.telegram_listener import TelegramListener
 from market_intelligence.compat.legacy_suite import (
-    generate_and_send_chart,
+    render_chart_documents,
 )
 from market_intelligence.core.timeframes import Timeframe, parse_timeframe
 from market_intelligence.delivery.telegram.commands import CommandName, IncomingCommand
@@ -58,12 +58,14 @@ from market_intelligence.features.trend import (
 from market_intelligence.features.volatility import WilderAtr14Provider
 from market_intelligence.features.volume import RelativeVolume20Provider
 from market_intelligence.fundamentals.inflation import BorsapyTcmbInflationProvider
+from market_intelligence.fundamentals.kap_archive import KapArchivedFinancialProvider
 from market_intelligence.fundamentals.presentation import fundamental_message
 from market_intelligence.fundamentals.providers import (
     BorsapyKapFinancialProvider,
     FinancialProviderChain,
     YFinanceFinancialProvider,
 )
+from market_intelligence.fundamentals.quotes import MarketQuoteProvider
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
 from market_intelligence.market_data.adapters.borsapy_universe import (
     BorsapyBistUniverseProvider,
@@ -128,6 +130,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("config-check", help="DB ve Telegram ayarlarını doğrula")
+    financial_sync = subparsers.add_parser("financial-sync", help="Resmi KAP finansal raporlarını ve PDF eklerini arşivle")
+    selection = financial_sync.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--symbols", help="Virgülle ayrılmış BIST sembolleri")
+    selection.add_argument("--universe", help="PostgreSQL evreni, ör. BIST_ALL")
+    financial_sync.add_argument("--lookback-days", type=int, default=30)
+    financial_sync.add_argument("--bootstrap-days", type=int, default=0)
+    financial_sync.add_argument("--archive-root", type=Path)
+    financial_sync.add_argument("--no-pdfs", action="store_true")
+    financial_backup = subparsers.add_parser("financial-backup", help="Finansal arşivin doğrulanmış SQLite ve KAP yedeğini al")
+    financial_backup.add_argument("--archive-root", type=Path)
+    financial_backup.add_argument("--destination", type=Path, required=True)
+    financial_report = subparsers.add_parser("financial-report", help="Arşiv + güncel fiyat ile hesaplamaları JSON üret")
+    financial_report.add_argument("symbol")
+    financial_report.add_argument("--archive-root", type=Path)
+    financial_report.add_argument("--assumptions", type=Path)
+    financial_report.add_argument("--output", type=Path)
+
 
     doctor = subparsers.add_parser(
         "doctor",
@@ -1185,9 +1204,11 @@ def _command_job_executor(
     def financial_chain() -> FinancialProviderChain:
         return FinancialProviderChain(
             (
-                BorsapyKapFinancialProvider(),
+                KapArchivedFinancialProvider(settings.runtime.financial_archive_root),
+                BorsapyKapFinancialProvider(settings.runtime.financial_archive_root),
                 YFinanceFinancialProvider(),
-            )
+            ),
+            quote_provider=MarketQuoteProvider(),
         )
 
     def research_frame(connection, job: CommandJob, generated_at: datetime):
@@ -1238,6 +1259,7 @@ def _command_job_executor(
             feature_engine=_feature_engine(connection),
             financials=financial_chain(),
             inflation=BorsapyTcmbInflationProvider(),
+            valuation_assumptions_root=settings.runtime.financial_archive_root / "assumptions",
         )
         return frame, tuple(related_frames), stored, service
 
@@ -1344,12 +1366,21 @@ def _command_job_executor(
             )
             return CommandJobOutput(envelopes=(envelope,))
         if job.command is CommandName.CHART:
-            generate_and_send_chart(
-                symbol=job.symbol,
-                topic_id=settings.telegram.topic_id(TopicKind.CHARTS),
-                target=target,
-            )
-            return
+            documents, errors = render_chart_documents(symbol=job.symbol, target=target)
+            router = TopicRouter(settings.telegram)
+            envelopes = []
+            for document in documents:
+                path = document["path"]
+                envelopes.append(router.route(publication_kind=PublicationKind.CHART,
+                    semantic_identity={"job_id": job.job_id, "timeframe": document["timeframe"]},
+                    payload={"_method": "sendDocument", "document_path": str(path),
+                        "document_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+                        "filename": path.name, "caption": document["caption"]}))
+            if errors:
+                envelopes.append(router.route(publication_kind=PublicationKind.CHART,
+                    semantic_identity={"job_id": job.job_id, "view": "missing_intervals"},
+                    payload={"text": f"{job.symbol} için bazı grafikler üretilemedi: " + "; ".join(errors)}))
+            return CommandJobOutput(envelopes=tuple(envelopes))
         raise ValueError(f"Desteklenmeyen uzun iş komutu: {job.command.value}")
 
     return execute
@@ -1679,11 +1710,73 @@ def _telegram_smoke_symbol(
     return 0
 
 
+def _financial_command(args, values):
+    import json
+    from datetime import UTC
+
+    from market_intelligence.fundamentals.kap_archive import KapFinancialArchive
+    from market_intelligence.research.valuation import build_valuation_analysis
+    root = args.archive_root or Path(values.get("BORSAPP_FINANCIAL_ARCHIVE", "data/financial_archive"))
+    now = datetime.now(UTC)
+    if args.command == "financial-backup":
+        from market_intelligence.fundamentals.archive import FinancialArchive
+        if not (root / "financials.sqlite3").is_file():
+            raise FileNotFoundError("Arşiv veritabanı bulunamadı")
+        result = FinancialArchive(root).backup(args.destination)
+        print(json.dumps({"destination": str(args.destination), "files": len(result["files"]), "completed_at": result["completed_at"]}, ensure_ascii=False))
+        return 0
+    if args.command == "financial-sync":
+        if args.lookback_days < 1 or args.bootstrap_days < 0:
+            raise ValueError("lookback-days pozitif, bootstrap-days negatif olmayan sayı olmalı")
+        if args.symbols:
+            symbols = tuple(value.strip().upper() for value in args.symbols.split(",") if value.strip())
+        else:
+            database_url = values.get("DATABASE_URL")
+            if not database_url:
+                raise ValueError("Evren için DATABASE_URL gerekli; --symbols bağımsız çalışır")
+            with _connect(database_url) as connection:
+                symbols = tuple(item.symbol for item in PostgresRuntimeRepository(connection).list_universe(args.universe, as_of=now.date()))
+        store = KapFinancialArchive(root)
+        # Bootstrap marker is keyed by the exact universe and requested historical depth.
+        from market_intelligence.core.identity import stable_hash
+        marker = root / ("bootstrap-" + stable_hash({"symbols": sorted(symbols), "days": args.bootstrap_days})[:20] + ".json")
+        days = max(args.lookback_days, args.bootstrap_days) if args.bootstrap_days and not marker.exists() else args.lookback_days
+        result = store.sync(
+            symbols, start=now.date() - timedelta(days=days), end=now.date(),
+            download_pdfs=not args.no_pdfs,
+            checkpoint=marker.with_suffix(".progress.json") if args.bootstrap_days and not marker.exists() else None,
+            progress=lambda state: print("KAP progress: " + json.dumps(state), flush=True),
+        )
+        if args.bootstrap_days and not marker.exists() and result["failed"] == 0:
+            marker.write_text(json.dumps({"completed_at": datetime.now(UTC).isoformat(), "days": days, "symbols": symbols}), encoding="utf-8")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 1 if result["failed"] else 0
+    chain = FinancialProviderChain((KapArchivedFinancialProvider(root), BorsapyKapFinancialProvider(root), YFinanceFinancialProvider()), quote_provider=MarketQuoteProvider())
+    financial = chain.fetch(args.symbol.upper(), as_of=now)
+    if financial is None:
+        raise RuntimeError("Finansal veri alınamadı; önce financial-sync çalıştırın")
+    assumptions = json.loads(args.assumptions.read_text(encoding="utf-8")) if args.assumptions else None
+    analysis = build_valuation_analysis(financial, current_price=financial.metadata.get("quote_price"), price_currency=financial.metadata.get("quote_currency"), assumptions=assumptions)
+    payload = {"symbol": financial.symbol, "metrics": financial.metrics, "sources": financial.metric_sources,
+               "periods": financial.statement_periods, "metadata": financial.metadata,
+               "errors": financial.errors, "valuation": analysis}
+    body = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+        print(str(args.output))
+    else:
+        print(body)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     try:
         values = merged_environment(os.environ, args.env_file)
+        if args.command in {"financial-sync", "financial-report", "financial-backup"}:
+            return _financial_command(args, values)
         settings = ApplicationSettings.from_mapping(values)
         if args.command == "config-check":
             return _config_check(settings)

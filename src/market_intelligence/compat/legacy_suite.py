@@ -123,3 +123,27 @@ def generate_and_send_chart(
 
         target.mkdir(parents=True, exist_ok=True)
         _render_and_send(symbol, list(intervals), str(topic_id))
+
+
+def render_chart_documents(*, symbol: str, target: Path,
+                           intervals: tuple[str, ...] = DEFAULT_CHART_INTERVALS):
+    """Use the established renderer without importing its bot or sending messages."""
+    import re
+    if not re.fullmatch(r"[A-Z0-9]{2,12}", symbol):
+        raise ValueError("Invalid canonical chart symbol")
+    documents, errors = [], []
+    with _legacy_imports(_chart_app(), {"BOT_OUTDIR": str(target), "MPLBACKEND": "Agg"}):
+        from src.pipeline import INTERVAL_LABELS
+        from src.technical_dashboard import build_technical_dashboard
+        target.mkdir(parents=True, exist_ok=True)
+        for interval in intervals:
+            try:
+                result = build_technical_dashboard(symbol, interval=interval, outdir=target)
+                caption = f"{result.symbol} · {INTERVAL_LABELS.get(interval, interval)}\n{result.subtitle}"
+                caption += "\n" + " · ".join(f"{label}: {value}" for label, value, _ in result.snapshot)
+                documents.append({"path": Path(result.path).resolve(), "timeframe": interval, "caption": caption[:950]})
+            except Exception as exc:
+                errors.append(f"{interval}: {type(exc).__name__}")
+    if not documents:
+        raise RuntimeError("Grafik üretilemedi: " + "; ".join(errors))
+    return tuple(documents), tuple(errors)

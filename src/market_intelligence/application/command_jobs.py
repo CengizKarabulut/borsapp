@@ -94,15 +94,15 @@ class CommandJobRunner:
             error = f"{type(exc).__name__}: {str(exc)[:500]}"
             output = CommandJobOutput()
         if job.command is CommandName.ANALYSIS:
-            success_text = f"{job.symbol} analizi tamamlandı; Analizler konusuna gönderildi."
+            success_text = f"{job.symbol} analizi tamamlandı; Analizler konusuna gönderilmek üzere kuyruğa alındı."
         elif job.command in {CommandName.EQUITY, CommandName.REPORT}:
-            success_text = f"{job.symbol} raporu tamamlandı; Raporlar konusuna gönderildi."
+            success_text = f"{job.symbol} raporu tamamlandı; Raporlar konusuna gönderilmek üzere kuyruğa alındı."
         elif job.command is CommandName.FUNDAMENTAL:
             success_text = (
-                f"{job.symbol} temel analizi tamamlandı; Analizler konusuna gönderildi."
+                f"{job.symbol} temel analizi tamamlandı; Analizler konusuna gönderilmek üzere kuyruğa alındı."
             )
         elif job.command is CommandName.CHART:
-            success_text = f"{job.symbol} grafiği tamamlandı; Grafikler konusuna gönderildi."
+            success_text = f"{job.symbol} grafiği tamamlandı; Grafikler konusuna gönderilmek üzere kuyruğa alındı."
         else:
             follow_up = "/taramalar" if job.command is CommandName.SCANS else "/tara"
             success_text = f"{job.symbol} yenilemesi tamamlandı. {follow_up} {job.symbol}"

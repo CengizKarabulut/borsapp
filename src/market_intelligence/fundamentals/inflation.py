@@ -56,3 +56,48 @@ class BorsapyTcmbInflationProvider:
         import borsapy as bp
 
         return bp.Inflation()
+
+
+class CpiRebaser:
+    """Rebase report-end purchasing power using complete official monthly rates.
+
+    Monthly rates are published rounded: this is a transparent approximation,
+    not a replacement for issuer-supplied exact restatement coefficients.
+    """
+    def __init__(self, archive, source_factory=None):
+        self.archive = archive
+        self.source_factory = source_factory
+        self.memory = {}
+
+    def factor(self, start, end):
+        from datetime import UTC
+        if start[:7] == end[:7]:
+            return 1.0
+        if start > end:
+            return 1.0 / self.factor(end, start)
+        kind = f"factor:{start}:{end}"
+        if kind in self.memory:
+            return self.memory[kind]
+        now = datetime.now(UTC)
+        cached = self.archive.latest("CPI", "tcmb", kind, known_at=now)
+        if cached is not None:
+            self.memory[kind] = cached[2]["factor"]
+            return self.memory[kind]
+        source = self.source_factory() if self.source_factory else BorsapyTcmbInflationProvider._default_source()
+        frame = source.tufe(start=start[:7] + "-01", end=end)
+        rates = {}
+        for index, row in frame.iterrows():
+            period = pd.Timestamp(index).strftime("%Y-%m")
+            rate = float(row["MonthlyInflation"])
+            if math.isfinite(rate) and rate > -100:
+                rates[period] = rate
+        first = pd.Period(start, freq="M") + 1
+        months = [str(period) for period in pd.period_range(first, pd.Period(end, freq="M"), freq="M")]
+        if any(month not in rates for month in months):
+            raise ValueError("Incomplete monthly CPI series")
+        factor = math.prod(1 + rates[month] / 100 for month in months)
+        self.archive.put("CPI", "tcmb", kind, {"factor": factor,
+            "monthly_rates": {month: rates[month] for month in months},
+            "basis": "compounded_rounded_monthly_CPI", "start": start, "end": end}, observed_at=now)
+        self.memory[kind] = factor
+        return factor

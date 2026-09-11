@@ -39,10 +39,12 @@ class EquityReportService:
         feature_engine: FeatureEngine,
         financials: FinancialProviderChain,
         inflation: InflationDataProvider | None = None,
+        valuation_assumptions_root: Path | None = None,
     ) -> None:
         self.feature_engine = feature_engine
         self.financials = financials
         self.inflation = inflation
+        self.valuation_assumptions_root = valuation_assumptions_root
 
     def assemble(
         self,
@@ -70,7 +72,7 @@ class EquityReportService:
             )
             if isinstance(related_technical, ResearchTechnicalSnapshot):
                 timeframe_technicals[related.timeframe.value] = related_technical
-        financial = self.financials.fetch(frame.symbol_at_snapshot, as_of=frame.through_bar_time)
+        financial = self.financials.fetch(frame.symbol_at_snapshot, as_of=generated_at)
         inflation_yoy_pct = None
         if self.inflation is not None and financial and financial.flow_period:
             try:
@@ -80,7 +82,18 @@ class EquityReportService:
             except Exception:
                 # Inflation enrichment must not make the complete report unavailable.
                 inflation_yoy_pct = None
+        assumptions = None
+        if self.valuation_assumptions_root:
+            import json
+            import re
+            symbol = frame.symbol_at_snapshot
+            if not re.fullmatch(r"[A-Z0-9]{2,12}", symbol):
+                raise ValueError("Invalid report symbol")
+            assumption_file = self.valuation_assumptions_root / (symbol + ".json")
+            if assumption_file.is_file():
+                assumptions = json.loads(assumption_file.read_text(encoding="utf-8"))
         return build_equity_research_report(
+            valuation_assumptions=assumptions,
             frame=frame,
             technical=technical,
             stored=stored,

@@ -12,7 +12,7 @@ $docker = if ($command) { $command.Source } else { Join-Path $env:ProgramFiles "
 
 Push-Location $RepositoryRoot
 try {
-    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime stop
+    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime --profile financials stop
 }
 finally {
     Pop-Location

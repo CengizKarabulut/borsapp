@@ -31,7 +31,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Push-Location $RepositoryRoot
 try {
-    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime up -d
+    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime --profile financials up -d
     if ($LASTEXITCODE -ne 0) {
         throw "Borsapp servisleri başlatılamadı."
     }
