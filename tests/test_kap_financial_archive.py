@@ -146,3 +146,102 @@ class KapPdfTransportTests(unittest.TestCase):
             decode_kap_pdf(wrapped[:-1])
         with self.assertRaises(ValueError):
             decode_kap_pdf(b"<html>error %PDF-1.5")
+
+
+class KapArchiveResilienceTests(unittest.TestCase):
+    def test_rate_limit_honors_retry_after_before_retrying(self):
+        class Response:
+            def __init__(self, status):
+                self.status_code = status
+                self.headers = {"Retry-After": "120"}
+
+            def raise_for_status(self):
+                if self.status_code == 429:
+                    raise RuntimeError("rate limited")
+
+            def json(self):
+                return []
+
+        class Client:
+            def __init__(self):
+                self.calls = 0
+
+            def post(self, *args, **kwargs):
+                self.calls += 1
+                return Response(429 if self.calls == 1 else 200)
+
+        with tempfile.TemporaryDirectory() as folder:
+            waits = []
+            client = Client()
+            store = KapFinancialArchive(
+                Path(folder), client=client, request_interval=0, sleeper=waits.append
+            )
+            self.assertEqual(store.list_reports(date(2026, 1, 1), date(2026, 1, 2)), [])
+            self.assertEqual(client.calls, 2)
+            self.assertEqual(waits, [120])
+
+    def test_persistent_rate_limit_has_bounded_retries(self):
+        class Response:
+            status_code = 429
+            headers = {}
+
+            def raise_for_status(self):
+                raise RuntimeError("rate limited")
+
+        class Client:
+            def post(self, *args, **kwargs):
+                return Response()
+
+        with tempfile.TemporaryDirectory() as folder:
+            waits = []
+            store = KapFinancialArchive(
+                Path(folder), client=Client(), request_interval=0, sleeper=waits.append
+            )
+            with self.assertRaisesRegex(RuntimeError, "rate limited"):
+                store.list_reports(date(2026, 1, 1), date(2026, 1, 2))
+            self.assertEqual(waits, [60, 120, 240])
+
+    def test_resume_starts_after_last_completed_interval(self):
+        class Store(KapFinancialArchive):
+            def __init__(self, root, fail):
+                super().__init__(root)
+                self.fail = fail
+                self.calls = []
+
+            def list_reports(self, start, end):
+                self.calls.append((start, end))
+                if self.fail and start.month == 2:
+                    raise RuntimeError("temporary outage")
+                return []
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            checkpoint = root / "progress.json"
+            first = Store(root, True)
+            with self.assertRaisesRegex(RuntimeError, "temporary outage"):
+                first.sync(
+                    ("ASELS",), start=date(2026, 1, 1), end=date(2026, 2, 10), checkpoint=checkpoint
+                )
+            resumed = Store(root, False)
+            resumed.sync(
+                ("ASELS",), start=date(2026, 1, 1), end=date(2026, 2, 10), checkpoint=checkpoint
+            )
+            self.assertEqual(resumed.calls, [(date(2026, 2, 1), date(2026, 2, 10))])
+            self.assertEqual(json.loads(checkpoint.read_text())["next_date"], "2026-02-11")
+
+    def test_failed_document_does_not_advance_checkpoint(self):
+        class Store(KapFinancialArchive):
+            def list_reports(self, start, end):
+                return [{"stockCodes": "ASELS", "disclosureIndex": "123"}]
+
+            def archive_report(self, *args, **kwargs):
+                raise RuntimeError("missing document")
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            checkpoint = root / "progress.json"
+            result = Store(root).sync(
+                ("ASELS",), start=date(2026, 1, 1), end=date(2026, 2, 10), checkpoint=checkpoint
+            )
+            self.assertEqual(result["failed"], 1)
+            self.assertFalse(checkpoint.exists())

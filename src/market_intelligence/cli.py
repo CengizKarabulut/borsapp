@@ -1741,9 +1741,14 @@ def _financial_command(args, values):
         from market_intelligence.core.identity import stable_hash
         marker = root / ("bootstrap-" + stable_hash({"symbols": sorted(symbols), "days": args.bootstrap_days})[:20] + ".json")
         days = max(args.lookback_days, args.bootstrap_days) if args.bootstrap_days and not marker.exists() else args.lookback_days
-        result = store.sync(symbols, start=now.date() - timedelta(days=days), end=now.date(), download_pdfs=not args.no_pdfs)
+        result = store.sync(
+            symbols, start=now.date() - timedelta(days=days), end=now.date(),
+            download_pdfs=not args.no_pdfs,
+            checkpoint=marker.with_suffix(".progress.json") if args.bootstrap_days and not marker.exists() else None,
+            progress=lambda state: print("KAP progress: " + json.dumps(state), flush=True),
+        )
         if args.bootstrap_days and not marker.exists() and result["failed"] == 0:
-            marker.write_text(json.dumps({"completed_at": now.isoformat(), "days": days, "symbols": symbols}), encoding="utf-8")
+            marker.write_text(json.dumps({"completed_at": datetime.now(UTC).isoformat(), "days": days, "symbols": symbols}), encoding="utf-8")
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 1 if result["failed"] else 0
     chain = FinancialProviderChain((KapArchivedFinancialProvider(root), BorsapyKapFinancialProvider(root), YFinanceFinancialProvider()), quote_provider=MarketQuoteProvider())

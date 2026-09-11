@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
+import time
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -174,7 +177,15 @@ def parse_financial_report(detail: dict) -> dict:
 
 
 class KapFinancialArchive:
-    def __init__(self, root: Path, *, client=None, timeout: float = 30):
+    def __init__(
+        self,
+        root: Path,
+        *,
+        client=None,
+        timeout: float = 30,
+        request_interval: float = 2.0,
+        sleeper=time.sleep,
+    ):
         self.archive = FinancialArchive(root)
         if client is None:
             import requests
@@ -182,11 +193,45 @@ class KapFinancialArchive:
             client = requests.Session()
         self.client = client
         self.timeout = timeout
+        self.request_interval = max(0.0, request_interval)
+        self.sleeper = sleeper
+        self._last_request_at = None
+
+    def _request(self, method: str, url: str, **kwargs):
+        for attempt in range(4):
+            if self._last_request_at is not None:
+                delay = self.request_interval - (time.monotonic() - self._last_request_at)
+                if delay > 0:
+                    self.sleeper(delay)
+            response = getattr(self.client, method)(url, **kwargs)
+            self._last_request_at = time.monotonic()
+            if getattr(response, "status_code", 200) not in (429, 503) or attempt == 3:
+                return response
+            delay = 60.0 * (2**attempt)
+            retry_after = getattr(response, "headers", {}).get("Retry-After")
+            if retry_after:
+                try:
+                    delay = max(delay, float(retry_after))
+                except (ValueError, TypeError):
+                    try:
+                        retry_at = parsedate_to_datetime(retry_after)
+                        delay = max(delay, (retry_at - datetime.now(UTC)).total_seconds())
+                    except (ValueError, TypeError, OverflowError):
+                        pass
+            logging.getLogger(__name__).warning(
+                "KAP HTTP %s: retry in %.0f seconds", response.status_code, delay
+            )
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
+            self.sleeper(delay)
+        raise AssertionError("unreachable")
 
     def list_reports(self, start: date, end: date) -> list[dict]:
         if start > end:
             raise ValueError("Invalid date range")
-        response = self.client.post(
+        response = self._request(
+            "post",
             KAP_DISCLOSURES_URL,
             json={
                 "fromDate": start.isoformat(),
@@ -220,7 +265,14 @@ class KapFinancialArchive:
         return rows
 
     def sync(
-        self, symbols: tuple[str, ...], *, start: date, end: date, download_pdfs: bool = True
+        self,
+        symbols: tuple[str, ...],
+        *,
+        start: date,
+        end: date,
+        download_pdfs: bool = True,
+        checkpoint: Path | None = None,
+        progress=None,
     ) -> dict:
         wanted = {symbol.upper().removesuffix(".IS") for symbol in symbols}
         if not wanted or any(not re.fullmatch(r"[A-Z0-9]{2,12}", symbol) for symbol in wanted):
@@ -235,6 +287,16 @@ class KapFinancialArchive:
         }
         seen = set()
         cursor = start
+        if checkpoint is not None and checkpoint.is_file():
+            saved = json.loads(checkpoint.read_text(encoding="utf-8"))
+            next_date = date.fromisoformat(saved["next_date"])
+            if (
+                saved.get("symbols") == sorted(wanted)
+                and saved.get("download_pdfs") == download_pdfs
+                and start <= next_date <= end + timedelta(days=1)
+            ):
+                cursor = next_date
+                counts = saved["counts"]
         while cursor <= end:
             chunk_end = min(end, cursor + timedelta(days=30))
             for row in self.list_reports(cursor, chunk_end):
@@ -266,12 +328,39 @@ class KapFinancialArchive:
                         }
                     )
             cursor = chunk_end + timedelta(days=1)
+            if checkpoint is not None and counts["failed"] == 0:
+                checkpoint.parent.mkdir(parents=True, exist_ok=True)
+                temporary = checkpoint.with_suffix(checkpoint.suffix + ".tmp")
+                temporary.write_text(
+                    json.dumps(
+                        {
+                            "next_date": cursor.isoformat(),
+                            "symbols": sorted(wanted),
+                            "download_pdfs": download_pdfs,
+                            "counts": counts,
+                            "updated_at": datetime.now(UTC).isoformat(),
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                temporary.replace(checkpoint)
+            if progress is not None:
+                progress(
+                    {
+                        "through": chunk_end.isoformat(),
+                        "archived": counts["archived"],
+                        "failed": counts["failed"],
+                    }
+                )
+            if checkpoint is not None and counts["failed"]:
+                break  # Never checkpoint past a failed historical interval.
         return counts
 
     def archive_report(self, identifier: str, *, download_pdfs: bool = True) -> dict:
         if not re.fullmatch(r"[0-9]+", identifier):
             raise ValueError("Invalid KAP disclosure identifier")
-        response = self.client.get(f"{KAP_DETAIL_URL}/{identifier}", timeout=self.timeout)
+        response = self._request("get", f"{KAP_DETAIL_URL}/{identifier}", timeout=self.timeout)
         response.raise_for_status()
         raw = response.json()
         detail = raw[0] if isinstance(raw, list) and raw else None
@@ -304,8 +393,8 @@ class KapFinancialArchive:
                 try:
                     url = f"{KAP_BASE_URL}/tr/api/file/download/{oid}"
                     # No arbitrary attachment URLs or names become local paths.
-                    download = self.client.get(
-                        url, timeout=self.timeout, stream=True, allow_redirects=False
+                    download = self._request(
+                        "get", url, timeout=self.timeout, stream=True, allow_redirects=False
                     )
                     download.raise_for_status()
                     data = bytearray()

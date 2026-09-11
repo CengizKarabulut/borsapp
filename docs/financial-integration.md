@@ -86,3 +86,7 @@ NEWS başlık/özet düzeltmesi kullanıcı onayıyla uygulanmıştır. BIST_ALL
 2026-09-11: PostgreSQL yedeği (154841786 bayt) alınıp pg_restore katalog kontrolünden geçirildi. Önceki kaynak dosyaları ve imajlar geri dönüş için korundu. Mevcut `.env`, Telegram hedefleri ve PostgreSQL volume'u korundu. Windows açılış betikleri `financials` profilini de başlatacak şekilde güncellendi; kayıtlı `Borsapp Local` görevinin doğru dizine bağlı olduğu doğrulandı.
 
 Canlı doctor sonucu: veritabanı ve migration'lar hazır; BIST_ALL 583 aktif üye; bekleyen/hatalı outbox 0/0. Scanner, listener, publisher ve command-worker healthy; tüm uygulama servisleri doğrulanan imajı kullanıyor. Finansal arşivde ilk canlı kontrolde 73 KAP gözlemi ve 5 şirket görüldü; başlangıç yedeği 3 şirket içerdiği için yeni veri yazıldığı doğrulandı. Bu sayılar anlık kontroldür, arşiv yükleme sırasında büyür.
+
+## KAP hız sınırı ve devam mekanizması
+
+Canlı ilk geçmiş yüklemesinde KAP HTTP 429 yanıtı verdiği için istekler arasında en az iki saniye bırakılır. 429/503 yanıtlarında Retry-After ve artan bekleme süreleri uygulanır; dört denemeden sonra hata görünür biçimde raporlanır. Başarılı tarih dilimleri `.progress.json` dosyasına atomik kaydedilir. Bir belge indirilemezse o dilim tamamlandı sayılmaz. Sonraki deneme ilk tamamlanmamış dilimden sürer. Başarısız worker çevrimi 15 dakika sonra, başarılı günlük çevrim 24 saat sonra yeniden çalışır. `.progress.json` ilerleme dosyasıdır; tüm geçmişin bittiğini gösteren ayrı bootstrap dosyası yalnızca hatasız tamamlanmada yazılır.
