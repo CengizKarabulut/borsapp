@@ -113,7 +113,7 @@ Wait-DockerEngine -DockerExecutable $docker
 
 Push-Location $RepositoryRoot
 try {
-    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime config --quiet
+    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime --profile financials config --quiet
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Compose yapılandırması geçersiz."
     }
@@ -121,7 +121,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Borsapp Docker imajı oluşturulamadı."
     }
-    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime up -d
+    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime --profile financials up -d
     if ($LASTEXITCODE -ne 0) {
         throw "Borsapp servisleri başlatılamadı."
     }

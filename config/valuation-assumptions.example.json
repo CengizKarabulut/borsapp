@@ -1,0 +1,65 @@
+{
+  "example_only": true,
+  "assumption_source": "Yalnızca şema örneği; gerçek şirket tahmini değildir. Şirkete özgü kaynak ve tarih ile değiştirin.",
+  "currency": "TRY",
+  "discount_currency": "TRY",
+  "cashflow_basis": "nominal",
+  "discount_rate_basis": "nominal",
+  "terminal_growth_basis": "nominal",
+  "amount_unit": "currency_units",
+  "capital_cost": {
+    "risk_free_rate": 0.14,
+    "beta": 1.0,
+    "equity_risk_premium": 0.06,
+    "country_risk_premium": 0.05,
+    "pre_tax_cost_of_debt": 0.2,
+    "tax_rate": 0.25,
+    "equity_weight": 0.7,
+    "debt_weight": 0.3
+  },
+  "terminal_growth": 0.08,
+  "equity_bridge_adjustment": 0,
+  "total_diluted_shares": 150000000,
+  "forecasts": [
+    {
+      "period": 1,
+      "ebit": 100000000,
+      "depreciation_amortization": 20000000,
+      "capex": 30000000,
+      "delta_operating_nwc": 10000000,
+      "tax_rate": 0.25
+    },
+    {
+      "period": 2,
+      "ebit": 120000000,
+      "depreciation_amortization": 20000000,
+      "capex": 30000000,
+      "delta_operating_nwc": 10000000,
+      "tax_rate": 0.25
+    },
+    {
+      "period": 3,
+      "ebit": 145000000,
+      "depreciation_amortization": 20000000,
+      "capex": 30000000,
+      "delta_operating_nwc": 10000000,
+      "tax_rate": 0.25
+    },
+    {
+      "period": 4,
+      "ebit": 175000000,
+      "depreciation_amortization": 20000000,
+      "capex": 30000000,
+      "delta_operating_nwc": 10000000,
+      "tax_rate": 0.25
+    },
+    {
+      "period": 5,
+      "ebit": 210000000,
+      "depreciation_amortization": 20000000,
+      "capex": 30000000,
+      "delta_operating_nwc": 10000000,
+      "tax_rate": 0.25
+    }
+  ]
+}

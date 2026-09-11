@@ -8,7 +8,7 @@ from typing import Any
 from market_intelligence.delivery.telegram.config import TopicKind
 from market_intelligence.delivery.telegram.routing import OutboxEnvelope, PublicationKind
 from market_intelligence.news.contracts import NewsItem
-from market_intelligence.persistence.postgres.news import UPSERT_NEWS_SQL, PostgresNewsStore
+from market_intelligence.persistence.postgres.news import PostgresNewsStore
 
 
 class FakeTransaction(AbstractContextManager):
@@ -104,13 +104,6 @@ def envelope() -> OutboxEnvelope:
 
 
 class PostgresNewsStoreTests(unittest.TestCase):
-    def test_upsert_never_replaces_a_richer_summary_with_a_shorter_list_excerpt(self) -> None:
-        self.assertIn(
-            "length(COALESCE(news_items.payload ->> 'summary', ''))",
-            UPSERT_NEWS_SQL,
-        )
-        self.assertIn("THEN news_items.payload", UPSERT_NEWS_SQL)
-
     def test_enriched_ids_only_uses_official_detail_payload_query(self) -> None:
         connection = FakeConnection(source_exists=True, existing_ids=("kap:123",))
 

@@ -4,12 +4,12 @@ import html
 import re
 import unicodedata
 from datetime import datetime
+from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from market_intelligence.core.identity import stable_hash
 
-_TAG = re.compile(r"<[^>]+>")
 _SPACE = re.compile(r"[ \t\f\v]+")
 _BLANK_LINES = re.compile(r"\n{3,}")
 _SENTENCE = re.compile(r"^(.{20,240}?[.!?])(?:\s+|$)", re.DOTALL)
@@ -43,10 +43,45 @@ def repair_mojibake(value: str) -> str:
     return current
 
 
+class _NewsHTMLText(HTMLParser):
+    """Extract copy without executing markup or retaining script/style bodies."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.hidden: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in {"script", "style", "noscript"}:
+            self.hidden.append(tag)
+        if not self.hidden and tag in {"p", "div", "br", "li", "h1", "h2", "h3", "tr"}:
+            self.parts.append("\n\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.hidden:
+            if tag == self.hidden[-1]:
+                self.hidden.pop()
+            return
+        if tag in {"p", "div", "li", "h1", "h2", "h3", "tr"}:
+            self.parts.append("\n\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self.hidden:
+            self.parts.append(data)
+
+
 def normalize_news_text(value: Any, *, preserve_paragraphs: bool = False) -> str:
-    text = html.unescape(str(value or ""))
-    text = _TAG.sub(" ", text)
-    text = repair_mojibake(text)
+    text = str(value or "")
+    # RSS descriptions sometimes contain twice-escaped HTML.
+    for _ in range(2):
+        decoded = html.unescape(text)
+        if decoded == text:
+            break
+        text = decoded
+    parser = _NewsHTMLText()
+    parser.feed(text)
+    parser.close()
+    text = repair_mojibake("".join(parser.parts))
     text = unicodedata.normalize("NFC", text)
     text = text.replace("\u00a0", " ").replace("\u200b", "").replace("\ufeff", "")
     if not preserve_paragraphs:
@@ -55,16 +90,44 @@ def normalize_news_text(value: Any, *, preserve_paragraphs: bool = False) -> str
     return _BLANK_LINES.sub("\n\n", "\n".join(lines)).strip()
 
 
-def sentence_excerpt(value: Any, *, max_chars: int) -> str:
+def combine_news_paragraphs(*values: Any) -> str:
+    """Merge repeated RSS leads, metadata and article paragraphs once, in order."""
+
+    paragraphs: list[str] = []
+    for value in values:
+        for paragraph in normalize_news_text(value, preserve_paragraphs=True).split("\n\n"):
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+            key = normalize_news_text(paragraph).casefold()
+            if any(key in normalize_news_text(existing).casefold() for existing in paragraphs):
+                continue
+            contained = [
+                index for index, existing in enumerate(paragraphs)
+                if normalize_news_text(existing).casefold() in key
+            ]
+            if contained:
+                paragraphs[contained[0]] = paragraph
+                for index in reversed(contained[1:]):
+                    paragraphs.pop(index)
+            else:
+                paragraphs.append(paragraph)
+    return "\n\n".join(paragraphs)
+
+
+def sentence_excerpt(
+    value: Any, *, max_chars: int, preserve_paragraphs: bool = False
+) -> str:
     """Return a readable excerpt, preferring a complete sentence over a hard slice."""
 
-    text = normalize_news_text(value)
+    text = normalize_news_text(value, preserve_paragraphs=preserve_paragraphs)
     if len(text) <= max_chars:
         return text
     if max_chars < 2:
         return "…"[:max_chars]
     window = text[: max_chars - 1]
-    sentence_end = max(window.rfind(". "), window.rfind("! "), window.rfind("? "))
+    endings = list(re.finditer(r"[.!?](?=\s|$)", window))
+    sentence_end = endings[-1].start() if endings else -1
     if sentence_end >= max(60, max_chars // 3):
         return window[: sentence_end + 1].rstrip() + "…"
     word_end = window.rfind(" ")
@@ -123,11 +186,23 @@ def polish_news_copy(headline: Any, summary: Any) -> tuple[str, str]:
             clean_headline = first_sentence.rstrip(" .!?")
             compact_summary = compact_summary[match.end() :].strip()
 
-    headline_key = normalize_news_text(clean_headline).casefold().rstrip(" .!?")
-    summary_key = compact_summary.casefold()
-    if headline_key and summary_key.startswith(headline_key):
-        compact_summary = compact_summary[len(headline_key) :].lstrip(" .!?:;,-")
-    return clean_headline, compact_summary
+
+    if not (first_sentence and _looks_like_fragmented_headline(normalize_news_text(headline))):
+        compact_summary = clean_summary
+    # Only remove a complete headline prefix: "Kâr arttı" must not delete
+    # the beginning of "Kâr arttırıldı". Regex matching avoids casefold offsets
+    # changing the slice position for Turkish dotted I.
+    pattern = re.escape(clean_headline.rstrip(" .!?"))
+    pattern = pattern.replace(r"\ ", r"\s+")
+    if pattern:
+        prefix = re.compile(r"^" + pattern + r"(?=$|[\s.!?:;,—–-])", re.IGNORECASE)
+        for _ in range(3):
+            match = prefix.match(compact_summary)
+            if match is None:
+                break
+            compact_summary = compact_summary[match.end():].lstrip(" \n.!?:;,—–-")
+    return clean_headline, combine_news_paragraphs(compact_summary)
+
 
 
 def canonical_news_url(value: str | None) -> str:

@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-borsapp}
       POSTGRES_USER: ${POSTGRES_USER:-borsapp}
@@ -99,9 +100,11 @@ services:
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
       BORSAPP_ARTIFACT_ROOT: /app/runtime_artifacts
+      BORSAPP_FINANCIAL_ARCHIVE: /app/financial_archive
       MPLCONFIGDIR: /tmp/matplotlib
     volumes:
       - borsapp-artifacts:/app/runtime_artifacts
+      - borsapp-financials:/app/financial_archive
     command: ["command-worker-loop", "--timeframe", "1h"]
     depends_on:
       migrate:
@@ -113,6 +116,30 @@ services:
       timeout: 15s
       retries: 3
 
+  financial-worker:
+    profiles: ["financials"]
+    build: .
+    image: borsapp:local
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      BORSAPP_FINANCIAL_ARCHIVE: /app/financial_archive
+      DELIVERY_MODE: disabled
+    volumes:
+      - borsapp-financials:/app/financial_archive
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          borsapp financial-sync --universe BIST_ALL --lookback-days 7 --bootstrap-days 2190 || true
+          sleep 86400
+        done
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   borsapp-postgres:
   borsapp-artifacts:
+  borsapp-financials:

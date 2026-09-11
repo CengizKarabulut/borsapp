@@ -8,6 +8,16 @@ Proje şu anda kontrollü göç aşamasındadır. Dört kaynak depo "_legacy/" a
 korunur; yeni kod "src/market_intelligence/" içinde, davranış parity testleriyle
 aile aile devreye alınacaktır.
 
+KAP arşivi, fiyat/finansal hesaplamalar, yedekleme ve geçiş doğrulaması: [Finansal entegrasyon](docs/financial-integration.md).
+
+## Çalışma modeli ve açılış
+
+Bu repo mevcut kurulumda laptop üzerindeki Docker Desktop ile çalışır. Laptop kapalıyken veya uyurken tarama, haber, fiyat ve KAP indirme işleri çalışmaz. Kalıcı PostgreSQL ve finansal arşiv volume'ları verileri saklar. Yeni veri alabilmek için bilgisayar açık, uyanık ve internete bağlı olmalıdır. Windows oturumu açıldığında `Borsapp Local` görevi `scripts/windows/start-local.ps1` üzerinden servisleri başlatır.
+
+Başlatma betikleri `runtime` ve `financials` profillerini birlikte açar. KAP belgelerini elle indirmek gerekmez: finansal servis ilk başarılı çalışmada BIST_ALL evreninin yaklaşık altı yıllık geçmişini tarar, ardından günlük olarak son yedi günü kontrol eder. İlk yükleme veri miktarına ve KAP erişimine göre uzun sürebilir; bu sırada raporlar mevcut arşivi kullanır ve eksik veriyi açıkça gösterir. Raporun geleceğe yönelik DCF hedefi için şirket bazlı varsayımlar ayrıca gerekir.
+
+Laptop kapalıyken de çalışması isteniyorsa aynı Docker servisleri, kalıcı volume'ları ve gizli `.env` ayarlarıyla sürekli açık bir sunucuya taşınmalıdır. GitHub'a kod yüklemek tek başına botları sürekli çalıştırmaz. Sunucuda ve laptopta aynı bot için iki listener/publisher birlikte çalıştırılmamalıdır.
+
 ## Değişmez mimari sınırlar
 
 - Scanner veri çekmez, Telegram'a yazmaz ve sistem saatini doğrudan okumaz.

@@ -190,7 +190,7 @@ class EquityReportTests(unittest.TestCase):
         company_row = report.sections[1].tables[0].rows[0]
         self.assertEqual(company_row[1], "ASELSAN ELEKTRONİK SANAYİ VE TİCARET A.Ş.")
         revenue_row = report.sections[4].tables[0].rows[0]
-        self.assertIn("TÜFE %+32.1", revenue_row[3])
+        self.assertIn("TMS-29 bazı doğrulanmadı", revenue_row[3])
         self.assertNotEqual(report.report_id, other_inflation.report_id)
         self.assertEqual(
             report.machine_readable["fundamental"]["inflation"]["yoy_pct"],

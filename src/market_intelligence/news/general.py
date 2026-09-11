@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.news.contracts import NewsItem
 from market_intelligence.news.text import (
+    combine_news_paragraphs,
     normalize_news_text,
     polish_news_copy,
     sentence_excerpt,
@@ -114,7 +115,7 @@ def _xml_link(node: ElementTree.Element) -> str:
 
 def _symbols(row: Mapping[str, Any]) -> tuple[str, ...]:
     text = f"{row.get('title', '')} {row.get('summary', '')} {row.get('detail', '')}"
-    return tuple(dict.fromkeys(_BIST_TOKEN.findall(normalize_news_text(text).upper())))
+    return tuple(dict.fromkeys(_BIST_TOKEN.findall(normalize_news_text(text))))
 
 
 class GeneralNewsProvider:
@@ -171,12 +172,13 @@ class GeneralNewsProvider:
             summary = sentence_excerpt(
                 row.get("detail") or row.get("summary") or "",
                 max_chars=6_000,
+                preserve_paragraphs=True,
             )
             headline, summary = polish_news_copy(headline, summary)
             payload = dict(row)
             payload.pop("detail", None)
-            if self.source in {"forexfactory", "tradingview"}:
-                payload["enriched"] = True
+            if self.source == "forexfactory":
+                payload["enriched"] = bool(summary)
             candidate = NewsItem(
                 news_id=news_id,
                 source=self.source,
@@ -202,7 +204,7 @@ class GeneralNewsProvider:
         enriched: list[NewsItem] = []
         remaining = self.detail_limit
         for item in items:
-            if item.payload.get("enriched") is True or not item.url or remaining == 0:
+            if (item.payload.get("enriched") is True and item.summary.strip()) or not item.url or remaining == 0:
                 enriched.append(item)
                 continue
             remaining -= 1
@@ -213,8 +215,12 @@ class GeneralNewsProvider:
                     timeout=12,
                 )
                 response.raise_for_status()
-                response.encoding = response.encoding or "utf-8"
-                soup = BeautifulSoup(response.text, "html.parser")
+                # requests defaults text/html to ISO-8859-1 without a charset;
+                # parse bytes so the HTML charset declaration can take precedence.
+                raw_html = getattr(response, "content", None) or response.text
+                soup = BeautifulSoup(raw_html, "html.parser")
+                for node in soup.select("script, style, noscript, article nav, article aside"):
+                    node.decompose()
                 candidates = [
                     node.get("content", "")
                     for selector in (
@@ -228,20 +234,13 @@ class GeneralNewsProvider:
                     for node in soup.select("article p, main article p")
                     if len(normalize_news_text(node.get_text(" ", strip=True))) >= 40
                 )
-                parts = list(
-                    dict.fromkeys(
-                        value
-                        for value in (normalize_news_text(value) for value in candidates)
-                        if value and value.casefold() not in item.summary.casefold()
-                    )
-                )
-                combined = " ".join(part for part in (item.summary, *parts) if part)
+                combined = combine_news_paragraphs(item.summary, *candidates)
                 headline, summary = polish_news_copy(
                     item.headline,
-                    sentence_excerpt(combined, max_chars=6_000),
+                    sentence_excerpt(combined, max_chars=6_000, preserve_paragraphs=True),
                 )
                 payload = dict(item.payload)
-                payload["enriched"] = True
+                payload["enriched"] = bool(summary)
                 enriched.append(
                     replace(
                         item,

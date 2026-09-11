@@ -10,8 +10,13 @@ reports
 out
 tests
 scripts
-_legacy/taramabot
-_legacy/ma-reaction-scanner
+runtime_artifacts
+financial_archive
+backups
+_legacy/**/.git
+_legacy/**/.env
+_legacy/**/.venv
+_legacy/**/__pycache__
 _legacy/market-telegram-suite/**/tests
 _legacy/tradingview-haber-botu/test_*.py
 _legacy/tradingview-haber-botu/*_cache.json

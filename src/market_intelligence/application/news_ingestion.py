@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Protocol
 
@@ -78,10 +78,13 @@ class NewsIngestionService:
             raise ValueError("haber bildirimi için DELIVERY_MODE=live olmalıdır")
         items = self.provider.fetch(from_date=from_date, to_date=to_date)
         news_ids = tuple(item.news_id for item in items)
+        version_reader = getattr(self.store, "unchanged_enriched_ids", None)
         enriched_reader = getattr(self.store, "enriched_ids", None)
         legacy_reader = getattr(self.store, "existing_ids", None)
         already_enriched_ids = (
-            enriched_reader(news_ids)
+            version_reader(items)
+            if callable(version_reader)
+            else enriched_reader(news_ids)
             if callable(enriched_reader)
             else legacy_reader(news_ids)
             if callable(legacy_reader)
@@ -104,6 +107,22 @@ class NewsIngestionService:
         items = tuple(
             sorted(deduplicated.values(), key=lambda item: item.published_at, reverse=True)
         )
+        symbol_reader = getattr(self.store, "verified_symbols", None)
+        if callable(symbol_reader):
+            candidates = tuple(sorted({symbol for item in items for symbol in item.symbols}))
+            verified = symbol_reader(candidates, as_of=observed_at)
+            items = tuple(
+                replace(
+                    item, symbols=tuple(symbol for symbol in item.symbols if symbol in verified)
+                )
+                for item in items
+            )
+        else:
+            # KAP identifiers are official; free-text news candidates require
+            # instrument-catalog validation before they can appear as tickers.
+            items = tuple(
+                item if item.source == "kap" else replace(item, symbols=()) for item in items
+            )
         envelopes = {item.news_id: self._envelope(item) for item in items} if notify else {}
         persisted = self.store.persist(
             source=self.provider.source,
@@ -131,9 +150,20 @@ class NewsIngestionService:
             "tradingview": "TradingView",
         }.get(item.source, item.provider or item.source)
         heading = f"{source_label} · {symbols}" if symbols else source_label
-        lines = [f"<b>{html.escape(heading)}</b>", html.escape(item.headline)]
+        headline = (
+            item.headline
+            if len(item.headline) <= 500
+            else sentence_excerpt(item.headline, max_chars=500)
+        )
+        lines = [f"<b>{html.escape(headline)}</b>"]
+        metadata = f"{heading[:200]} · {item.published_at.strftime('%d.%m.%Y %H:%M %Z')}"
+        lines.append(html.escape(metadata))
         if item.summary:
-            lines.append(html.escape(sentence_excerpt(item.summary, max_chars=2_800)))
+            lines.append(
+                html.escape(
+                    sentence_excerpt(item.summary, max_chars=2_800, preserve_paragraphs=True)
+                )
+            )
         if item.attachment_count:
             lines.append(f"📎 {item.attachment_count} ek")
         if item.url:
@@ -146,7 +176,7 @@ class NewsIngestionService:
             payload={
                 "text": "\n\n".join(lines),
                 "parse_mode": "HTML",
-                "link_preview_options": {"is_disabled": False},
+                "link_preview_options": {"is_disabled": True},
             },
         )
 

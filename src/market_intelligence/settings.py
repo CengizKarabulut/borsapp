@@ -43,6 +43,7 @@ class RuntimeSettings:
     database_url: str = field(repr=False)
     enable_shadow_parity: bool = False
     artifact_root: Path = Path("runtime_artifacts")
+    financial_archive_root: Path = Path("data/financial_archive")
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> RuntimeSettings:
@@ -70,6 +71,7 @@ class RuntimeSettings:
             database_url=database_url,
             enable_shadow_parity=shadow_raw == "true",
             artifact_root=artifact_root,
+            financial_archive_root=Path(values.get("BORSAPP_FINANCIAL_ARCHIVE", "data/financial_archive")),
         )
 
 

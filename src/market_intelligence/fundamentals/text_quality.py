@@ -108,9 +108,13 @@ def real_growth(nominal_pct: float | None, inflation_pct: float | None) -> float
     return ((1.0 + nominal_pct / 100.0) / (1.0 + inflation_pct / 100.0) - 1.0) * 100.0
 
 
-def growth_verdict(nominal_pct: float | None, inflation_pct: float | None) -> str:
+def growth_verdict(nominal_pct: float | None, inflation_pct: float | None, *, basis: str = "nominal") -> str:
     if nominal_pct is None:
         return "Veri yok"
+    if basis == "report_end_purchasing_power":
+        return f"Ortak satın alma gücü bazında %{nominal_pct:+.1f}; yeniden TÜFE düşülmedi"
+    if basis != "nominal":
+        return f"Raporlanan değişim %{nominal_pct:+.1f}; TMS-29 bazı doğrulanmadı, reel yorum yok"
     real = real_growth(nominal_pct, inflation_pct)
     if real is None:
         return f"Nominal %{nominal_pct:+.1f} · reel: TÜFE verisi yok (UNKNOWN)"

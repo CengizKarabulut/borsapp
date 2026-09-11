@@ -22,7 +22,9 @@ WHERE news_id = ANY(%s)
   AND (
     (source = 'kap' AND jsonb_typeof(payload -> 'raw' -> 'detail') = 'object')
     OR
-    (source <> 'kap' AND COALESCE(payload -> 'raw' ->> 'enriched', 'false') = 'true')
+    (source <> 'kap'
+      AND COALESCE(payload -> 'raw' ->> 'enriched', 'false') = 'true'
+      AND length(btrim(COALESCE(payload ->> 'summary', ''))) > 0)
   )
 """
 RESOLVE_SYMBOLS_SQL = """
@@ -50,13 +52,27 @@ ON CONFLICT (news_id) DO UPDATE SET
     headline = EXCLUDED.headline,
     published_at = EXCLUDED.published_at,
     url = EXCLUDED.url,
-    payload = CASE
-        WHEN length(COALESCE(news_items.payload ->> 'summary', ''))
-           > length(COALESCE(EXCLUDED.payload ->> 'summary', ''))
-        THEN news_items.payload
-        ELSE EXCLUDED.payload
-    END,
+    payload = EXCLUDED.payload,
     observed_at = EXCLUDED.observed_at
+WHERE NOT (
+    news_items.headline = EXCLUDED.headline
+    AND news_items.published_at = EXCLUDED.published_at
+    AND news_items.url IS NOT DISTINCT FROM EXCLUDED.url
+    AND (
+        (news_items.source = 'kap'
+         AND jsonb_typeof(news_items.payload -> 'raw' -> 'detail') = 'object')
+        OR (news_items.source <> 'kap'
+            AND COALESCE(news_items.payload -> 'raw' ->> 'enriched', 'false') = 'true'
+            AND length(btrim(COALESCE(news_items.payload ->> 'summary', ''))) > 0)
+    ) IS TRUE
+    AND (
+        (EXCLUDED.source = 'kap'
+         AND jsonb_typeof(EXCLUDED.payload -> 'raw' -> 'detail') = 'object')
+        OR (EXCLUDED.source <> 'kap'
+            AND COALESCE(EXCLUDED.payload -> 'raw' ->> 'enriched', 'false') = 'true'
+            AND length(btrim(COALESCE(EXCLUDED.payload ->> 'summary', ''))) > 0)
+    ) IS NOT TRUE
+)
 """
 LINK_NEWS_SQL = """
 INSERT INTO news_item_instruments (news_id, instrument_id, symbol_at_link, linked_at)
@@ -71,6 +87,14 @@ ON CONFLICT (news_id, instrument_id) DO NOTHING
 class PostgresNewsStore:
     def __init__(self, connection: PostgresConnection) -> None:
         self.connection = connection
+
+    def verified_symbols(self, symbols: tuple[str, ...], *, as_of: datetime) -> set[str]:
+        if not symbols:
+            return set()
+        day = as_of.date()
+        with self.connection.cursor() as cursor:
+            cursor.execute(RESOLVE_SYMBOLS_SQL, (list(symbols), day, day, day, day))
+            return {str(row[0]).upper() for row in cursor.fetchall()}
 
     def existing_ids(self, news_ids: tuple[str, ...]) -> set[str]:
         if not news_ids:
@@ -92,6 +116,23 @@ class PostgresNewsStore:
         with self.connection.cursor() as cursor:
             cursor.execute(ENRICHED_IDS_SQL, (list(news_ids),))
             return {str(row[0]) for row in cursor.fetchall()}
+
+    def unchanged_enriched_ids(self, items: tuple[NewsItem, ...]) -> set[str]:
+        """Only skip detail fetching when the list still identifies the stored version."""
+        complete = self.enriched_ids(tuple(item.news_id for item in items))
+        if not complete:
+            return set()
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT news_id, headline, published_at, url FROM news_items WHERE news_id = ANY(%s)",
+                (list(complete),),
+            )
+            versions = {row[0]: (row[1], row[2], row[3]) for row in cursor.fetchall()}
+        return {
+            item.news_id
+            for item in items
+            if versions.get(item.news_id) == (item.headline, item.published_at, item.url)
+        }
 
     def persist(
         self,
@@ -148,12 +189,9 @@ class PostgresNewsStore:
                                 or any(symbol in instrument_by_symbol for symbol in item.symbols)
                             )
                         ):
-                            outbox_count += self._persist_outbox(
-                                cursor, envelopes[item.news_id]
-                            )
+                            outbox_count += self._persist_outbox(cursor, envelopes[item.news_id])
         linked_items = sum(
-            any(symbol in instrument_by_symbol for symbol in item.symbols)
-            for item in items
+            any(symbol in instrument_by_symbol for symbol in item.symbols) for item in items
         )
         return PersistedNewsBatch(
             inserted=len(new_ids),
