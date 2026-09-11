@@ -69,17 +69,17 @@ Kullanıcı onayıyla başlık ve gövde aynı gelen haber kaydından birlikte g
 
 - Windows/Python 3.13: gerçek, izole PostgreSQL bağlantısıyla 279 test geçti; hata ve atlama yok. Ruff ve Compose yapılandırma kontrolü başarılı.
 - Önceki Linux/Python 3.12 doğrulaması: 278 test çalıştı; 277 geçti, örnek `.env.example` dosyasını okuyan test dosya imajda olmadığı için hata verdi. Yalnızca bu örnek dosya salt okunur bağlandıktan sonra ilgili test de geçti. Uygulama kodunda test için değişiklik yapılmadı.
-- Güncel imaj: `borsapp:news-review`; doğrulanan kimlik `sha256:3a9d6d5b5eaa90193cd21606f2225a8aae1ef278976f8bd33049af91d544d820`. NEWS düzeltmesinden sonra bu imajda 17 haber/gerçek PostgreSQL testi geçti. Ana Dockerfile ile oluşturulan imaja son kaynak düzeltmeleri ek bir build katmanıyla kuruldu; tüm bağımlılıklar ilk imajdan kullanıldı.
+- Önceki NEWS doğrulama imajı: `borsapp:news-review`; doğrulanan kimlik `sha256:3a9d6d5b5eaa90193cd21606f2225a8aae1ef278976f8bd33049af91d544d820`. NEWS düzeltmesinden sonra bu imajda 17 haber/gerçek PostgreSQL testi geçti. Ana Dockerfile ile oluşturulan imaja son kaynak düzeltmeleri ek bir build katmanıyla kuruldu; tüm bağımlılıklar ilk imajdan kullanıldı.
 - Gerçek ASELS günlük grafiği Linux imajında üretildi: 685961 bayt PNG. Telegram gönderimi çağrılmadı.
 - MEPET: 400 günlük resmi KAP taramasında 16 bildirim (5 finansal tablo, 11 ek belge), indirme hatası yok.
 - ASELS ve THYAO: toplam 24 bildirim (8 finansal tablo, 16 ek belge), indirme hatası yok. Bin TL ve 1.000.000 TL sunum biçimleri test edildi. Üç şirket için 2026-06-30 dönemli temel hesaplamalar hatasız çıkarıldı.
 - Gerçek verili MEPET PDF’si 13 sayfa; tüm sayfalar görsel olarak incelendi. Bu önizleme bir yatırım tavsiyesi veya doğrulanmış kurumsal hedef fiyat değildir.
 - Üç şirketi içeren finansal yedek 52 dosyadan oluşuyor; SQLite ve SHA-256 kontrolleri başarılı. Aynı Windows arşivi Linux imajına salt okunur bağlanarak yeniden yedeklendi; 52 dosya kontrolü orada da geçti.
-- Canlı PostgreSQL, listener, command-worker, publisher ve scanner son kontrolde healthy. Veritabanı `unless-stopped` politikasına geçirildi. Bu operasyon yeni uygulama imajının canlıya dağıtıldığı anlamına gelmez.
+- Canlı PostgreSQL, listener, command-worker, publisher ve scanner son kontrolde healthy. Veritabanı `unless-stopped` politikasına geçirildi. Güncel uygulama imajının canlı dağıtımı da tamamlanmıştır (aşağıdaki son durum).
 
 ## Kalan işler
 
-NEWS başlık/özet düzeltmesi kullanıcı onayıyla uygulanmıştır. BIST_ALL için ilk kapsamlı finansal bootstrap çalışmaktadır; tamamlanma işareti yalnızca hatasız bitişte yazılır. Mevcut arşiv bu sırada kullanılabilir. GitHub sürümü entegrasyon dalı ve CI üzerinden yayımlanır. Sektöre özel değerleme modelleri ve şirket bazlı geleceğe dönük varsayımlar bu sürümün otomatik kapsadığı alanlar değildir.
+NEWS başlık/özet düzeltmesi kullanıcı onayıyla uygulanmıştır. BIST_ALL için ilk kapsamlı finansal bootstrap çalışmaktadır; tamamlanma işareti yalnızca hatasız bitişte yazılır. Mevcut arşiv bu sırada kullanılabilir. GitHub entegrasyon PR #1, tüm CI kontrolleri geçtikten sonra main dalına birleştirilmiştir. Sektöre özel değerleme modelleri ve şirket bazlı geleceğe dönük varsayımlar bu sürümün otomatik kapsadığı alanlar değildir.
 
 ## Canlı geçiş kontrolü
 
@@ -90,3 +90,9 @@ Canlı doctor sonucu: veritabanı ve migration'lar hazır; BIST_ALL 583 aktif ü
 ## KAP hız sınırı ve devam mekanizması
 
 Canlı ilk geçmiş yüklemesinde KAP HTTP 429 yanıtı verdiği için istekler arasında en az iki saniye bırakılır. 429/503 yanıtlarında Retry-After ve artan bekleme süreleri uygulanır; dört denemeden sonra hata görünür biçimde raporlanır. Başarılı tarih dilimleri `.progress.json` dosyasına atomik kaydedilir. Bir belge indirilemezse o dilim tamamlandı sayılmaz. Sonraki deneme ilk tamamlanmamış dilimden sürer. Başarısız worker çevrimi 15 dakika sonra, başarılı günlük çevrim 24 saat sonra yeniden çalışır. `.progress.json` ilerleme dosyasıdır; tüm geçmişin bittiğini gösteren ayrı bootstrap dosyası yalnızca hatasız tamamlanmada yazılır.
+
+## Son dağıtım durumu
+
+2026-09-11: PR #1 main dalına birleştirildi. 283 yerel test gerçek PostgreSQL ile geçti; GitHub Python 3.11/3.12, PostgreSQL ve imaj kontrolleri başarılı. Son imaj `borsapp:release-20260911` (`sha256:0f4e2ffac7b25f04dd62f58177be34c945d511e752063bd6f7abcc19246ad67f`); Linux içinde 10 KAP testi de geçti. Canlı servisler bu imaja taşındı. İlk geçmiş yüklemesi devam ediyor; 15:06 UTC kontrolünde arşiv 89 KAP gözlemi / 9 şirkete ulaştı. Bu, tüm BIST geçmişinin tamamlandığı anlamına gelmez.
+
+Yerel kurulum için laptop açık, uyanık ve internete bağlı olmalıdır. Borsapp Local görevi Windows kullanıcı oturum açılışında çalışır. GitHub zamanlanmış veri işçileri kapalıdır; GitHub’a kod yüklenmesi bağımsız 7/24 barındırma sağlamaz.
