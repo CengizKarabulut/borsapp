@@ -309,7 +309,10 @@ class KapFinancialArchive:
                 seen.add(identifier)
                 counts["listed"] += 1
                 try:
-                    report = self.archive_report(identifier, download_pdfs=download_pdfs)
+                    report = self.archive_report(
+                        identifier, download_pdfs=download_pdfs,
+                        expected_symbols=tuple(sorted(wanted.intersection(row_symbols))),
+                    )
                     counts["archived"] += 1
                     counts[
                         "statements" if report["supported_statement"] else "supplementary_documents"
@@ -357,7 +360,10 @@ class KapFinancialArchive:
                 break  # Never checkpoint past a failed historical interval.
         return counts
 
-    def archive_report(self, identifier: str, *, download_pdfs: bool = True) -> dict:
+    def archive_report(
+        self, identifier: str, *, download_pdfs: bool = True,
+        expected_symbols: tuple[str, ...] | None = None,
+    ) -> dict:
         if not re.fullmatch(r"[0-9]+", identifier):
             raise ValueError("Invalid KAP disclosure identifier")
         response = self._request("get", f"{KAP_DETAIL_URL}/{identifier}", timeout=self.timeout)
@@ -369,6 +375,19 @@ class KapFinancialArchive:
         report = parse_financial_report(detail)
         if report["disclosure_id"] != identifier:
             raise ValueError("KAP detail ID mismatch")
+        source_symbols = tuple(part.strip().upper() for part in report["symbol"].split(","))
+        if not source_symbols or any(not re.fullmatch(r"[A-Z0-9]{2,12}", part) for part in source_symbols):
+            raise ValueError("Invalid KAP detail symbols")
+        if expected_symbols is None:
+            if len(source_symbols) != 1:
+                raise ValueError("Multiple KAP symbols require verified expected symbols")
+            matched = source_symbols
+        else:
+            if not expected_symbols or not set(expected_symbols).issubset(source_symbols):
+                raise ValueError("KAP listing/detail symbol mismatch")
+            matched = tuple(sorted(set(expected_symbols)))
+        report["source_symbols"] = list(source_symbols)
+        report["symbol"] = matched[0]
         stamp = datetime.now(UTC)
         raw_bytes = json.dumps(raw, ensure_ascii=False, sort_keys=True).encode()
         digest = hashlib.sha256(raw_bytes).hexdigest()
@@ -393,15 +412,7 @@ class KapFinancialArchive:
                 try:
                     url = f"{KAP_BASE_URL}/tr/api/file/download/{oid}"
                     # No arbitrary attachment URLs or names become local paths.
-                    download = self._request(
-                        "get", url, timeout=self.timeout, stream=True, allow_redirects=False
-                    )
-                    download.raise_for_status()
-                    data = bytearray()
-                    for chunk in download.iter_content(65536):
-                        data.extend(chunk)
-                        if len(data) > 50 * 1024 * 1024:
-                            raise ValueError("Attachment exceeds 50 MiB")
+                    data = self._download_pdf_transport(url)
                     transport_digest = hashlib.sha256(data).hexdigest()
                     data = decode_kap_pdf(bytes(data))
                     pdf_digest = hashlib.sha256(data).hexdigest()
@@ -419,8 +430,36 @@ class KapFinancialArchive:
                     )
                 except Exception as exc:
                     report["attachment_errors"].append(type(exc).__name__ + ": " + str(exc)[:120])
-        self.archive.put(report["symbol"], "kap", "report:" + identifier, report, observed_at=stamp)
+        for symbol in matched:
+            self.archive.put(symbol, "kap", "report:" + identifier, {**report, "symbol": symbol}, observed_at=stamp)
         return report
+
+    def _download_pdf_transport(self, url: str) -> bytes:
+        from requests.exceptions import ChunkedEncodingError, ConnectionError, Timeout
+
+        for attempt in range(3):
+            download = None
+            try:
+                download = self._request(
+                    "get", url, timeout=self.timeout, stream=True, allow_redirects=False
+                )
+                download.raise_for_status()
+                data = bytearray()
+                for chunk in download.iter_content(65536):
+                    data.extend(chunk)
+                    if len(data) > 50 * 1024 * 1024:
+                        raise ValueError("Attachment exceeds 50 MiB")
+                return bytes(data)
+            except (ChunkedEncodingError, ConnectionError, Timeout):
+                if attempt == 2:
+                    raise
+                self.sleeper(5.0 * (2**attempt))
+            finally:
+                if download is not None:
+                    close = getattr(download, "close", None)
+                    if callable(close):
+                        close()
+        raise AssertionError("unreachable")
 
     def reports(self, symbol: str, *, known_at: datetime) -> list[dict]:
         from market_intelligence.fundamentals.archive import utc_stamp

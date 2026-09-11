@@ -245,3 +245,44 @@ class KapArchiveResilienceTests(unittest.TestCase):
             )
             self.assertEqual(result["failed"], 1)
             self.assertFalse(checkpoint.exists())
+
+
+class KapSymbolMappingTests(unittest.TestCase):
+    def test_verified_multi_symbol_and_mismatch(self):
+        from unittest.mock import Mock
+        detail = json.loads((Path(__file__).parent / "fixtures/kap_1656516_excerpt.json").read_text(encoding="utf-8"))
+        detail["disclosure"]["disclosureBasic"]["stockCode"] = "YKB, YKBNK"
+        response = Mock()
+        response.json.return_value = [detail]
+        response.status_code = 200
+        with tempfile.TemporaryDirectory() as directory:
+            store = KapFinancialArchive(Path(directory), request_interval=0)
+            store._request = Mock(return_value=response)
+            identifier = str(detail["disclosure"]["disclosureBasic"]["disclosureIndex"])
+            result = store.archive_report(identifier, download_pdfs=False, expected_symbols=("YKBNK",))
+            self.assertEqual(result["symbol"], "YKBNK")
+            self.assertEqual(len(store.reports("YKBNK", known_at=datetime.now(UTC))), 1)
+            self.assertEqual(store.reports("YKB", known_at=datetime.now(UTC)), [])
+            for expected in [("GARAN",), ("YKB", "GARAN"), ()]:
+                with self.assertRaisesRegex(ValueError, "mismatch"):
+                    store.archive_report(identifier, download_pdfs=False, expected_symbols=expected)
+            with self.assertRaisesRegex(ValueError, "verified"):
+                store.archive_report(identifier, download_pdfs=False)
+
+    def test_partial_download_retries_from_empty_buffer(self):
+        from unittest.mock import Mock
+
+        from requests.exceptions import ChunkedEncodingError
+        first, second = Mock(), Mock()
+        def broken(size):
+            yield b"partial"
+            raise ChunkedEncodingError("interrupted")
+        first.iter_content.side_effect = broken
+        second.iter_content.return_value = [b"complete"]
+        with tempfile.TemporaryDirectory() as directory:
+            store = KapFinancialArchive(Path(directory), sleeper=Mock())
+            store._request = Mock(side_effect=[first, second])
+            self.assertEqual(store._download_pdf_transport("https://example.invalid"), b"complete")
+            first.close.assert_called_once()
+            second.close.assert_called_once()
+            store.sleeper.assert_called_once_with(5.0)
