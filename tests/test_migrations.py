@@ -104,6 +104,19 @@ class MigrationTests(unittest.TestCase):
         with self.assertRaises(MigrationChecksumError):
             apply_migrations(connection, self.directory)
 
+    def test_crlf_checkout_to_lf_preserves_applied_sql(self):
+        path = self.directory / "001_first.sql"
+        path.write_bytes(b"CREATE TABLE first_table (id int);\r\n")
+        connection = FakeConnection()
+        apply_migrations(connection, self.directory)
+        recorded = dict(connection.applied)
+        path.write_bytes(b"CREATE TABLE first_table (id int);\n")
+        self.assertEqual(apply_migrations(connection, self.directory).applied, ())
+        self.assertEqual(recorded, connection.applied)
+        path.write_bytes(b"CREATE TABLE different_table (id int);\n")
+        with self.assertRaises(MigrationChecksumError):
+            apply_migrations(connection, self.directory)
+
     def test_dry_run_does_not_create_schema_objects(self) -> None:
         connection = FakeConnection()
         result = apply_migrations(connection, self.directory, dry_run=True)
