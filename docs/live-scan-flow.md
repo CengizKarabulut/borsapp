@@ -15,3 +15,5 @@ Laptop açık, uyanık ve internete bağlı olmalıdır. Otomatik oturum açıl�
 Canlı tur için 12 dakikalık yeni iş başlatma sınırı vardır. Süre dolduğunda başlamamış hisseler hata/eksik kapsam olarak kaydedilir; sonraki tur bu noktadan dönen hisse sırasıyla başlar. Halihazırda çalışan sağlayıcı çağrısının bitmesi ayrıca beklenir.
 
 MA araştırma döngüsü 1h, 4h ve 1d seviyelerini yeniler. Canlı tarama 420 mum ister; bu, 377 periyotlu MA ailesini de kapsar. Birinci sağlayıcının geçmişi yetersizse ikinci sağlayıcı denenir; farklı kaynakların mumları birleştirilmez. Her ikisi de kısa geçmiş veriyorsa uzun olan tek kaynak korunur ve göstergelerin kendi asgari geçmiş kontrolleri çalışır.
+
+borsapy dönem adları `1mo/3mo/...` biçimindedir ve istenen mum sayısına göre seçilir. Mumlar seans ve kapanış filtresinden sonra son N kayıtla sınırlandırılır. Yahoo saatlik veri, seansla hizalı 30 dakikalık iki tam mumdan türetilir; eksik çiftler ve kayık saatlik OHLC yeniden etiketlenmez.
