@@ -28,7 +28,7 @@ class PostgresMigrationIntegrationTests(unittest.TestCase):
         # Entegrasyon sınıfları aynı tek kullanımlık CI veritabanını paylaşır;
         # önce çalışan doctor testi şemayı hazırlamış olabilir. İlk çağrı her
         # migration'ı ya uygular ya da doğrulanmış olarak atlar.
-        expected = {"000", "001", "002", "003", "004", "005", "006", "007"}
+        expected = {"000", "001", "002", "003", "004", "005", "006", "007", "008"}
         self.assertEqual(set(first.applied) | set(first.skipped), expected)
         self.assertEqual(second.applied, ())
         self.assertEqual(set(second.skipped), expected)

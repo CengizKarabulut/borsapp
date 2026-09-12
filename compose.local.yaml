@@ -53,6 +53,7 @@ services:
       - |
         sleep 900
         while true; do
+          borsapp ma-research-universe --universe BIST_ALL --timeframe 1h --bars 1000 || true
           borsapp ma-research-universe --universe BIST_ALL --timeframe 4h --bars 1000 || true
           borsapp ma-research-universe --universe BIST_ALL --timeframe 1d --bars 1000 || true
           sleep 86400

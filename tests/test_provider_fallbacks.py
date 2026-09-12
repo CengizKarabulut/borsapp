@@ -77,3 +77,18 @@ class ProviderFallbackTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class CompleteHistoryFallbackTests(unittest.TestCase):
+    def test_short_primary_uses_longer_fallback_without_combining_sources(self):
+        from types import SimpleNamespace
+        short = SimpleNamespace(bars=(1, 2), provider="primary")
+        long = SimpleNamespace(bars=(7, 8, 9, 10), provider="secondary")
+        chain = FallbackMarketDataProvider((WorkingMarketProvider(short), WorkingMarketProvider(long)), prefer_complete_history=True)
+        self.assertIs(chain.fetch(FetchRequest("ASELS", "1d", 4, datetime.now(UTC))), long)
+
+    def test_short_listing_is_kept_when_no_provider_has_full_history(self):
+        from types import SimpleNamespace
+        frame = SimpleNamespace(bars=(1, 2), provider="primary")
+        chain = FallbackMarketDataProvider((WorkingMarketProvider(frame), BrokenMarketProvider()), prefer_complete_history=True)
+        self.assertIs(chain.fetch(FetchRequest("ASELS", "1d", 400, datetime.now(UTC))), frame)

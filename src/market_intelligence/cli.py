@@ -7,9 +7,11 @@ import signal
 import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
+from threading import Event, Thread
 from types import FrameType
 
 from market_intelligence.application.command_jobs import (
@@ -311,7 +313,7 @@ def _parser() -> argparse.ArgumentParser:
         default="15m,30m,45m,1h,2h,4h,1d",
     )
     worker.add_argument("--universe", default="BIST_ALL")
-    worker.add_argument("--bars", type=int, default=320)
+    worker.add_argument("--bars", type=int, default=420)
     worker.add_argument("--lookback-days", type=int, default=7)
     worker.add_argument("--poll-seconds", type=float, default=60.0)
     worker.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
@@ -850,7 +852,8 @@ def _market_data_provider(settings: ApplicationSettings) -> FallbackMarketDataPr
         (
             BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
             YFinanceBistProvider(timestamp_timezone=settings.runtime.timezone.key),
-        )
+        ),
+        prefer_complete_history=True,
     )
 
 
@@ -1098,6 +1101,9 @@ def _scan_due(
     lookback_days: int,
     scanners_path: Path,
     notify: bool,
+    live: bool = False,
+    executor=None,
+    lane_state=None,
 ) -> int:
     if bars < 40 or bars > 5000:
         raise ValueError("--bars 40 ile 5000 arasında olmalıdır")
@@ -1107,15 +1113,66 @@ def _scan_due(
     evaluation_time = datetime.now(settings.runtime.timezone)
     calendar = ExchangeCalendarsXist()
     with _connect(settings.runtime.database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", (f"scan:{universe}:{timeframe.value}",))
+            if not cursor.fetchone()[0]:
+                print(f"Scan {timeframe.value}: another worker owns this timeframe", flush=True)
+                return 0
         runtime, ingestion, coordinator = _scheduled_components(
             settings,
             connection,
             notify=notify,
         )
+        from market_intelligence.application.live_scans import bounded_map
+
+        def run_instrument(instrument, request, cycle_id, bar_time, can_notify):
+            # No database connection or feature cache is shared between instruments.
+            with _connect(settings.runtime.database_url) as worker_connection:
+                scanner_ids = [binding.scanner.id for binding in bindings if request.timeframe in binding.shadow_timeframes]
+                with worker_connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT count(DISTINCT e.scanner_id) FROM scan_evaluations e JOIN scan_cycles c USING (cycle_id) "
+                        "WHERE e.instrument_id=%s AND e.timeframe=%s AND e.bar_time=%s "
+                        "AND c.universe_id=%s AND e.scanner_id=ANY(%s) AND e.ruleset_hash=ANY(%s)",
+                        (instrument.instrument_id, request.timeframe.value, bar_time, request.universe_id, scanner_ids, [binding.ruleset_hash for binding in bindings]),
+                    )
+                    if cursor.fetchone()[0] == len(scanner_ids):
+                        return  # Resume an interrupted current bar without fetching completed symbols again.
+                _, worker_ingestion, worker_coordinator = _scheduled_components(
+                    settings, worker_connection, notify=notify,
+                )
+                frame = worker_ingestion.ingest(IngestionRequest(
+                    instrument_id=instrument.instrument_id, symbol=instrument.symbol,
+                    provider_symbol=instrument.provider_symbol, market=instrument.market,
+                    timeframe=request.timeframe, bars=request.bars,
+                    as_of=bar_time, series_revision=request.series_revision,
+                ))
+                if frame.through_bar_time != bar_time:
+                    raise ValueError("Sağlayıcı hedef kapanmış mumu henüz sunmuyor")
+                worker_coordinator.run(
+                    cycle_id=cycle_id, frame=frame, bindings=bindings,
+                    evaluation_time=datetime.now(settings.runtime.timezone),
+                    allow_notifications=can_notify,
+                )
+
+        def progress(cycle_id, successful, failed):
+            if (successful + failed) % 20 == 0:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE scan_cycles SET successful_instruments=%s, failed_instruments=%s WHERE cycle_id=%s",
+                        (successful, failed, cycle_id),
+                    )
+                print(f"Scan progress {timeframe.value}: {successful} ok, {failed} failed", flush=True)
+
+        bindings = load_scanner_catalog(scanners_path, calendar_version=calendar.version)
         result = ScheduledScanService(
             repository=runtime,
             ingestion=ingestion,
             coordinator=coordinator,
+            instrument_runner=run_instrument if live else None,
+            map_work=(lambda fn, items: bounded_map(executor, fn, items)) if executor else map,
+            clock=(lambda: datetime.now(settings.runtime.timezone)) if live else None,
+            progress=progress if live else None,
             planner=ScheduledBarPlanner(
                 calendar,
                 maximum_lookback_days=lookback_days,
@@ -1126,17 +1183,19 @@ def _scan_due(
                 universe_id=universe,
                 timeframe=timeframe,
                 bars=bars,
-                evaluation_time=evaluation_time,
+                evaluation_time=evaluation_time - timedelta(minutes=15) if live else evaluation_time,
+                latest_only=live,
+                maximum_run_time=timedelta(minutes=12) if live else None,
+                start_offset=(lane_state or {}).get("offset", 0),
             ),
-            load_scanner_catalog(
-                scanners_path,
-                calendar_version=calendar.version,
-            ),
+            bindings,
         )
+    if lane_state is not None:
+        lane_state["offset"] = lane_state.get("offset", 0) + result.attempted_instruments
     print(
         f"Scheduled scan: timeframe={timeframe.value}, due={len(result.due_bars)}, "
         f"completed={result.completed_bars}, success={result.successful_instruments}, "
-        f"failed={result.failed_instruments}"
+        f"failed={result.failed_instruments}", flush=True
     )
     # Instrument-level provider failures are persisted on the cycle and must not
     # abort the remaining timeframe jobs.
@@ -1156,40 +1215,92 @@ def _scan_worker(
 ) -> int:
     if poll_seconds < 5:
         raise ValueError("--poll-seconds en az 5 saniye olmalıdır")
-    timeframes = tuple(part.strip() for part in timeframes_raw.split(",") if part.strip())
+    timeframes = tuple(dict.fromkeys(part.strip() for part in timeframes_raw.split(",") if part.strip()))
     if not timeframes:
-        raise ValueError("--timeframes en az bir değer içermelidir")
+        raise ValueError("--timeframes boş olamaz")
     for value in timeframes:
         parse_timeframe(value)
-    stopped = False
-
-    def stop(_signum: int, _frame: FrameType | None) -> None:
-        nonlocal stopped
-        stopped = True
-
-    signal.signal(signal.SIGINT, stop)
+    stop = Event()
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
     if hasattr(signal, "SIGTERM"):
-        signal.signal(signal.SIGTERM, stop)
-    while not stopped:
-        for timeframe in timeframes:
+        signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    calendar = ExchangeCalendarsXist()
+    today = datetime.now(settings.runtime.timezone).date()
+    calendar.sessions(today - timedelta(days=7), today)  # Initialize calendar before threads.
+
+    def lane(timeframe, executor):
+        lane_state = {"offset": 0}
+        while not stop.is_set():
             try:
                 _scan_due(
-                    settings,
-                    timeframe_raw=timeframe,
-                    universe=universe,
-                    bars=bars,
-                    lookback_days=lookback_days,
-                    scanners_path=scanners_path,
-                    notify=notify,
+                    settings, timeframe_raw=timeframe, universe=universe, bars=bars,
+                    lookback_days=lookback_days, scanners_path=scanners_path,
+                    notify=notify, live=True, executor=executor, lane_state=lane_state,
                 )
             except Exception as exc:
-                print(
-                    f"Scheduled scan hatası ({timeframe}): {type(exc).__name__}: {exc}",
-                    file=sys.stderr,
-                )
-        if not stopped:
-            time.sleep(poll_seconds)
+                print(f"Live scan {timeframe}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            stop.wait(poll_seconds)
+
+    def summaries():
+        last_slot = None
+        while not stop.is_set():
+            try:
+                from market_intelligence.application.live_scans import summary_slot
+                now = datetime.now(settings.runtime.timezone)
+                slot = summary_slot(now, calendar)
+                if notify and slot is not None and slot != last_slot:
+                    _scan_summaries(settings, timeframes, universe, scanners_path, slot, calendar)
+                    last_slot = slot
+            except Exception as exc:
+                print(f"Scan summary: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            stop.wait(15)
+
+    # Eight total jobs, at most two queued by each timeframe, independent of summary delivery.
+    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="scan-instrument") as executor:
+        threads = [Thread(target=lane, args=(tf, executor), daemon=True) for tf in timeframes]
+        threads.append(Thread(target=summaries, daemon=True))
+        for thread in threads:
+            thread.start()
+        while not stop.wait(1):
+            pass
+        for thread in threads:
+            thread.join()
     return 0
+
+
+def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calendar):
+    from market_intelligence.application.live_scans import (
+        SUMMARY_SQL,
+        format_summary,
+        latest_target,
+        split_summary,
+    )
+    bindings = load_scanner_catalog(scanners_path, calendar_version=calendar.version)
+    planner = ScheduledBarPlanner(calendar)
+    with _connect(settings.runtime.database_url) as connection:
+        runtime = PostgresRuntimeRepository(connection)
+        router = TopicRouter(settings.telegram)
+        envelopes = []
+        for value in timeframes:
+            timeframe = parse_timeframe(value)
+            target = latest_target(planner, timeframe, slot)
+            if target is None:
+                continue
+            expected = len(runtime.list_universe(universe, as_of=target.date()))
+            with connection.cursor() as cursor:
+                cursor.execute(SUMMARY_SQL, (universe, value, target, [binding.ruleset_hash for binding in bindings]))
+                rows = cursor.fetchall()
+            text = format_summary(timeframe, target, slot, expected, bindings, rows)
+            for page, text_part in enumerate(split_summary(text)):
+                envelopes.append(router.route(
+                    publication_kind=PublicationKind.SCAN_EVENT,
+                    semantic_identity={"kind": "scan_summary_v1", "universe": universe,
+                                       "timeframe": value, "slot": slot.isoformat(), "page": page},
+                    payload={"text": text_part},
+                ))
+        count = PostgresOutboxRepository(connection).enqueue(tuple(envelopes))
+        print(f"Scan summaries {slot.isoformat()}: queued={count}", flush=True)
+    return count
 
 
 def _command_job_executor(
