@@ -37,14 +37,16 @@ class HttpxTelegramTransport:
             ) from exc
         data = dict(payload)
         method = str(data.pop("_method", "sendMessage"))
-        if method not in {"sendMessage", "sendDocument"}:
+        if method not in {"sendMessage", "sendDocument", "sendPhoto"}:
             raise TelegramDeliveryError(f"Desteklenmeyen Telegram yöntemi: {method}")
         document_path: Path | None = None
         document_bytes: bytes | None = None
         document_name: str | None = None
-        if method == "sendDocument":
-            raw_path = data.pop("document_path", None)
-            raw_base64 = data.pop("document_base64", None)
+        media_field = "photo" if method == "sendPhoto" else "document"
+        media_mime = "image/png" if method == "sendPhoto" else "application/pdf"
+        if method in {"sendDocument", "sendPhoto"}:
+            raw_path = data.pop(f"{media_field}_path", None)
+            raw_base64 = data.pop(f"{media_field}_base64", None)
             document_name = str(data.pop("filename", "")).strip() or None
             if isinstance(raw_path, str) and raw_path.strip():
                 candidate = Path(raw_path).resolve()
@@ -62,7 +64,7 @@ class HttpxTelegramTransport:
                 if document_path is not None
                 else len(document_bytes or b"")
             )
-            if size > 49 * 1024 * 1024:
+            if size > (9 if method == "sendPhoto" else 49) * 1024 * 1024:
                 raise TelegramDeliveryError("Telegram belgesi 49 MB sınırını aşıyor")
         data["chat_id"] = chat_id
         data["message_thread_id"] = message_thread_id
@@ -88,10 +90,10 @@ class HttpxTelegramTransport:
                             url,
                             data=data,
                             files={
-                                "document": (
+                                media_field: (
                                     document_name or document_path.name,
                                     document,
-                                    "application/pdf",
+                                    media_mime,
                                 )
                             },
                             timeout=max(self.timeout_seconds, 60.0),
@@ -102,10 +104,10 @@ class HttpxTelegramTransport:
                         url,
                         data=data,
                         files={
-                            "document": (
+                            media_field: (
                                 document_name or "borsapp-rapor.pdf",
                                 document,
-                                "application/pdf",
+                                media_mime,
                             )
                         },
                         timeout=max(self.timeout_seconds, 60.0),

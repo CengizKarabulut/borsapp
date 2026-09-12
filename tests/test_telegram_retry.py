@@ -139,6 +139,26 @@ class TelegramRetryTests(unittest.TestCase):
         uploaded = fake_httpx.post.call_args.kwargs["files"]["document"][1]
         self.assertEqual(uploaded.getvalue(), b"%PDF-1.4 fixture")
 
+    def test_photo_uses_png_multipart_and_durable_bytes(self):
+        fake_httpx = SimpleNamespace(
+            post=Mock(
+                return_value=Response(
+                    200, {"ok": True, "result": {"message_id": 14, "message_thread_id": 70}}
+                )
+            )
+        )
+        with patch.dict(sys.modules, {"httpx": fake_httpx}):
+            result = HttpxTelegramTransport("token").send(
+                chat_id=-1001,
+                message_thread_id=70,
+                payload={"_method": "sendPhoto", "photo_base64": "cG5n", "filename": "panel.png"},
+            )
+        self.assertEqual(result, 14)
+        call = fake_httpx.post.call_args
+        self.assertTrue(call.args[0].endswith("/sendPhoto"))
+        self.assertEqual(call.kwargs["files"]["photo"][2], "image/png")
+        self.assertEqual(call.kwargs["files"]["photo"][1].getvalue(), b"png")
+
 
 if __name__ == "__main__":
     unittest.main()
