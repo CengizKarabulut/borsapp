@@ -48,13 +48,15 @@ class TradePlanTests(unittest.TestCase):
             build_trade_plan(replace(frame(), is_partial=True), "bullish")["reason"], "partial_bar"
         )
 
-    def test_adjusted_prices_not_executable_levels(self):
-        self.assertEqual(
-            build_trade_plan(replace(frame(), price_basis=PriceBasis.SPLIT_ADJUSTED), "bullish")[
-                "reason"
-            ],
-            "raw_price_required",
+    def test_adjusted_prices_are_labeled_reference_not_orders(self):
+        p = build_trade_plan(replace(frame(), price_basis=PriceBasis.SPLIT_ADJUSTED), "bullish")
+        self.assertEqual(p["price_basis"], "split_adjusted")
+        self.assertFalse(p["executable_order"])
+        self.assertEqual(p["status"], "reference")
+        p = build_trade_plan(
+            replace(frame(), price_basis=PriceBasis.TOTAL_RETURN_ADJUSTED), "bullish"
         )
+        self.assertEqual(p["reason"], "unsupported_price_basis")
 
     def test_wide_structural_stop_is_not_clamped_inward(self):
         f = frame()

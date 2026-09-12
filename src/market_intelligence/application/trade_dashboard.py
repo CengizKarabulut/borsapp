@@ -198,7 +198,16 @@ def render_dashboard(timeframe, target, slot, expected, summary, bindings, detai
         label = vals[1]
         while d.textlength(label, font=font(18)) > 410:
             label = label[:-2] + "…"
-        text(215, y + 10, label, 18)
+        text(215, y, label, 18)
+        text(
+            215,
+            y + 26,
+            "Bölünmeye düzeltilmiş referans"
+            if item["plan"].get("price_basis") == "split_adjusted"
+            else "Ham fiyat referansı",
+            13,
+            muted,
+        )
         for x, value in zip(cols[2:], vals[3:], strict=False):
             text(x, y + 10, value, 19, red if x == 770 else ink)
     if not flattened:
@@ -220,7 +229,7 @@ def render_dashboard(timeframe, target, slot, expected, summary, bindings, detai
     text(
         48,
         1590,
-        "? = hesaplanamayan • Eksik kapsam tamamlanmış sayılmaz • Maliyetler hariç",
+        "? = hesaplanamayan • Fiyat bazı satırda belirtilir • Maliyetler hariç; performans doğrulanmadı",
         19,
         muted,
     )
@@ -270,7 +279,17 @@ def render_dashboard(timeframe, target, slot, expected, summary, bindings, detai
                 + ("Geniş stop | " if v.get("wide_stop") else "")
                 + item["plan"].get("version", "kaynak planı")
             )
-            c.drawString(110, y - 12, note)
+            c.drawString(
+                110,
+                y - 12,
+                note
+                + " | "
+                + (
+                    "Düzeltilmiş fiyat"
+                    if item["plan"].get("price_basis") == "split_adjusted"
+                    else "Ham fiyat"
+                ),
+            )
             c.setFont("TradeDesk", 10)
         c.setFont("TradeDesk", 9)
         c.drawString(

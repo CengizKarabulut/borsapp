@@ -19,6 +19,7 @@ def build_trade_plan(frame, direction):
         "entry_basis": "signal_close_reference",
         "validation": "not_backtested",
         "costs_included": False,
+        "executable_order": False,
     }
 
     def unavailable(reason):
@@ -26,8 +27,8 @@ def build_trade_plan(frame, direction):
 
     if frame.is_partial:
         return unavailable("partial_bar")
-    if frame.price_basis.value != "raw":
-        return unavailable("raw_price_required")
+    if frame.price_basis.value not in {"raw", "split_adjusted"}:
+        return unavailable("unsupported_price_basis")
     if len(frame.bars) < 15:
         return unavailable("insufficient_history")
     bars = frame.bars
