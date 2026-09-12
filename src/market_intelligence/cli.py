@@ -1271,9 +1271,7 @@ def _scan_worker(
 def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calendar):
     from market_intelligence.application.live_scans import (
         SUMMARY_SQL,
-        format_summary,
         latest_target,
-        split_summary,
     )
     bindings = load_scanner_catalog(scanners_path, calendar_version=calendar.version)
     planner = ScheduledBarPlanner(calendar)
@@ -1290,13 +1288,24 @@ def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calenda
             with connection.cursor() as cursor:
                 cursor.execute(SUMMARY_SQL, (universe, value, target, [binding.ruleset_hash for binding in bindings]))
                 rows = cursor.fetchall()
-            text = format_summary(timeframe, target, slot, expected, bindings, rows)
-            for page, text_part in enumerate(split_summary(text)):
+            import base64
+
+            from market_intelligence.application.trade_dashboard import (
+                load_trade_rows,
+                render_dashboard,
+            )
+            details = load_trade_rows(connection, universe, value, target, [b.ruleset_hash for b in bindings])
+            png, pdf = render_dashboard(timeframe, target, slot, expected, rows, bindings, details)
+            for media, content in (("photo", png), ("document", pdf)):
                 envelopes.append(router.route(
                     publication_kind=PublicationKind.SCAN_EVENT,
-                    semantic_identity={"kind": "scan_summary_v1", "universe": universe,
-                                       "timeframe": value, "slot": slot.isoformat(), "page": page},
-                    payload={"text": text_part},
+                    semantic_identity={"kind": "scan_trade_desk_v1", "universe": universe,
+                                       "timeframe": value, "slot": slot.isoformat(), "media": media},
+                    payload={"_method": "sendPhoto" if media == "photo" else "sendDocument",
+                             f"{media}_base64": base64.b64encode(content).decode("ascii"),
+                             "filename": f"borsapp-{value}-{'panel.png' if media == 'photo' else 'tum-sonuclar.pdf'}",
+                             "caption": f"{value} işlem paneli · Kapanış {target.astimezone(slot.tzinfo):%d.%m %H:%M}. "
+                                        "Giriş kapanış referansıdır; eksik kapsam ve koşullu senaryolar belirtilmiştir."},
                 ))
         count = PostgresOutboxRepository(connection).enqueue(tuple(envelopes))
         print(f"Scan summaries {slot.isoformat()}: queued={count}", flush=True)
