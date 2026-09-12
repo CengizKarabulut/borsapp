@@ -15,10 +15,10 @@ from market_intelligence.market_data.providers import (
 from market_intelligence.scheduling.bist import BistSessionSchedule
 
 PERIODS = {
-    Timeframe.M5: "5g",
-    Timeframe.M15: "1ay",
-    Timeframe.M30: "1ay",
-    Timeframe.H1: "3ay",
+    Timeframe.M5: "5d",
+    Timeframe.M15: "1mo",
+    Timeframe.M30: "1mo",
+    Timeframe.H1: "3mo",
     Timeframe.D1: "5y",
 }
 
@@ -45,16 +45,10 @@ class BorsapyProvider:
             ) from exc
         instrument = bp.Ticker(request.provider_symbol)
         data = instrument.history(
-            period=PERIODS[request.timeframe],
+            period=self._history_period(request),
             interval=request.timeframe.value,
         )
-        bars = [
-            bar
-            for bar in self._convert(data)
-            if self._opened_at(bar.timestamp) <= request.as_of.astimezone(self.schedule.timezone)
-        ]
-        if request.bars > 0:
-            bars = bars[-request.bars :]
+        bars = self._completed_regular_bars(data, request)
         if not bars:
             raise RuntimeError(
                 f"borsapy boş veri döndürdü: {request.provider_symbol}"
@@ -67,12 +61,35 @@ class BorsapyProvider:
             timestamp_timezone=self.timestamp_timezone,
             price_basis=PriceBasis.SPLIT_ADJUSTED,
             bars=tuple(bars),
-            last_bar_is_partial=self._last_is_partial(
-                bars[-1].timestamp,
-                request.timeframe,
-                request.as_of,
-            ),
+            last_bar_is_partial=False,
         )
+
+    def _history_period(self, request: FetchRequest) -> str:
+        if request.timeframe is Timeframe.D1:
+            return "5y" if request.bars <= 1250 else "max"
+        # Official borsapy period names; its fallback for unknown strings is only 30 days.
+        daily_bars = 480 / request.timeframe.minutes
+        required_days = (max(request.bars, 1) + 2) / daily_bars * 1.4
+        for period, days in (("5d", 5), ("1mo", 30), ("3mo", 90), ("6mo", 180), ("1y", 365), ("2y", 730)):
+            if days >= required_days:
+                return period
+        return "5y"
+
+    def _completed_regular_bars(self, data: Any, request: FetchRequest) -> list[ProviderBar]:
+        result = []
+        cutoff = request.as_of.astimezone(self.schedule.timezone)
+        for bar in self._convert(data):
+            stamp = self._opened_at(bar.timestamp)
+            opened, closed = self.schedule.session_bounds(stamp.date())
+            if request.timeframe is not Timeframe.D1:
+                duration = timedelta(minutes=request.timeframe.minutes or 0)
+                # Reject shifted/vendor session buckets instead of relabelling their OHLC.
+                if stamp < opened or stamp + duration > closed or (stamp - opened) % duration:
+                    continue
+                closed = stamp + duration
+            if closed <= cutoff:
+                result.append(bar)
+        return result[-request.bars:] if request.bars > 0 else result
 
     def _opened_at(self, timestamp: datetime) -> datetime:
         timezone = ZoneInfo(self.timestamp_timezone)

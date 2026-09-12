@@ -53,6 +53,7 @@ services:
       - |
         sleep 900
         while true; do
+          borsapp ma-research-universe --universe BIST_ALL --timeframe 1h --bars 1000 || true
           borsapp ma-research-universe --universe BIST_ALL --timeframe 4h --bars 1000 || true
           borsapp ma-research-universe --universe BIST_ALL --timeframe 1d --bars 1000 || true
           sleep 86400
@@ -95,10 +96,17 @@ services:
     command:
       - |
         while true; do
-          pg_dump -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" \
-            | gzip > "/backups/borsapp-$$(date -u +%Y%m%d-%H%M%S).sql.gz"
-          find /backups -type f -name 'borsapp-*.sql.gz' -mtime +14 -delete
-          sleep 86400
+          backup="/backups/borsapp-$$(date -u +%Y%m%d-%H%M%S).dump"
+          if pg_dump -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" \
+              -Fc -f /backups/.borsapp-backup.pending \
+              && pg_restore --list /backups/.borsapp-backup.pending >/dev/null \
+              && mv /backups/.borsapp-backup.pending "$${backup}"; then
+            find /backups -type f \( -name 'borsapp-*.sql.gz' -o -name 'borsapp-*.dump' \) -mtime +14 -delete
+            sleep 86400
+          else
+            echo "PostgreSQL backup failed; retry in 5 minutes" >&2
+            sleep 300
+          fi
         done
     depends_on:
       postgres:

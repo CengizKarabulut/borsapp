@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -8,6 +9,7 @@ from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
 from market_intelligence.market_data.providers import (
     FetchRequest,
+    ProviderBar,
     ProviderFrame,
     TimestampKind,
 )
@@ -31,7 +33,9 @@ class YFinanceBistProvider(BorsapyProvider):
             raise ValueError("FetchRequest.as_of timezone bilgisi içermelidir")
         import yfinance as yf
 
-        period, interval = INTERVALS[request.timeframe]
+        hourly = request.timeframe is Timeframe.H1
+        source_request = replace(request, timeframe=Timeframe.M30, bars=request.bars * 2) if hourly else request
+        period, interval = INTERVALS[source_request.timeframe]
         symbol = request.provider_symbol.strip().upper()
         yahoo_symbol = symbol if symbol.endswith(".IS") else f"{symbol}.IS"
         data = yf.Ticker(yahoo_symbol).history(
@@ -40,13 +44,22 @@ class YFinanceBistProvider(BorsapyProvider):
             auto_adjust=False,
             actions=False,
         )
-        bars = [
-            bar
-            for bar in self._convert(data)
-            if self._opened_at(bar.timestamp)
-            <= request.as_of.astimezone(self.schedule.timezone)
-        ]
-        bars = bars[-request.bars :] if request.bars > 0 else bars
+        bars = self._completed_regular_bars(data, source_request)
+        if hourly and bars:
+            from market_intelligence.market_data.canonicalizer import Canonicalizer
+            source = ProviderFrame(
+                provider=self.name, provider_symbol=yahoo_symbol, timeframe=Timeframe.M30,
+                timestamp_kind=TimestampKind.OPEN, timestamp_timezone=self.timestamp_timezone,
+                price_basis=PriceBasis.RAW, bars=tuple(bars), last_bar_is_partial=False,
+            )
+            frame = Canonicalizer().build(
+                instrument_id="provider-hourly-adapter", symbol_at_snapshot=symbol,
+                market="BIST", provider_frame=source, target_timeframe=Timeframe.H1,
+                series_revision=1,
+            )
+            bars = [ProviderBar(timestamp=bar.open_time, open=bar.open, high=bar.high,
+                                low=bar.low, close=bar.close, volume=bar.volume) for bar in frame.bars]
+            bars = bars[-request.bars:] if request.bars > 0 else bars
         if not bars:
             raise RuntimeError(f"yfinance boş veri döndürdü: {yahoo_symbol}")
         return ProviderFrame(
@@ -57,11 +70,7 @@ class YFinanceBistProvider(BorsapyProvider):
             timestamp_timezone=self.timestamp_timezone,
             price_basis=PriceBasis.RAW,
             bars=tuple(bars),
-            last_bar_is_partial=self._last_is_partial(
-                bars[-1].timestamp,
-                request.timeframe,
-                request.as_of,
-            ),
+            last_bar_is_partial=False,
         )
 
     def _last_is_partial(
