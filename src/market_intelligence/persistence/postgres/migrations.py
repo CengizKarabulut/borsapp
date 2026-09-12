@@ -86,7 +86,16 @@ def apply_migrations(
     applied_versions = _applied(connection)
     for migration in migrations:
         recorded = applied_versions.get(migration.version)
-        if recorded is not None and recorded != migration.checksum:
+        # SQL execution below uses read_text's universal newline conversion.
+        # Accept only the LF/CRLF encodings of that same text; never change stored checksums.
+        raw = migration.path.read_bytes()
+        normalized = raw.replace(b"\r\n", b"\n")
+        equivalent = {
+            migration.checksum,
+            hashlib.sha256(normalized).hexdigest(),
+            hashlib.sha256(normalized.replace(b"\n", b"\r\n")).hexdigest(),
+        }
+        if recorded is not None and recorded not in equivalent:
             raise MigrationChecksumError(f"Uygulanmış migration değişmiş: {migration.path.name}")
 
     pending = tuple(
