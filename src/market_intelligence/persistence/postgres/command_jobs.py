@@ -16,9 +16,10 @@ CLAIM_JOB_SQL = """
 WITH candidate AS (
     SELECT job_id
     FROM command_jobs
-    WHERE status = 'pending'
-       OR (status = 'running' AND lease_until <= %s)
-    ORDER BY requested_at
+    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= %s))
+      AND (command_name = 'scan_pdf') = %s
+      AND NOT EXISTS (SELECT 1 FROM telegram_outbox o WHERE o.semantic_key IN (SELECT jsonb_array_elements_text(COALESCE(context->'predecessors','[]'::jsonb))) AND o.status <> 'sent')
+    ORDER BY COALESCE((context->>'automatic')::boolean, FALSE), requested_at
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
@@ -32,7 +33,7 @@ FROM candidate
 WHERE target.job_id = candidate.job_id
 RETURNING target.job_id, target.command_name, target.symbol_at_request,
           target.requested_by, target.requested_topic, target.attempt_count,
-          target.instrument_id
+          target.instrument_id, target.context
 """
 
 FINISH_JOB_SQL = """
@@ -56,16 +57,17 @@ DO UPDATE SET
 
 
 class PostgresCommandJobRepository:
-    def __init__(self, connection: PostgresConnection, *, lease_minutes: int = 15) -> None:
+    def __init__(self, connection: PostgresConnection, *, lease_minutes: int = 15, scan_reports_only: bool = False) -> None:
         self.connection = connection
         self.lease_minutes = lease_minutes
+        self.scan_reports_only = scan_reports_only
 
     def claim(self, *, now: datetime) -> CommandJob | None:
         with self.connection.transaction():
             with self.connection.cursor() as cursor:
                 cursor.execute(
                     CLAIM_JOB_SQL,
-                    (now, now, now + timedelta(minutes=self.lease_minutes)),
+                    (now, self.scan_reports_only, now, now + timedelta(minutes=self.lease_minutes)),
                 )
                 row = cursor.fetchone()
         if not row:
@@ -78,6 +80,7 @@ class PostgresCommandJobRepository:
             requested_topic=int(row[4]),
             attempt_count=int(row[5]),
             instrument_id=str(row[6]),
+            context=row[7] if len(row) > 7 else {},
         )
 
     def finish(

@@ -310,7 +310,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     worker.add_argument(
         "--timeframes",
-        default="15m,30m,45m,1h,2h,4h,1d",
+        default="15m,30m,45m,1h,2h,4h,1d,1wk",
     )
     worker.add_argument("--universe", default="BIST_ALL")
     worker.add_argument("--bars", type=int, default=420)
@@ -334,6 +334,7 @@ def _parser() -> argparse.ArgumentParser:
     command_loop.add_argument("--timeframe", default="1h")
     command_loop.add_argument("--bars", type=int, default=320)
     command_loop.add_argument("--interval", type=float, default=2.0)
+    command_loop.add_argument("--scan-reports-only", action="store_true")
     command_loop.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
 
     command_status = subparsers.add_parser(
@@ -1286,6 +1287,7 @@ def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calenda
         router = TopicRouter(settings.telegram)
         envelopes = []
         all_details, targets, scopes = {}, {}, {}
+        full_sections = []
         def add_report(value, pngs, pdf):
             parts = [("photo", i, data) for i, data in enumerate(pngs)] + [("document", 0, pdf)]
             for media, page, content in parts:
@@ -1313,7 +1315,12 @@ def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calenda
             targets[value] = target.astimezone(slot.tzinfo).strftime("%d.%m.%Y %H:%M")
             details = load_trade_rows(connection,universe,value,target,hashes,intersection_plans_only=True)
             all_details[value] = details
+            full_sections.append({"timeframe":value,"target":target.isoformat(),"expected":expected,"scanners":[b.scanner.id for b in applicable]})
             ranked = timeframe_intersections(details)
+            from market_intelligence.application.candidate_followups import (
+                enqueue_candidate_followups,
+            )
+            enqueue_candidate_followups(connection,value,target,ranked,settings.telegram.topic_id(TopicKind.COMMAND))
             pngs,pdf = render_intersections(value,ranked,slot,targets={value:targets[value]},coverage=scopes[value])
             add_report(value,pngs,pdf)
             print(f"Intersection {value}: {len(ranked)} symbols",flush=True)
@@ -1324,6 +1331,10 @@ def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calenda
                                             coverage="En az 2 zaman dilimi; her birinde en az 2 tarama",global_view=True)
             add_report("GENEL",pngs,pdf)
         count = PostgresOutboxRepository(connection).enqueue(tuple(envelopes), ordered=True)
+        if full_sections:
+            from market_intelligence.application.full_scan_pdf import enqueue_full_scan_pdf
+            enqueue_full_scan_pdf(connection,universe=universe,slot=slot,sections=full_sections,hashes=hashes,
+                                  predecessors=[e.semantic_key for e in envelopes],topic_id=settings.telegram.topic_id(TopicKind.COMMAND))
         print(f"Intersection summaries {slot.isoformat()}: queued={count}",flush=True)
     return count
 
@@ -1400,6 +1411,18 @@ def _command_job_executor(
         return frame, tuple(related_frames), stored, service
 
     def execute(job: CommandJob) -> CommandJobOutput | None:
+        from market_intelligence.application.candidate_followups import candidate_label
+        if job.command is CommandName.FULL_SCAN_PDF:
+            from market_intelligence.application.full_scan_pdf import execute_full_scan_pdf
+            with _connect(settings.runtime.database_url) as connection:
+                pdf=execute_full_scan_pdf(connection,job.context)
+            return CommandJobOutput(envelopes=(TopicRouter(settings.telegram).route(
+                publication_kind=PublicationKind.SCAN_EVENT,
+                semantic_identity={"job_id":job.job_id,"view":"full_scan_pdf"},
+                payload={"_method":"sendDocument","document_base64":base64.b64encode(pdf).decode("ascii"),
+                         "filename":"borsapp-tum-taramalar.pdf",
+                         "caption":f"Tam tarama eki | Tur: {job.context['slot']}. Tüm eşleşmeler, kapsam ve işlem senaryoları; ilk 20 sınırı yok."},
+            ),))
         if job.command in {CommandName.SCAN, CommandName.SCANS}:
             _ma_research_symbol(
                 settings,
@@ -1436,7 +1459,7 @@ def _command_job_executor(
                     "view": "summary",
                     "request_job_id": job.job_id,
                 },
-                payload={"text": analysis_message(report)},
+                payload={"text": ((candidate_label(job.context) + "Aşağıdaki şirket analizi günlük veriyle hazırlanmıştır.\n" if job.context.get("automatic") else "") + analysis_message(report))},
             )
             return CommandJobOutput(envelopes=(envelope,))
         if job.command in {CommandName.EQUITY, CommandName.REPORT}:
@@ -1469,7 +1492,7 @@ def _command_job_executor(
                     ).decode("ascii"),
                     "filename": generated.rendered.path.name,
                     "caption": (
-                        f"{job.symbol} · 25 bölümlü araştırma raporu\n"
+                        candidate_label(job.context) + f"{job.symbol} · 25 bölümlü araştırma raporu\n"
                         f"Kapalı bar: {generated.bar_time:%d.%m.%Y}\n"
                         "Eksik veriler UNKNOWN bırakılmıştır. Yatırım tavsiyesi değildir."
                     ),
@@ -1502,7 +1525,8 @@ def _command_job_executor(
             )
             return CommandJobOutput(envelopes=(envelope,))
         if job.command is CommandName.CHART:
-            documents, errors = render_chart_documents(symbol=job.symbol, target=target)
+            intervals = (job.context["trigger_timeframe"],) if job.context.get("automatic") else None
+            documents, errors = render_chart_documents(symbol=job.symbol, target=target, **({"intervals":intervals} if intervals else {}))
             router = TopicRouter(settings.telegram)
             envelopes = []
             for document in documents:
@@ -1511,7 +1535,7 @@ def _command_job_executor(
                     semantic_identity={"job_id": job.job_id, "timeframe": document["timeframe"]},
                     payload={"_method": "sendDocument", "document_path": str(path),
                         "document_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
-                        "filename": path.name, "caption": document["caption"]}))
+                        "filename": path.name, "caption": (candidate_label(job.context) + document["caption"])[:1000]}))
             if errors:
                 envelopes.append(router.route(publication_kind=PublicationKind.CHART,
                     semantic_identity={"job_id": job.job_id, "view": "missing_intervals"},
@@ -1554,6 +1578,7 @@ def _command_worker_loop(
     bars: int,
     scanners_path: Path,
     interval: float,
+    scan_reports_only: bool = False,
 ) -> int:
     if interval < 0.2:
         raise ValueError("--interval en az 0.2 saniye olmalıdır")
@@ -1569,7 +1594,7 @@ def _command_worker_loop(
     with _connect(settings.runtime.database_url) as connection:
         runner = CommandJobRunner(
             settings=settings.telegram,
-            repository=PostgresCommandJobRepository(connection),
+            repository=PostgresCommandJobRepository(connection, scan_reports_only=scan_reports_only, lease_minutes=120 if scan_reports_only else 15),
             executor=_command_job_executor(
                 settings,
                 timeframe=timeframe,
@@ -2047,6 +2072,7 @@ def main(argv: list[str] | None = None) -> int:
                 bars=args.bars,
                 scanners_path=args.scanners,
                 interval=args.interval,
+                scan_reports_only=args.scan_reports_only,
             )
         if args.command == "command-jobs-status":
             return _command_jobs_status(settings, limit=args.limit)

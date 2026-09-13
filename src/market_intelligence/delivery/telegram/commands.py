@@ -9,6 +9,7 @@ from market_intelligence.delivery.telegram.config import TelegramSettings, Topic
 
 
 class CommandName(StrEnum):
+    FULL_SCAN_PDF = "scan_pdf"
     SCAN = "tara"
     SCANS = "taramalar"
     ANALYSIS = "analiz"
@@ -75,6 +76,8 @@ class TelegramCommandParser:
             name = CommandName(command_text)
         except ValueError:
             return "unknown_command"
+        if name is CommandName.FULL_SCAN_PDF:
+            return "unknown_command"
         args = tuple(part.strip().upper() for part in parts[1:] if part.strip())
         if name not in _NO_SYMBOL_COMMANDS and not args:
             return "symbol_missing"
@@ -107,6 +110,8 @@ class TelegramCommandParser:
         try:
             name = CommandName(command_text)
         except ValueError:
+            return None
+        if name is CommandName.FULL_SCAN_PDF:
             return None
         args = tuple(part.strip().upper() for part in parts[1:] if part.strip())
         if name not in _NO_SYMBOL_COMMANDS:

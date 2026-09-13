@@ -10,7 +10,7 @@ partial_bar_policy = "drop"
 
 # İlk pilotta bildirim trafiği sınırlıdır. Diğer canonical zaman dilimleri
 # shadow çalışabilir ama Telegram'a yazmaz.
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = ["1d"]
 
 [technical.volume_spike.parity]
@@ -26,7 +26,7 @@ minimum_price = 1.0
 bb_rank_max = 20.0
 relative_volume_minimum = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [technical.extreme_rsi]
@@ -38,7 +38,7 @@ lower_rsi = 25.0
 upper_rsi = 75.0
 relative_volume_minimum = 1.0
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [technical.failed_breakout]
@@ -47,7 +47,7 @@ version = "1.1.0"
 minimum_average_turnover = 20000000.0
 minimum_price = 1.0
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [technical.decision_zone]
@@ -58,7 +58,7 @@ minimum_price = 1.0
 bb_rank_max = 20.0
 maximum_adx = 20.0
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [technical.trend_continuation]
@@ -69,7 +69,7 @@ minimum_price = 1.0
 minimum_adx = 25.0
 relative_volume_minimum = 1.0
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [technical.exhaustion]
@@ -80,7 +80,7 @@ minimum_price = 1.0
 lower_rsi = 30.0
 upper_rsi = 70.0
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [ma.near_zone]
@@ -108,7 +108,7 @@ minimum_rsi = 30.0
 require_positive_macd = true
 trigger_mode = "legacy_rising_or_cross"
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = ["1d"]
 
 [signal.macd_positive_cross.parity]
@@ -121,7 +121,7 @@ enabled = true
 version = "1.0.0"
 minimum_history = 200
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [signal.smi_macd_positive_volume_confirmed]
@@ -130,7 +130,7 @@ version = "1.0.0"
 minimum_history = 200
 volume_multiplier = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [signal.rsi_momentum_volume]
@@ -141,7 +141,7 @@ strength_threshold = 60.0
 crossover_level = 50.0
 volume_multiplier = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [signal.rsi_macd_volume]
@@ -152,7 +152,7 @@ crossover_level = 50.0
 maximum_rsi = 70.0
 volume_multiplier = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [signal.smi_macd_early]
@@ -161,7 +161,7 @@ version = "1.0.0"
 minimum_history = 200
 volume_multiplier = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [signal.smi_macd_full]
@@ -170,7 +170,7 @@ version = "1.0.0"
 minimum_history = 200
 volume_multiplier = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [signal.sma_macd_volume]
@@ -179,7 +179,7 @@ version = "1.0.0"
 minimum_history = 200
 volume_multiplier = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []
 
 [signal.ema_trend_volume]
@@ -188,5 +188,5 @@ version = "1.0.0"
 minimum_history = 200
 volume_multiplier = 1.5
 partial_bar_policy = "drop"
-shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d"]
+shadow_timeframes = ["15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"]
 notification_timeframes = []

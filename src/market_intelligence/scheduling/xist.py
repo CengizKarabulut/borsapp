@@ -35,7 +35,7 @@ class ExchangeCalendarsXist:
             raise RuntimeError(
                 "exchange-calendars kurulu değil; runtime bağımlılıklarını yükleyin"
             ) from exc
-        calendar = exchange_calendars.get_calendar("XIST")
+        calendar = exchange_calendars.get_calendar("XIST", start=f"{min(1990, start.year)}-01-01", end=f"{max(datetime.now().year, end.year) + 1}-12-31")
         labels = calendar.sessions_in_range(start.isoformat(), end.isoformat())
         return tuple(label.date() for label in labels)
 
@@ -60,8 +60,17 @@ class ScheduledBarPlanner:
         earliest = evaluation_time.date() - timedelta(days=self.maximum_lookback_days)
         start = max(earliest, watermark.date()) if watermark is not None else earliest
         closed: list[datetime] = []
-        for session_date in self.calendar.sessions(start, evaluation_time.date()):
-            closed.extend(self.schedule.bar_closes(session_date, timeframe))
+        if timeframe is Timeframe.W1:
+            monday = start - timedelta(days=start.weekday())
+            last = evaluation_time.date()
+            sunday = last + timedelta(days=6-last.weekday())
+            weeks = {}
+            for day in self.calendar.sessions(monday, sunday):
+                weeks[day - timedelta(days=day.weekday())] = day
+            closed = [self.schedule.session_bounds(day)[1] for day in weeks.values()]
+        else:
+            for session_date in self.calendar.sessions(start, evaluation_time.date()):
+                closed.extend(self.schedule.bar_closes(session_date, timeframe))
         due = WatermarkPlanner().due(
             closed_bar_times=tuple(closed),
             evaluation_time=evaluation_time,

@@ -89,7 +89,13 @@ def load_trade_rows(connection, universe, timeframe, target, hashes, *, intersec
                 else {"status": "unavailable", "reason": "snapshot_missing", "scenarios": []}
             )
         results.append({"symbol": symbol, "scanner": scanner, "direction": direction, "plan": plan})
-    return results
+    # Event and active-state projections may describe the same visible plan.
+    from market_intelligence.core.identity import canonical_json
+    unique = {}
+    for item in results:
+        key = (item['symbol'], item['scanner'], item['direction'], canonical_json(item['plan']))
+        unique.setdefault(key, item)
+    return list(unique.values())
 
 
 def render_dashboard(timeframe, target, slot, expected, summary, bindings, details):

@@ -19,6 +19,7 @@ BASE_TIMEFRAME = {
     Timeframe.H2: Timeframe.H1,
     Timeframe.H4: Timeframe.H1,
     Timeframe.D1: Timeframe.D1,
+    Timeframe.W1: Timeframe.D1,
 }
 
 
@@ -69,11 +70,13 @@ class IngestionService:
         multiplier = 1
         if request.timeframe.minutes and base.minutes:
             multiplier = max(request.timeframe.minutes // base.minutes, 1)
+        if request.timeframe is Timeframe.W1:
+            multiplier = 5
         raw = self.provider.fetch(
             FetchRequest(
                 provider_symbol=request.provider_symbol,
                 timeframe=base,
-                bars=request.bars * multiplier,
+                bars=request.bars * multiplier + (10 if request.timeframe is Timeframe.W1 else 0),
                 as_of=request.as_of,
             )
         )

@@ -108,10 +108,10 @@ class IngestionServiceTests(unittest.TestCase):
         self.assertEqual(len(result.bars), 10)
         self.assertEqual(store.saved, [result])
 
-    def test_weekly_ingestion_requires_point_in_time_calendar_adapter(self) -> None:
+    def test_monthly_ingestion_requires_point_in_time_calendar_adapter(self) -> None:
         with self.assertRaisesRegex(ValueError, "takvim adapter"):
             IngestionService(provider=FakeProvider(), store=FakeStore()).ingest(
-                request(Timeframe.W1)
+                request(Timeframe.MO1)
             )
 
     def test_future_closed_bar_is_not_persisted(self) -> None:
