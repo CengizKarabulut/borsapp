@@ -101,9 +101,19 @@ def render_full_scan_pdf(sections, slot):
         def number(value):
             return "-" if value is None else f"{value:.2f}"
 
+        seen_scenarios = set()
         for item in section["details"]:
             plan = item["plan"]
             for scenario in plan.get("scenarios", []) or [None]:
+                from market_intelligence.core.identity import canonical_json
+                # Event/state directions may differ while their stored plan is identical.
+                identity = (item["symbol"], item["scanner"], plan.get("snapshot_id"),
+                            plan.get("price_basis"), plan.get("status"),
+                            plan.get("reason") if scenario is None else None,
+                            canonical_json(scenario))
+                if identity in seen_scenarios:
+                    continue
+                seen_scenarios.add(identity)
                 label = f"{item['symbol']} / {LABELS.get(item['scanner'], item['scanner'])}"
                 if scenario is None:
                     rows.append(

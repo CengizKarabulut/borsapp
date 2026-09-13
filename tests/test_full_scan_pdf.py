@@ -43,6 +43,10 @@ class FullPdfTests(unittest.TestCase):
             )
             for tf in ("1h", "1wk")
         ]
+        # Active-state and event projections can carry the same plan with different finding directions.
+        for section in sections:
+            duplicate = dict(section["details"][-1], direction="neutral")
+            section["details"].append(duplicate)
         with patch.object(SimpleDocTemplate, "build", capture):
             pdf = render_full_scan_pdf(sections, datetime(2026, 9, 13, tzinfo=UTC))
         texts = stories
