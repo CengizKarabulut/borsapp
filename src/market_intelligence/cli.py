@@ -1311,7 +1311,7 @@ def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calenda
             counts = [byid.get(b.scanner.id,(None,0))[1] for b in applicable]
             scopes[value] = f"{min(counts,default=0)}–{max(counts,default=0)}/{expected} işlendi"
             targets[value] = target.astimezone(slot.tzinfo).strftime("%d.%m.%Y %H:%M")
-            details = load_trade_rows(connection,universe,value,target,hashes)
+            details = load_trade_rows(connection,universe,value,target,hashes,intersection_plans_only=True)
             all_details[value] = details
             ranked = timeframe_intersections(details)
             pngs,pdf = render_intersections(value,ranked,slot,targets={value:targets[value]},coverage=scopes[value])
