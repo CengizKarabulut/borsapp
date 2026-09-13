@@ -40,7 +40,7 @@ WITH candidates AS (
     ORDER BY available_at, created_at
     FOR UPDATE SKIP LOCKED
     LIMIT %s
-)
+), updated AS (
 UPDATE telegram_outbox AS target
 SET status = 'processing',
     attempt_count = target.attempt_count + 1,
@@ -50,7 +50,10 @@ FROM candidates
 WHERE target.outbox_id = candidates.outbox_id
 RETURNING
     target.outbox_id, target.semantic_key, target.chat_id,
-    target.message_thread_id, target.payload, target.attempt_count
+    target.message_thread_id, target.payload, target.attempt_count, target.available_at
+)
+SELECT outbox_id, semantic_key, chat_id, message_thread_id, payload, attempt_count
+FROM updated ORDER BY available_at, outbox_id
 """
 
 MARK_SENT_SQL = """
@@ -73,11 +76,11 @@ class PostgresOutboxRepository:
         self.connection = connection
         self.lease_minutes = lease_minutes
 
-    def enqueue(self, envelopes: tuple[OutboxEnvelope, ...]) -> int:
+    def enqueue(self, envelopes: tuple[OutboxEnvelope, ...], *, ordered: bool = False) -> int:
         inserted = 0
         with self.connection.transaction():
             with self.connection.cursor() as cursor:
-                for envelope in envelopes:
+                for position, envelope in enumerate(envelopes):
                     payload = {
                         "publication_kind": envelope.publication_kind.value,
                         "chat_id": envelope.chat_id,
@@ -95,7 +98,14 @@ class PostgresOutboxRepository:
                             canonical_json(payload),
                         ),
                     )
-                    inserted += int(cursor.fetchone() is not None)
+                    inserted_row = cursor.fetchone()
+                    if inserted_row is not None:
+                        inserted += 1
+                        if ordered:
+                            cursor.execute(
+                                "UPDATE telegram_outbox SET available_at=now() + %s * interval '1 microsecond' WHERE outbox_id=%s",
+                                (position, inserted_row[0]),
+                            )
         return inserted
 
     def claim(
