@@ -1269,46 +1269,62 @@ def _scan_worker(
 
 
 def _scan_summaries(settings, timeframes, universe, scanners_path, slot, calendar):
-    from market_intelligence.application.live_scans import (
-        SUMMARY_SQL,
-        latest_target,
+    import base64
+
+    from market_intelligence.application.live_scans import SUMMARY_SQL, latest_target
+    from market_intelligence.application.scan_intersections import (
+        cross_timeframe_intersections,
+        render_intersections,
+        timeframe_intersections,
     )
+    from market_intelligence.application.trade_dashboard import load_trade_rows
     bindings = load_scanner_catalog(scanners_path, calendar_version=calendar.version)
+    hashes = [binding.ruleset_hash for binding in bindings]
     planner = ScheduledBarPlanner(calendar)
     with _connect(settings.runtime.database_url) as connection:
         runtime = PostgresRuntimeRepository(connection)
         router = TopicRouter(settings.telegram)
         envelopes = []
-        for value in timeframes:
-            timeframe = parse_timeframe(value)
-            target = latest_target(planner, timeframe, slot)
-            if target is None:
-                continue
-            expected = len(runtime.list_universe(universe, as_of=target.date()))
-            with connection.cursor() as cursor:
-                cursor.execute(SUMMARY_SQL, (universe, value, target, [binding.ruleset_hash for binding in bindings]))
-                rows = cursor.fetchall()
-            import base64
-
-            from market_intelligence.application.trade_dashboard import (
-                load_trade_rows,
-                render_dashboard,
-            )
-            details = load_trade_rows(connection, universe, value, target, [b.ruleset_hash for b in bindings])
-            png, pdf = render_dashboard(timeframe, target, slot, expected, rows, bindings, details)
-            for media, content in (("photo", png), ("document", pdf)):
+        all_details, targets, scopes = {}, {}, {}
+        def add_report(value, pngs, pdf):
+            parts = [("photo", i, data) for i, data in enumerate(pngs)] + [("document", 0, pdf)]
+            for media, page, content in parts:
                 envelopes.append(router.route(
                     publication_kind=PublicationKind.SCAN_EVENT,
-                    semantic_identity={"kind": "scan_trade_desk_v1", "universe": universe,
-                                       "timeframe": value, "slot": slot.isoformat(), "media": media},
-                    payload={"_method": "sendPhoto" if media == "photo" else "sendDocument",
-                             f"{media}_base64": base64.b64encode(content).decode("ascii"),
-                             "filename": f"borsapp-{value}-{'panel.png' if media == 'photo' else 'tum-sonuclar.pdf'}",
-                             "caption": f"{value} işlem paneli · Kapanış {target.astimezone(slot.tzinfo):%d.%m %H:%M}. "
-                                        "Giriş kapanış referansıdır; eksik kapsam ve koşullu senaryolar belirtilmiştir."},
+                    semantic_identity={"kind":"scan_intersections_v1", "universe":universe,
+                                       "timeframe":value,"slot":slot.isoformat(),"media":media,"page":page},
+                    payload={"_method":"sendPhoto" if media=="photo" else "sendDocument",
+                             f"{media}_base64":base64.b64encode(content).decode("ascii"),
+                             "filename":f"borsapp-{value}-ilk20-{page+1}.{'png' if media=='photo' else 'pdf'}",
+                             "caption":f"{value} · Kesişim ilk 20 · {slot:%d.%m %H:%M}. "
+                                       "Aynı yöndeki farklı taramalar isimleriyle listelenir. Kapsam ve zıt bulgular paneldedir."},
                 ))
-        count = PostgresOutboxRepository(connection).enqueue(tuple(envelopes))
-        print(f"Scan summaries {slot.isoformat()}: queued={count}", flush=True)
+        for value in timeframes:
+            timeframe = parse_timeframe(value)
+            target = latest_target(planner,timeframe,slot)
+            if target is None:
+                continue
+            expected = len(runtime.list_universe(universe,as_of=target.date()))
+            rows = connection.execute(SUMMARY_SQL,(universe,value,target,hashes)).fetchall()
+            byid = {r[0]:r for r in rows}
+            applicable = [b for b in bindings if timeframe in b.shadow_timeframes]
+            counts = [byid.get(b.scanner.id,(None,0))[1] for b in applicable]
+            scopes[value] = f"{min(counts,default=0)}–{max(counts,default=0)}/{expected} işlendi"
+            targets[value] = target.astimezone(slot.tzinfo).strftime("%d.%m.%Y %H:%M")
+            details = load_trade_rows(connection,universe,value,target,hashes,intersection_plans_only=True)
+            all_details[value] = details
+            ranked = timeframe_intersections(details)
+            pngs,pdf = render_intersections(value,ranked,slot,targets={value:targets[value]},coverage=scopes[value])
+            add_report(value,pngs,pdf)
+            print(f"Intersection {value}: {len(ranked)} symbols",flush=True)
+        if all_details:
+            ranked = cross_timeframe_intersections(all_details)
+            # Global list follows all timeframe lists in the durable queue.
+            pngs,pdf = render_intersections("GENEL KESİŞİM",ranked,slot,targets={tf: f"{targets[tf]}; {scopes[tf]}" for tf in targets},
+                                            coverage="En az 2 zaman dilimi; her birinde en az 2 tarama",global_view=True)
+            add_report("GENEL",pngs,pdf)
+        count = PostgresOutboxRepository(connection).enqueue(tuple(envelopes), ordered=True)
+        print(f"Intersection summaries {slot.isoformat()}: queued={count}",flush=True)
     return count
 
 

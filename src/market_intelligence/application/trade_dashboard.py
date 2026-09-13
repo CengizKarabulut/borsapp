@@ -31,8 +31,13 @@ ORDER BY e.symbol_at_evaluation,e.scanner_id
 """
 
 
-def load_trade_rows(connection, universe, timeframe, target, hashes):
+def load_trade_rows(connection, universe, timeframe, target, hashes, *, intersection_plans_only=False):
     rows = connection.execute(DETAIL_SQL, (universe, timeframe, target, hashes)).fetchall()
+    plan_symbols = None
+    if intersection_plans_only:
+        from market_intelligence.application.scan_intersections import timeframe_intersections
+        lightweight = [{"symbol": r[1], "scanner": r[2], "direction": r[9], "plan": {}} for r in rows]
+        plan_symbols = {item["symbol"] for item in timeframe_intersections(lightweight)}
     cache = {}
     results = []
     for (
@@ -48,6 +53,9 @@ def load_trade_rows(connection, universe, timeframe, target, hashes):
         direction,
         metrics,
     ) in rows:
+        if plan_symbols is not None and symbol not in plan_symbols:
+            results.append({"symbol": symbol, "scanner": scanner, "direction": direction, "plan": {}})
+            continue
         plan = metrics.get("trade_plan")
         if plan and plan.get("snapshot_id") != snapshot:
             plan = None
