@@ -18,7 +18,11 @@ class OrderedOutboxTests(unittest.TestCase):
                 c.execute(
                     "CREATE TEMP TABLE telegram_outbox (outbox_id uuid PRIMARY KEY DEFAULT gen_random_uuid(), semantic_key text UNIQUE, publication_kind text, topic_kind text, chat_id bigint, message_thread_id bigint, payload jsonb, status text DEFAULT 'pending', attempt_count int DEFAULT 0, available_at timestamptz DEFAULT now(), created_at timestamptz DEFAULT now(), locked_at timestamptz, lease_until timestamptz)"
                 )
-                router = TopicRouter(ApplicationSettings.from_mapping(environment()).telegram)
+                router = TopicRouter(
+                    ApplicationSettings.from_mapping(
+                        {**environment(), "DATABASE_URL": os.environ["TEST_DATABASE_URL"]}
+                    ).telegram
+                )
                 envelopes = tuple(
                     router.route(
                         publication_kind=PublicationKind.SCAN_EVENT,
