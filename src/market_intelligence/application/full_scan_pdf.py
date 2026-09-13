@@ -137,15 +137,23 @@ def render_full_scan_pdf(sections, slot):
                 "* Giriş sinyal kapanış referansıdır; gerçekleşmiş emir değildir. ATR14 Wilder, swing7 + 0.2 ATR; minimum 0.75 ATR risk; TP 1R/2R/3R. Maliyetler hariç, performans doğrulanmadı. Aşağı senaryo otomatik açığa satış talimatı değildir."
             )
         )
+    class ScanDocument(SimpleDocTemplate):
+        current_section = ""
+        def afterPage(self):
+            footer(self.canv, self)
+        def afterFlowable(self, flowable):
+            if isinstance(flowable, Paragraph) and flowable.style is title:
+                self.current_section = flowable.getPlainText()
+
     output = io.BytesIO()
 
     def footer(c, doc):
         c.setFont("ScanFull", 8)
-        c.drawString(35, 20, f"BORSAPP / Tam tarama eki / Sayfa {doc.page}")
+        c.drawString(35, 20, f"{doc.current_section} / Sayfa {doc.page}")
 
-    SimpleDocTemplate(
+    ScanDocument(
         output, pagesize=(1010, 714), leftMargin=35, rightMargin=35, topMargin=30, bottomMargin=40
-    ).build(story, onFirstPage=footer, onLaterPages=footer)
+    ).build(story, onFirstPage=lambda c,d: None, onLaterPages=lambda c,d: None)
     return output.getvalue()
 
 
