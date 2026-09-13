@@ -50,3 +50,52 @@ class IntersectionTests(unittest.TestCase):
         b = [row("B", s) for s in ("one", "two", "three")]
         result = cross_timeframe_intersections({"15m": a + b, "1h": a + b, "4h": a})
         self.assertEqual([r["symbol"] for r in result], ["A", "B"])
+
+
+class IntersectionPlanLoadingTests(unittest.TestCase):
+    def test_global_candidates_survive_top20_plan_optimization(self):
+        from market_intelligence.application.trade_dashboard import DETAIL_SQL, load_trade_rows
+
+        class Result:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def fetchall(self):
+                return self.rows
+
+        class Connection:
+            def __init__(self):
+                self.bar_queries = 0
+
+            def execute(self, sql, params):
+                if sql == DETAIL_SQL:
+                    return Result(
+                        [
+                            (
+                                str(i),
+                                f"A{i:02}",
+                                scanner,
+                                f"snap{i}",
+                                "test",
+                                "raw",
+                                1,
+                                None,
+                                None,
+                                "bullish",
+                                {},
+                            )
+                            for i in range(25)
+                            for scanner in ("one", "two")
+                        ]
+                    )
+                self.bar_queries += 1
+                return Result([])
+
+        connection = Connection()
+        result = load_trade_rows(connection, "ALL", "1h", None, [], intersection_plans_only=True)
+        self.assertEqual(len(result), 50)
+        self.assertEqual(connection.bar_queries, 20)
+        global_rows = cross_timeframe_intersections(
+            {"1h": result, "4h": [row("A24", s) for s in ("one", "two")]}
+        )
+        self.assertEqual(global_rows[0]["symbol"], "A24")
