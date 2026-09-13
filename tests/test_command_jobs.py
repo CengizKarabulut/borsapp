@@ -235,7 +235,7 @@ class PostgresCommandJobRepositoryTests(unittest.TestCase):
             CommandJob("job-1", CommandName.SCAN, "ASELS", 42, 10, 3, "instrument-1"),
         )
         params = connection.queries[0][1]
-        self.assertEqual(params, (now, now, now + timedelta(minutes=15)))
+        self.assertEqual(params, (now, False, now, now + timedelta(minutes=15)))
         self.assertEqual(connection.committed, 1)
 
     def test_finish_commits_job_and_reply_outbox_together(self) -> None:

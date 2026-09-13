@@ -56,6 +56,7 @@ services:
           borsapp ma-research-universe --universe BIST_ALL --timeframe 1h --bars 1000 || true
           borsapp ma-research-universe --universe BIST_ALL --timeframe 4h --bars 1000 || true
           borsapp ma-research-universe --universe BIST_ALL --timeframe 1d --bars 1000 || true
+          borsapp ma-research-universe --universe BIST_ALL --timeframe 1wk --bars 420 || true
           sleep 86400
         done
     depends_on:
@@ -111,4 +112,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  scan-report-worker:
+    profiles: ["runtime"]
+    build: .
+    image: borsapp:local
+    env_file: .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
+      DELIVERY_MODE: live
+    command: ["command-worker-loop", "--scan-reports-only"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped

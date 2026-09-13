@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
@@ -22,6 +22,7 @@ class CommandJob:
     requested_topic: int
     attempt_count: int
     instrument_id: str | None = None
+    context: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -122,7 +123,7 @@ class CommandJobRunner:
             job=job,
             finished_at=now,
             error_detail=error,
-            envelopes=(*output.envelopes, envelope),
+            envelopes=output.envelopes if job.context.get("automatic") and error is None else (*output.envelopes, envelope),
             artifact=output.artifact,
         )
         return CommandJobRun(1, int(error is None), int(error is not None))

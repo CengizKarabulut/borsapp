@@ -101,6 +101,27 @@ class Canonicalizer:
         source: Timeframe,
         target: Timeframe,
     ) -> tuple[CanonicalBar, ...]:
+        if source is Timeframe.D1 and target is Timeframe.W1:
+            from market_intelligence.scheduling.xist import ExchangeCalendarsXist
+            calendar = ExchangeCalendarsXist()
+            grouped = defaultdict(list)
+            for bar in bars:
+                day = bar.open_time.date()
+                grouped[day - timedelta(days=day.weekday())].append(bar)
+            sessions = set(calendar.sessions(min(grouped), max(grouped) + timedelta(days=6))) if grouped else set()
+            result = []
+            for monday, bucket in sorted(grouped.items()):
+                expected = tuple(sorted(day for day in sessions if monday <= day <= monday + timedelta(days=6)))
+                ordered = sorted(bucket, key=lambda bar: bar.open_time)
+                if not expected or tuple(b.open_time.date() for b in ordered) != expected:
+                    continue
+                result.append(CanonicalBar(
+                    open_time=ordered[0].open_time, close_time=ordered[-1].close_time,
+                    open=ordered[0].open, high=max(b.high for b in ordered),
+                    low=min(b.low for b in ordered), close=ordered[-1].close,
+                    volume=sum(b.volume for b in ordered),
+                ))
+            return tuple(result)
         source_minutes = source.minutes
         target_minutes = target.minutes
         if source_minutes is None or target_minutes is None:
