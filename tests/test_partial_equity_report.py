@@ -5,13 +5,13 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from market_intelligence.application.equity_reports import EquityReportService
-from market_intelligence.application.symbol_commands import SymbolSnapshot
+from market_intelligence.application.symbol_commands import StoredNews, SymbolSnapshot
 from market_intelligence.research.equity_report_v2 import analysis_message
 from tests.test_equity_report import financial, frame
 
 
 class PartialReportTests(unittest.TestCase):
-    def make(self, fin=True):
+    def make(self, fin=True, news=()):
         source = frame()
         source = replace(source, bars=source.bars[-50:])
         engine = SimpleNamespace(
@@ -22,7 +22,7 @@ class PartialReportTests(unittest.TestCase):
         providers = SimpleNamespace(fetch=lambda *args, **kwargs: financial() if fin else None)
         report = EquityReportService(feature_engine=engine, financials=providers).assemble(
             frame=source,
-            stored=SymbolSnapshot(source.instrument_id, source.symbol_at_snapshot),
+            stored=SymbolSnapshot(source.instrument_id, source.symbol_at_snapshot, news=news),
             generated_at=datetime(2026, 9, 19, tzinfo=UTC),
         )
         return report
@@ -45,3 +45,9 @@ class PartialReportTests(unittest.TestCase):
         self.assertIsNone(report.financial_health_score)
         self.assertEqual(report.sections[4].status, "UNKNOWN")
         self.assertIsNone(json.loads(report.machine_readable_json())["financial"])
+
+    def test_partial_report_preserves_stored_news_headlines(self):
+        report = self.make(news=(StoredNews("Finansal rapor", datetime(2026, 9, 18, tzinfo=UTC)),))
+        section = next(section for section in report.sections if section.number == 4)
+        self.assertEqual(section.status, "AVAILABLE")
+        self.assertIn("Finansal rapor", section.paragraphs)
