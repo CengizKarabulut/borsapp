@@ -75,7 +75,7 @@ def build_partial_equity_report(*, frame, stored, financial, generated_at, missi
     )
     if stored.news:
         sections[4] = ReportSection(
-            4, TITLES[4], tuple(item.title for item in stored.news[:10]), status="AVAILABLE"
+            4, TITLES[4], tuple(item.headline for item in stored.news[:10]), status="AVAILABLE"
         )
     financial_score, financial_coverage, score_rows, valuation, risks = _financial_score(financial)
     if financial:
