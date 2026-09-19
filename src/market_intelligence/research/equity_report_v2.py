@@ -65,14 +65,15 @@ class EquityResearchReport:
     technical_score: float | None
     technical_coverage: float
     valuation_status: str
-    confidence_score: float
+    confidence_score: float | None
     machine_readable: dict[str, object]
 
     @property
     def summary(self) -> str:
+        confidence = "Hesaplanamadı" if self.confidence_score is None else f"{self.confidence_score:.0f}/100"
         return (
             f"{self.symbol} 25 bölümlü araştırma raporu · bar={self.as_of_bar.isoformat()} · "
-            f"kanıt={self.evidence_available}/{self.evidence_total} · güven={self.confidence_score:.0f}/100"
+            f"kanıt={self.evidence_available}/{self.evidence_total} · güven={confidence}"
         )
 
     def machine_readable_json(self) -> str:

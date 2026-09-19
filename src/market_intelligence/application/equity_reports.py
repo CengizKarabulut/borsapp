@@ -57,8 +57,12 @@ class EquityReportService:
         resolution = self.feature_engine.resolve(frame, (RESEARCH_TECHNICAL_SNAPSHOT,))
         technical = resolution.values.get(RESEARCH_TECHNICAL_SNAPSHOT.feature_id)
         if not isinstance(technical, ResearchTechnicalSnapshot):
-            missing = ",".join(resolution.unavailable) or "research.technical_snapshot"
-            raise ValueError(f"Rapor feature verisi üretilemedi: {missing}")
+            from market_intelligence.research.partial_equity_report import (
+                build_partial_equity_report,
+            )
+            financial = self.financials.fetch(frame.symbol_at_snapshot, as_of=generated_at)
+            return build_partial_equity_report(frame=frame,stored=stored,financial=financial,generated_at=generated_at,
+                                               missing=resolution.unavailable or ("research.technical_snapshot",))
         timeframe_technicals = {frame.timeframe.value: technical}
         for related in related_frames:
             if related.instrument_id != frame.instrument_id or related.is_partial:
