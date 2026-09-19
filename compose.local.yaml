@@ -1,10 +1,20 @@
+# Laptop profile: reserve CPU time for Windows and keep numerical libraries single-threaded.
+x-laptop-environment: &laptop-environment
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
 services:
   universe-worker:
+    cpus: "0.25"
+    cpu_shares: 128
     profiles: ["runtime"]
     build: .
     image: borsapp:local
     env_file: .env
     environment:
+      <<: *laptop-environment
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
       DELIVERY_MODE: disabled
     entrypoint: ["/bin/sh", "-c"]
@@ -20,11 +30,14 @@ services:
     restart: unless-stopped
 
   news-worker:
+    cpus: "0.50"
+    cpu_shares: 512
     profiles: ["runtime"]
     build: .
     image: borsapp:local
     env_file: .env
     environment:
+      <<: *laptop-environment
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
       DELIVERY_MODE: live
     entrypoint: ["/bin/sh", "-c"]
@@ -41,11 +54,14 @@ services:
     restart: unless-stopped
 
   research-worker:
+    cpus: "0.50"
+    cpu_shares: 128
     profiles: ["runtime"]
     build: .
     image: borsapp:local
     env_file: .env
     environment:
+      <<: *laptop-environment
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
       DELIVERY_MODE: disabled
     entrypoint: ["/bin/sh", "-c"]
@@ -65,11 +81,14 @@ services:
     restart: unless-stopped
 
   outcomes-worker:
+    cpus: "0.25"
+    cpu_shares: 128
     profiles: ["runtime"]
     build: .
     image: borsapp:local
     env_file: .env
     environment:
+      <<: *laptop-environment
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
       DELIVERY_MODE: disabled
     entrypoint: ["/bin/sh", "-c"]
@@ -86,10 +105,13 @@ services:
     restart: unless-stopped
 
   backup-worker:
+    cpus: "0.25"
+    cpu_shares: 128
     profiles: ["runtime"]
     image: postgres:16-alpine
     env_file: .env
     environment:
+      <<: *laptop-environment
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./backups:/backups
@@ -115,11 +137,14 @@ services:
     restart: unless-stopped
 
   scan-report-worker:
+    cpus: "0.75"
+    cpu_shares: 256
     profiles: ["runtime"]
     build: .
     image: borsapp:local
     env_file: .env
     environment:
+      <<: *laptop-environment
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://borsapp:borsapp@postgres:5432/borsapp}
       DELIVERY_MODE: live
     command: ["command-worker-loop", "--scan-reports-only"]
@@ -127,3 +152,33 @@ services:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
+
+  financial-worker:
+    cpus: "0.50"
+    cpu_shares: 128
+    environment:
+      <<: *laptop-environment
+
+  scanner:
+    cpus: "1.50"
+    cpu_shares: 1024
+    environment:
+      <<: *laptop-environment
+
+  command-worker:
+    cpus: "1.00"
+    cpu_shares: 768
+    environment:
+      <<: *laptop-environment
+
+  listener:
+    cpus: "0.50"
+    cpu_shares: 1024
+    environment:
+      <<: *laptop-environment
+
+  publisher:
+    cpus: "0.50"
+    cpu_shares: 1024
+    environment:
+      <<: *laptop-environment
