@@ -186,7 +186,7 @@ def render_equity_research_pdf(
         ),
         Table(
             [
-                ["Analiz güveni", f"{report.confidence_score:.0f}/100"],
+                ["Analiz güveni", f"{report.confidence_score:.0f}/100" if report.confidence_score is not None else "Hesaplanamadı"],
                 ["Kanıt kapsamı", f"{report.evidence_available}/{report.evidence_total} bölüm"],
                 [
                     "Finansal sağlık",
@@ -206,11 +206,11 @@ def render_equity_research_pdf(
             colWidths=[42 * mm, 130 * mm],
         ),
         Spacer(1, 5 * mm),
-        Paragraph("Öne çıkan 5 bulgu", heading),
+        Paragraph("Öne çıkan bulgular", heading),
         *[Paragraph(f"• {escape(item)}", body) for item in report.top_findings],
-        Paragraph("Kritik 3 koşul", heading),
+        Paragraph("Kritik koşullar", heading),
         *[Paragraph(f"• {escape(item)}", body) for item in report.critical_conditions],
-        Paragraph("En önemli 3 risk", heading),
+        Paragraph("Önemli riskler", heading),
         *[Paragraph(f"• {escape(item)}", body) for item in report.key_risks],
         Paragraph(f"Geçersizleşme: {escape(report.invalidation)}", callout),
         Paragraph(f"Olumlu teyit: {escape(report.positive_confirmation)}", callout),
