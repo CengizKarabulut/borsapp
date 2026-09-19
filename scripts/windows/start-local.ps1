@@ -45,9 +45,24 @@ if (-not $dockerReady) {
 
 Push-Location $RepositoryRoot
 try {
-    & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime --profile financials up -d
-    if ($LASTEXITCODE -ne 0) {
-        throw "Borsapp servisleri başlatılamadı."
+    $composeReady = $false
+    $startupDeadline = [DateTime]::UtcNow.AddMinutes(20)
+    do {
+        $previousErrorAction = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $docker compose -f compose.yaml -f compose.live.yaml -f compose.local.yaml --profile runtime --profile financials up -d
+            $composeReady = ($LASTEXITCODE -eq 0)
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorAction
+        }
+        if ($composeReady) { break }
+        Write-Warning "Borsapp is not ready yet; retrying while PostgreSQL or Docker starts."
+        Start-Sleep -Seconds 15
+    } while ([DateTime]::UtcNow -lt $startupDeadline)
+    if (-not $composeReady) {
+        throw "Borsapp services did not become ready within the startup window."
     }
 }
 finally {
