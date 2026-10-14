@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import argparse
 import csv
-from datetime import UTC, date
 import json
 import os
+from datetime import UTC, date
 from pathlib import Path
 
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
