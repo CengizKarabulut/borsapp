@@ -49,3 +49,6 @@ jobs:
       - name: Synchronize BIST All Shares
         if: ${{ env.DATABASE_URL != '' }}
         run: borsapp universe-sync --universe BIST_ALL --apply
+      - name: Audit and seed the separate 630-symbol ATC watch universe
+        if: ${{ env.DATABASE_URL != '' && vars.ENABLE_ATC_630_UNIVERSE == 'true' }}
+        run: python scripts/atc_universe_seed.py --apply
