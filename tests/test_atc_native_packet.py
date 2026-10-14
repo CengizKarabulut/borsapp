@@ -37,7 +37,7 @@ def price_frame(prices: list[float]) -> CanonicalFrame:
                 open_time=opened,
                 close_time=opened + timedelta(hours=1),
                 open=close, high=close + 2.0, low=close - 2.0,
-                close=close, volume=1000.0 + i % 13,
+                close=close, volume=1000.0,
             )
         )
     return CanonicalFrame(
