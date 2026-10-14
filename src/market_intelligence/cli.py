@@ -285,7 +285,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     scan.add_argument("symbol")
     scan.add_argument("--timeframe", default="1h")
-    scan.add_argument("--bars", type=int, default=320)
+    scan.add_argument("--bars", type=int, default=600)
     scan.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     scan.add_argument(
         "--notify",
@@ -299,7 +299,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     due.add_argument("--timeframe", default="1h")
     due.add_argument("--universe", default="BIST_ALL")
-    due.add_argument("--bars", type=int, default=320)
+    due.add_argument("--bars", type=int, default=600)
     due.add_argument("--lookback-days", type=int, default=7)
     due.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     due.add_argument("--notify", action="store_true")
@@ -313,7 +313,7 @@ def _parser() -> argparse.ArgumentParser:
         default="15m,30m,45m,1h,2h,4h,1d,1wk",
     )
     worker.add_argument("--universe", default="BIST_ALL")
-    worker.add_argument("--bars", type=int, default=420)
+    worker.add_argument("--bars", type=int, default=600)
     worker.add_argument("--lookback-days", type=int, default=7)
     worker.add_argument("--poll-seconds", type=float, default=60.0)
     worker.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
