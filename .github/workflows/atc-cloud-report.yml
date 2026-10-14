@@ -9,8 +9,8 @@ on:
         default: false
         type: boolean
   schedule:
-    # 19:45 Türkiye saati, iş günleri. GitHub schedule best-effort, not exact.
-    - cron: "45 16 * * 1-5"
+    # 22:15 Türkiye saati; 18:45 sonrası 630 hisse taramasına zaman bırak.
+    - cron: "15 19 * * 1-5"
 
 permissions:
   contents: read
