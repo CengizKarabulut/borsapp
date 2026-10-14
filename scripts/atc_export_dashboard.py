@@ -9,8 +9,9 @@ import argparse
 import csv
 import json
 import os
-from datetime import UTC, date
+from datetime import UTC, date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.scanning.catalog import load_scanner_catalog
@@ -157,7 +158,7 @@ def export_matrix(db, universe, config_path, destination, *, as_of: date, requir
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--universe', default='BIST_ALL')
-    parser.add_argument('--as-of', type=date.fromisoformat, default=date.today())
+    parser.add_argument('--as-of', type=date.fromisoformat, default=datetime.now(ZoneInfo('Europe/Istanbul')).date())
     parser.add_argument('--config', default='config/scanners.toml')
     parser.add_argument('--output', default='runtime_artifacts/ATC_Tarama_Matris.csv')
     parser.add_argument('--require-members', type=int, default=0,
