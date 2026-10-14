@@ -15,16 +15,47 @@ permissions:
   contents: read
 
 concurrency:
-  group: atc-630-daily
+  group: atc-630-daily-v2
   cancel-in-progress: false
 
 jobs:
+  recover-legacy:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Cancel pre-upgrade blocked ATC MA workflow runs
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          script: |
+            for (const run_id of [38641050430, 38649036105]) {
+              try {
+                const { data: run } = await github.rest.actions.getWorkflowRun({
+                  owner: context.repo.owner, repo: context.repo.repo, run_id
+                });
+                if (["queued", "in_progress", "pending", "waiting"].includes(run.status)) {
+                  await github.rest.actions.cancelWorkflowRun({
+                    owner: context.repo.owner, repo: context.repo.repo, run_id
+                  });
+                  core.info("Cancelled obsolete ATC workflow run " + run_id);
+                } else {
+                  core.info("Old run already " + run.status + ": " + run_id);
+                }
+              } catch (e) {
+                core.warning("Old run " + run_id + " could not be cancelled: " + e.message);
+              }
+            }
   scan:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
       APP_ENV: production
       APP_TIMEZONE: Europe/Istanbul
+      TZ: UTC
       DELIVERY_MODE: disabled
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
@@ -53,7 +84,7 @@ jobs:
             exit 1
           fi
       - name: Install existing Python scanner runtime
-        run: python -m pip install --editable ".[runtime]"
+        run: python -m pip install --editable ".[runtime,atcdata]"
       - name: Migrate existing database
         run: borsapp db-migrate
       - name: Seed all 630 watched symbols and report provider gaps
