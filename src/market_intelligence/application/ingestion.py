@@ -85,6 +85,16 @@ class IngestionService:
         )
         if cache is None or len(cache.bars) < 30:
             return None
+        revision = self.store.latest_series_revision(
+            instrument_id=request.instrument_id,
+            timeframe="1d",
+            source=cache.source,
+            price_basis=cache.price_basis.value,
+        )
+        if revision != cache.series_revision:
+            # The most recent timestamp must also belong to the latest
+            # immutable corporate-action/price-adjustment revision.
+            return None
         days = (request.as_of.date() - cache.bars[-1].close_time.date()).days
         if days < 0:
             return None
