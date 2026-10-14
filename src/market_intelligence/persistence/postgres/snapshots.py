@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from market_intelligence.core.identity import canonical_json, stable_hash
-from market_intelligence.market_data.bars import CanonicalFrame
+from market_intelligence.core.enums import PriceBasis
+from market_intelligence.market_data.bars import CachedDailyBars, CanonicalBar, CanonicalFrame
 from market_intelligence.market_data.errors import SeriesRevisionConflict
 
 
@@ -84,9 +85,68 @@ WHERE instrument_id = %s
 """
 
 
+
+LOAD_LATEST_DAILY_SERIES_SQL = """
+SELECT source, price_basis, series_revision
+FROM canonical_market_bars
+WHERE instrument_id = %s AND timeframe = '1d' AND close_time <= %s
+ORDER BY close_time DESC, series_revision DESC
+LIMIT 1
+"""
+
+LOAD_DAILY_BARS_SQL = """
+SELECT open_time, close_time, open, high, low, close, volume
+FROM canonical_market_bars
+WHERE instrument_id = %s AND timeframe = '1d'
+  AND source = %s AND price_basis = %s AND series_revision = %s
+  AND close_time <= %s
+ORDER BY close_time DESC LIMIT %s
+"""
+
 class PostgresSnapshotStore:
     def __init__(self, connection: Connection) -> None:
         self.connection = connection
+
+    def load_recent_bars(
+        self,
+        *,
+        instrument_id: str,
+        as_of,
+        limit: int,
+    ) -> CachedDailyBars | None:
+        """Load one persisted daily OHLCV revision for a bounded recalculation.
+
+        This never combines adjusted and raw price bases or different sources.
+        Never consult candles from after the requested point in time.
+        """
+        if limit < 1:
+            raise ValueError("limit must be >= 1")
+        if as_of.tzinfo is None or as_of.utcoffset() is None:
+            raise ValueError("as_of must be timezone-aware")
+        with self.connection.cursor() as cursor:
+            cursor.execute(LOAD_LATEST_DAILY_SERIES_SQL, (instrument_id, as_of))
+            header = cursor.fetchone()
+            if header is None:
+                return None
+            source, basis, revision = header
+            cursor.execute(
+                LOAD_DAILY_BARS_SQL,
+                (instrument_id, source, basis, revision, as_of, limit),
+            )
+            rows = cursor.fetchall()
+        if not rows:
+            return None
+        bars = tuple(
+            CanonicalBar(
+                open_time=row[0], close_time=row[1], open=row[2],
+                high=row[3], low=row[4], close=row[5], volume=row[6],
+            )
+            for row in reversed(rows)
+        )
+        return CachedDailyBars(
+            source=source, price_basis=PriceBasis(basis),
+            series_revision=int(revision), bars=bars,
+        )
 
     def latest_series_revision(
         self,
