@@ -51,7 +51,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install runtime
-        run: python -m pip install ".[runtime]"
+        run: python -m pip install ".[runtime,atcdata]"
       - name: Ensure database schema
         run: borsapp db-init
       - name: Poll commands, execute force jobs, and publish replies
