@@ -119,9 +119,19 @@ class ScheduledScanService:
         total_failed = 0
         total_attempted = 0
         for bar_time in due_bars:
+            # ATC_630 is a present-day *pinned watchlist*, not a historical
+            # exchange membership. A run at 02:00 TRT on October 15 checks
+            # the October 14 closed bar against the watchlist known NOW;
+            # looking it up on the candle date can hide all 630 members.
+            # Real exchange universes preserve historical point-in-time dates.
+            membership_date = (
+                request.evaluation_time.date()
+                if request.universe_id.upper() == "ATC_630"
+                else bar_time.date()
+            )
             instruments: tuple[RuntimeInstrument, ...] = self.repository.list_universe(
                 request.universe_id,
-                as_of=bar_time.date(),
+                as_of=membership_date,
             )
             if not instruments:
                 raise ValueError(
