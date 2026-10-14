@@ -6,7 +6,6 @@ from pathlib import Path
 from market_intelligence.market_data.universe import UniverseMember
 from scripts.atc_universe_seed import load_pinned, reconcile
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
