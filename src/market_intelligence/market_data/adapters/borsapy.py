@@ -66,7 +66,15 @@ class BorsapyProvider:
 
     def _history_period(self, request: FetchRequest) -> str:
         if request.timeframe is Timeframe.D1:
-            return "5y" if request.bars <= 1250 else "max"
+            # Initial 600-bar seed still downloads the full history, but
+            # subsequent runs request a small overlap instead of five years.
+            for period, bars in (
+                ("1mo", 18), ("3mo", 55), ("6mo", 120),
+                ("1y", 240), ("2y", 480), ("5y", 1250),
+            ):
+                if request.bars <= bars:
+                    return period
+            return "max"
         # Official borsapy period names; its fallback for unknown strings is only 30 days.
         daily_bars = 480 / request.timeframe.minutes
         required_days = (max(request.bars, 1) + 2) / daily_bars * 1.4
