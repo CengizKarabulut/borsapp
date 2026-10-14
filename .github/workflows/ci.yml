@@ -56,5 +56,6 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install --editable ".[runtime]"
+      - run: python -m pip install --editable ".[runtime,atcdata]"
+      - run: python -c "from tvDatafeed import Interval; print(Interval.in_daily)"
       - run: python -m unittest discover -s tests/integration -v

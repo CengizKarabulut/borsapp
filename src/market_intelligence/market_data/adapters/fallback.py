@@ -18,6 +18,13 @@ class FallbackMarketDataProvider:
         self.providers = providers
         self.prefer_complete_history = prefer_complete_history
 
+    def fetch_from_source(self, source: str, request: FetchRequest) -> ProviderFrame:
+        """Refresh an existing cached source without silently switching vendors."""
+        for provider in self.providers:
+            if provider.name == source:
+                return provider.fetch(request)
+        raise RuntimeError(f"Source not configured: {source}")
+
     def fetch(self, request: FetchRequest) -> ProviderFrame:
         errors: list[str] = []
         best = None
