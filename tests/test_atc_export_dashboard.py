@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import unittest
 from datetime import UTC, datetime
 from pathlib import Path
-import unittest
 
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from scripts.atc_export_dashboard import SCANNER_ORDER, TIMEFRAMES, matrix_rows, status_label
