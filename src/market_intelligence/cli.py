@@ -74,6 +74,7 @@ from market_intelligence.market_data.adapters.borsapy_universe import (
     BorsapyBistUniverseProvider,
 )
 from market_intelligence.market_data.adapters.fallback import FallbackMarketDataProvider
+from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistProvider
 from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvider
 from market_intelligence.market_data.universe import (
     build_universe_sync_plan,
@@ -854,6 +855,7 @@ def _market_data_provider(settings: ApplicationSettings) -> FallbackMarketDataPr
     return FallbackMarketDataProvider(
         (
             BorsapyProvider(timestamp_timezone=settings.runtime.timezone.key),
+            TvDatafeedBistProvider(),
             YFinanceBistProvider(timestamp_timezone=settings.runtime.timezone.key),
         ),
         prefer_complete_history=True,
