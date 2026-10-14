@@ -23,7 +23,6 @@ from market_intelligence.scanning.signal.atc_native_packet import (
 )
 from tests.test_volume_spike import frame
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
