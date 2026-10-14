@@ -1,0 +1,66 @@
+name: ATC 630 daily confirmed scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 18:45 Türkiye saati, BIST 18:10 kapanış müzayedesinden sonra.
+    - cron: "45 15 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-630-daily
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      DELIVERY_MODE: disabled
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Verify persistent database
+        shell: bash
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL missing. Configure an external persistent PostgreSQL secret."
+            exit 1
+          fi
+      - name: Install existing Python scanner runtime
+        run: python -m pip install --editable ".[runtime]"
+      - name: Migrate existing database
+        run: borsapp db-migrate
+      - name: Seed all 630 watched symbols and report provider gaps
+        run: python scripts/atc_universe_seed.py --apply
+      - name: Run 630-symbol daily scan with native Pine rules
+        id: daily
+        continue-on-error: true
+        run: borsapp scan-due --universe ATC_630 --timeframe 1d --bars 600
+      - name: Export real outcomes, no synthetic signals
+        if: always() && steps.daily.outcome != 'skipped'
+        run: |
+          python scripts/atc_export_dashboard.py \
+            --universe ATC_630 \
+            --require-members 630 \
+            --output runtime_artifacts/ATC_Tarama_Matris.csv
+      - name: Report scan engine failure to Actions checks
+        if: steps.daily.outcome == 'failure'
+        run: |
+          echo "::error::One or more ATC scan steps failed. Check market provider and data quality."
+          exit 1
