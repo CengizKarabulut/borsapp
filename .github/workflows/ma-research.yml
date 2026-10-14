@@ -79,7 +79,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ "$MANUAL_SCOPE" = "symbol" ]; then
-              borsapp ma-research-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME" --bars 1000
+              borsapp ma-research-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME" --bars 600
             else
               borsapp ma-research-universe --universe "$ATC_SCAN_UNIVERSE" --timeframe "$MANUAL_TIMEFRAME" --bars 1000
             fi
