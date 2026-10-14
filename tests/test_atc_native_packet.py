@@ -6,15 +6,23 @@ from datetime import timedelta
 
 from market_intelligence.core.enums import EvaluationStatus
 from market_intelligence.features.momentum import (
-    MACD_12_26_9, RSI_14, SMI_10_3_3, MacdSnapshot, RsiSnapshot, SmiSnapshot,
+    MACD_12_26_9,
+    RSI_14,
+    SMI_10_3_3,
+    MacdSnapshot,
+    RsiSnapshot,
+    SmiSnapshot,
 )
 from market_intelligence.features.trend import (
-    INCLUSIVE_VOLUME_SMA_20, LEGACY_TREND_MA_SET,
-    InclusiveVolumeSnapshot, LegacyTrendMaSnapshot,
+    INCLUSIVE_VOLUME_SMA_20,
+    LEGACY_TREND_MA_SET,
+    InclusiveVolumeSnapshot,
+    LegacyTrendMaSnapshot,
 )
 from market_intelligence.scanning.engine import ScannerEngine
 from market_intelligence.scanning.signal.atc_native_packet import (
-    ATC_NATIVE_SIGNAL_IDS, AtcNativeSignalScanner,
+    ATC_NATIVE_SIGNAL_IDS,
+    AtcNativeSignalScanner,
 )
 from tests.test_volume_spike import context, frame
 
