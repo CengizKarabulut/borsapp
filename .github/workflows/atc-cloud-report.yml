@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           python scripts/atc_export_dashboard.py \
-            --universe BIST_ALL \
+            --universe ATC_630 \
             --require-members "$ATC_REQUIRED_MEMBERS" \
             --output runtime_artifacts/ATC_Tarama_Matris.csv
       - name: Validate fresh daily scan coverage and optionally queue report
