@@ -5,7 +5,13 @@ from typing import Any
 
 from market_intelligence.core.enums import EvaluationStatus, ResultKind
 from market_intelligence.market_data.bars import CanonicalFrame
-from market_intelligence.scanning.contracts import Finding, ScanContext, ScanEvaluation, Scanner
+from market_intelligence.scanning.contracts import (
+    Finding,
+    ScanContext,
+    ScanEvaluation,
+    Scanner,
+    ScannerUnavailable,
+)
 from market_intelligence.scanning.trade_plan import attach_trade_plan
 
 
@@ -118,6 +124,18 @@ class ScannerEngine:
             findings = tuple(scanner.evaluate(frame, context))
             self._validate_findings(frame, scanner, context, findings)
             findings = tuple(attach_trade_plan(finding, frame) for finding in findings)
+        except ScannerUnavailable as exc:
+            return ScanRun(
+                self._evaluation(
+                    cycle_id=cycle_id,
+                    frame=frame,
+                    scanner=scanner,
+                    context=context,
+                    status=EvaluationStatus.UNKNOWN,
+                    error_code="scanner_input_unavailable",
+                    error_detail=str(exc),
+                )
+            )
         except Exception as exc:
             return ScanRun(
                 self._evaluation(

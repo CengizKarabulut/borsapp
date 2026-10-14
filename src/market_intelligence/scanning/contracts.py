@@ -82,6 +82,10 @@ class ScanEvaluation:
     error_detail: str | None = None
 
 
+class ScannerUnavailable(RuntimeError):
+    """Scanner-specific missing evidence: UNKNOWN, never NO_MATCH."""
+
+
 class Scanner(Protocol):
     id: str
     family: str

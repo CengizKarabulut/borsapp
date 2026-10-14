@@ -39,6 +39,7 @@ jobs:
       APP_ENV: shadow
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
       DELIVERY_MODE: disabled
+      ATC_SCAN_UNIVERSE: ${{ vars.ATC_SCAN_UNIVERSE || 'ATC_630' }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -78,12 +79,12 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ "$MANUAL_SCOPE" = "symbol" ]; then
-              borsapp ma-research-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME" --bars 1000
+              borsapp ma-research-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME" --bars 600
             else
-              borsapp ma-research-universe --universe BIST_ALL --timeframe "$MANUAL_TIMEFRAME" --bars 1000
+              borsapp ma-research-universe --universe "$ATC_SCAN_UNIVERSE" --timeframe "$MANUAL_TIMEFRAME" --bars 1000
             fi
           else
             for timeframe in 4h 1d; do
-              borsapp ma-research-universe --universe BIST_ALL --timeframe "$timeframe" --bars 1000
+              borsapp ma-research-universe --universe "$ATC_SCAN_UNIVERSE" --timeframe "$timeframe" --bars 1000
             done
           fi

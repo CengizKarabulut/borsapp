@@ -304,6 +304,10 @@ class PostgresStateStore:
         else:
             valid_until = stored.valid_until if stored else None
         metrics = dict(finding.metrics) if finding is not None else dict(stored.metrics if stored else {})
+        if finding is not None:
+            # A STATE match has no scan_events row. Preserve the actual scanner
+            # direction in metrics for Excel/Power BI without modifying rules.
+            metrics["_atc_direction"] = finding.direction.value
         cursor.execute(
             STATE_UPSERT_SQL,
             (

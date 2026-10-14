@@ -19,7 +19,7 @@ on:
         required: true
         default: 1h
         type: choice
-        options: [15m, 30m, 45m, 1h, 2h, 4h, 1d]
+        options: [15m, 30m, 45m, 1h, 2h, 4h, 1d, 1wk]
       notify:
         description: Publish eligible findings (requires SCAN_DELIVERY_MODE=live)
         required: true
@@ -27,7 +27,8 @@ on:
         type: boolean
   schedule:
     - cron: "*/15 7-14 * * 1-5"
-    - cron: "0 15 * * 1-5"
+    # 18:30 TRT after BIST closing auction; 18:00 TRT was too early.
+    - cron: "30 15 * * 1-5"
 
 permissions:
   contents: read
@@ -96,6 +97,7 @@ jobs:
       TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      ATC_SCAN_UNIVERSE: ${{ vars.ATC_SCAN_UNIVERSE || 'ATC_630' }}
       MANUAL_SCOPE: ${{ inputs.scope }}
       MANUAL_SYMBOL: ${{ inputs.symbol }}
       MANUAL_TIMEFRAME: ${{ inputs.timeframe }}
@@ -120,7 +122,7 @@ jobs:
           if [ "$MANUAL_SCOPE" = "symbol" ]; then
             borsapp scan-symbol "$MANUAL_SYMBOL" --timeframe "$MANUAL_TIMEFRAME" "${notify_flag[@]}"
           else
-            borsapp scan-due --timeframe "$MANUAL_TIMEFRAME" "${notify_flag[@]}"
+            borsapp scan-due --universe "$ATC_SCAN_UNIVERSE" --timeframe "$MANUAL_TIMEFRAME" "${notify_flag[@]}"
           fi
           if [ ${#notify_flag[@]} -gt 0 ]; then
             borsapp publisher-once --limit 100
@@ -141,6 +143,7 @@ jobs:
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: ${{ vars.SCAN_DELIVERY_MODE || 'shadow' }}
       ENABLE_SHADOW_PARITY: ${{ matrix.timeframe == '1d' && vars.ENABLE_SHADOW_PARITY || 'false' }}
+      ATC_SCAN_UNIVERSE: ${{ vars.ATC_SCAN_UNIVERSE || 'ATC_630' }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -170,7 +173,7 @@ jobs:
         run: |
           notify_flag=()
           if [ "$DELIVERY_MODE" = "live" ]; then notify_flag=(--notify); fi
-          borsapp scan-due --timeframe "$SCAN_TIMEFRAME" "${notify_flag[@]}"
+          borsapp scan-due --universe "$ATC_SCAN_UNIVERSE" --timeframe "$SCAN_TIMEFRAME" "${notify_flag[@]}"
       - name: Publish eligible findings
         if: ${{ env.DATABASE_URL != '' && always() }}
         run: borsapp publisher-once --limit 100

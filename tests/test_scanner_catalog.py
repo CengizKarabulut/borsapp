@@ -62,7 +62,12 @@ class ScannerCatalogTests(unittest.TestCase):
         self.assertIn(Timeframe.H1, volume.shadow_timeframes)
         self.assertEqual(volume.notification_timeframes, frozenset({Timeframe.D1}))
         macd = next(b for b in bindings if b.scanner.id == "signal.macd_positive_cross")
-        self.assertEqual(macd.notification_timeframes, frozenset({Timeframe.D1}))
+        self.assertEqual(macd.notification_timeframes, frozenset())
+        self.assertEqual(macd.scanner.version, "2.0.0")
+        self.assertEqual(macd.scanner.rule_number, 1)
+        self.assertEqual(
+            len([b for b in bindings if b.scanner.version == "2.0.0"]), 9
+        )
 
     def test_notification_requires_verified_parity_evidence(self) -> None:
         source = (ROOT / "config/scanners.toml").read_text(encoding="utf-8")

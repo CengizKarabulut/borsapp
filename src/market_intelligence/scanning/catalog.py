@@ -13,6 +13,12 @@ from market_intelligence.scanning.decision.panel_v645 import (
     DecisionPanelV645Scanner,
 )
 from market_intelligence.scanning.ma.near_zone import MaNearZoneConfig, MaNearZoneScanner
+from market_intelligence.scanning.signal.atc_native_packet import (
+    ATC_NATIVE_SIGNAL_IDS,
+    ATC_SCRIPT_SHA256,
+    AtcNativeConfig,
+    AtcNativeSignalScanner,
+)
 from market_intelligence.scanning.signal.macd_positive_cross import (
     MacdPositiveCrossConfig,
     MacdPositiveCrossScanner,
@@ -90,6 +96,16 @@ def _binding(
     *,
     calendar_version: str,
 ) -> ScannerBinding:
+    # The latest uploaded Pine f_native_legacy_snapshot() is the authoritative
+    # A-I alarm packet. Legacy chart-display signal scanners remain available
+    # for comparison, but are NOT executed when this engine is selected.
+    if section.get("engine") == "atc_native_20261014":
+        if scanner.id not in ATC_NATIVE_SIGNAL_IDS:
+            raise ValueError(f"{scanner.id}: ATC native engine only supports 1-9")
+        if section.get("atc_source_sha256") != ATC_SCRIPT_SHA256:
+            raise ValueError(f"{scanner.id}: Uploaded ATC source SHA mismatch")
+        scanner = AtcNativeSignalScanner(scanner.id)
+        scanner_config = AtcNativeConfig()
     configured_version = str(section.get("version", ""))
     if configured_version != scanner.version:
         raise ValueError(
