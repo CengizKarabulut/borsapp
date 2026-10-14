@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Read-only borsapp PostgreSQL -> ATC Excel/Power BI scan matrix.
+
+A MATCH without stored directional evidence is NOT called bullish. No Telegram sends.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+from datetime import date
+import json
+import os
+from pathlib import Path
+
+from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
+from market_intelligence.scanning.catalog import load_scanner_catalog
+
+SCANNER_ORDER = (
+    'signal.macd_positive_cross', 'signal.smi_macd_positive',
+    'signal.smi_macd_positive_volume_confirmed', 'signal.ema_trend_volume',
+    'signal.rsi_macd_volume', 'signal.sma_macd_volume', 'signal.smi_macd_full',
+    'signal.smi_macd_early', 'signal.rsi_momentum_volume', 'technical.volume_spike',
+    'technical.squeeze_volume', 'technical.extreme_rsi', 'technical.failed_breakout',
+    'technical.decision_zone', 'technical.trend_continuation', 'technical.exhaustion',
+    'decision.panel_v645', 'ma.near_zone',
+)
+TIMEFRAMES = ('5m', '15m', '1h', '4h', '1d', '1wk')
+COLUMNS = ('Hisse', 'ZamanDilimi', 'TaramaNo', 'MotorKimligi', 'Durum',
+           'MumKapanisiUTC', 'MotorSurumu', 'KuralHash', 'HataKodu', 'VeriKaynagi')
+
+# Read only completed cycles. Match directions must belong to the same evaluation.
+LATEST_SQL = """
+SELECT DISTINCT ON (e.instrument_id, e.timeframe, e.scanner_id)
+    e.instrument_id, e.timeframe, e.scanner_id, e.scanner_version,
+    e.ruleset_hash, e.bar_time, e.status, e.error_code, e.evaluation_id,
+    ARRAY(SELECT DISTINCT ev.direction FROM scan_events ev
+          WHERE ev.evaluation_id = e.evaluation_id ORDER BY ev.direction)
+FROM scan_evaluations e
+JOIN scan_cycles c ON c.cycle_id = e.cycle_id
+WHERE c.universe_id = %s AND e.instrument_id = ANY(%s::uuid[])
+  AND c.status IN ('completed', 'completed_with_errors')
+ORDER BY e.instrument_id, e.timeframe, e.scanner_id,
+         e.bar_time DESC, e.evaluated_at DESC, e.evaluation_id DESC
+"""
+
+
+def status_label(status: str, directions: tuple[str, ...] | list[str]) -> str:
+    """Fail closed: neither unknown nor missing direction may become a signal."""
+    if status == 'unknown':
+        return 'HESAPLANAMADI'
+    if status == 'no_match':
+        return 'KOSUL_YOK'
+    if status != 'match':
+        return 'HESAPLANAMADI'
+    d = set(directions)
+    if not d or not d.issubset({'bullish', 'bearish', 'neutral', 'mixed'}):
+        return 'ESLESME_YON_BELIRSIZ'
+    if 'mixed' in d or ('bullish' in d and 'bearish' in d):
+        return 'KARMA'
+    if d == {'bullish'}:
+        return 'POZITIF'
+    if d == {'bearish'}:
+        return 'NEGATIF'
+    if d == {'neutral'}:
+        return 'NOTR'
+    return 'KARMA'
+
+
+def matrix_rows(members, evaluations, bindings, *, timeframes=TIMEFRAMES):
+    """Create complete universe coverage and distinguish NO_DATA from NO_MATCH."""
+    if len(set(SCANNER_ORDER)) != 18 or set(bindings) != set(SCANNER_ORDER):
+        raise ValueError('18 tarama kataloğunda kaynak/kural uyumsuzluğu')
+    unique = {(str(i), s.upper()): (str(i), s.upper()) for i, s in members}
+    symbols = [symbol for _, symbol in unique.values()]
+    if len(symbols) != len(set(symbols)):
+        raise ValueError('Bir hisse farklı instrument_id ile birden çok kez geldi')
+    known = {}
+    for ev in evaluations:
+        instrument_id, tf, scanner_id = str(ev[0]), str(ev[1]), str(ev[2])
+        key = (instrument_id, tf, scanner_id)
+        if key in known:
+            raise ValueError(f'En son değerlendirmede mükerrer kayıt: {key}')
+        known[key] = ev
+    for instrument_id, symbol in sorted(unique.values(), key=lambda x: x[1]):
+        for tf in timeframes:
+            for number, scanner_id in enumerate(SCANNER_ORDER, 1):
+                binding = bindings[scanner_id]
+                ev = known.get((instrument_id, tf, scanner_id))
+                row = {column: '' for column in COLUMNS}
+                row.update(Hisse=symbol, ZamanDilimi=tf, TaramaNo=number,
+                           MotorKimligi=scanner_id)
+                if tf not in {x.value for x in binding.shadow_timeframes}:
+                    row['Durum'] = 'DESTEKLENMIYOR'
+                elif ev is None:
+                    row['Durum'] = 'VERI_YOK'
+                else:
+                    _, _, _, version, rule_hash, bar_time, status, error_code, _, directions = ev
+                    row.update(MumKapanisiUTC=bar_time.isoformat(), MotorSurumu=version,
+                               KuralHash=rule_hash, HataKodu=error_code or '',
+                               VeriKaynagi='borsapp:scan_evaluations')
+                    if version != binding.scanner.version or rule_hash != binding.ruleset_hash:
+                        row['Durum'] = 'SURUM_UYUSMAZLIGI'
+                    else:
+                        row['Durum'] = status_label(status, directions or ())
+                yield row
+
+
+def export_matrix(db, universe, config_path, destination, *, as_of: date):
+    bindings_tuple = load_scanner_catalog(Path(config_path))
+    bindings = {binding.scanner.id: binding for binding in bindings_tuple}
+    members = PostgresRuntimeRepository(db).list_universe(universe, as_of=as_of)
+    if not members:
+        raise ValueError(f'Evren boş: {universe}; universe-sync çalıştırın')
+    member_pairs = [(member.instrument_id, member.symbol) for member in members]
+    with db.cursor() as cursor:
+        cursor.execute(LATEST_SQL, (universe, [member.instrument_id for member in members]))
+        evaluations = cursor.fetchall()
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    counts = {}
+    temporary = destination.with_suffix(destination.suffix + '.tmp')
+    try:
+        with temporary.open('w', encoding='utf-8-sig', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=COLUMNS)
+            writer.writeheader()
+            for row in matrix_rows(member_pairs, evaluations, bindings):
+                counts[row['Durum']] = counts.get(row['Durum'], 0) + 1
+                writer.writerow(row)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {'universe': universe, 'as_of': as_of.isoformat(), 'members': len(members),
+            'conditions': 18, 'timeframes': len(TIMEFRAMES), 'statuses': counts,
+            'csv': str(destination)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--universe', default='BIST_ALL')
+    parser.add_argument('--as-of', type=date.fromisoformat, default=date.today())
+    parser.add_argument('--config', default='config/scanners.toml')
+    parser.add_argument('--output', default='runtime_artifacts/ATC_Tarama_Matris.csv')
+    args = parser.parse_args()
+    database_url = os.getenv('DATABASE_URL')
+    if not database_url:
+        parser.error('DATABASE_URL ayarlanmalı; kimlik bilgilerini repoya koymayın')
+    import psycopg
+    with psycopg.connect(database_url) as db:
+        result = export_matrix(db, args.universe, args.config, args.output, as_of=args.as_of)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == '__main__':
+    main()
