@@ -36,8 +36,16 @@ class YFinanceBistProvider(BorsapyProvider):
         hourly = request.timeframe is Timeframe.H1
         source_request = replace(request, timeframe=Timeframe.M30, bars=request.bars * 2) if hourly else request
         period, interval = INTERVALS[source_request.timeframe]
-        if request.timeframe is Timeframe.D1 and request.bars > 1250:
-            period = "max"
+        if request.timeframe is Timeframe.D1:
+            for candidate, bars in (
+                ("1mo", 18), ("3mo", 55), ("6mo", 120),
+                ("1y", 240), ("2y", 480), ("5y", 1250),
+            ):
+                if request.bars <= bars:
+                    period = candidate
+                    break
+            else:
+                period = "max"
         symbol = request.provider_symbol.strip().upper()
         yahoo_symbol = symbol if symbol.endswith(".IS") else f"{symbol}.IS"
         data = yf.Ticker(yahoo_symbol).history(
