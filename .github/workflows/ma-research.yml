@@ -63,7 +63,7 @@ jobs:
         run: echo "DATABASE_URL secret is not configured; MA research skipped."
       - name: Install runtime
         if: ${{ env.DATABASE_URL != '' }}
-        run: python -m pip install ".[runtime]"
+        run: python -m pip install ".[runtime,atcdata]"
       - name: Ensure schema and BIST universe
         if: ${{ env.DATABASE_URL != '' }}
         run: |
