@@ -40,6 +40,7 @@ from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTr
 from market_intelligence.delivery.telegram.publisher import TelegramPublisher
 from market_intelligence.delivery.telegram.routing import PublicationKind, TopicRouter
 from market_intelligence.delivery.telegram.updates import HttpxTelegramUpdateSource
+from market_intelligence.features.atc_native import AtcNativePacketProvider
 from market_intelligence.features.decision import DecisionPanelV645Provider
 from market_intelligence.features.ma import QualifiedMaResearchProvider
 from market_intelligence.features.momentum import (
@@ -829,6 +830,7 @@ def _sync_universe(
 def _feature_engine(connection) -> FeatureEngine:
     registry = FeatureRegistry()
     for provider in (
+        AtcNativePacketProvider(),
         RelativeVolume20Provider(),
         MacdProvider(),
         RsiProvider(),
