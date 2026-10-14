@@ -65,3 +65,26 @@ class CanonicalFrame:
     @property
     def through_bar_time(self) -> datetime:
         return self.bars[-1].close_time
+
+
+@dataclass(frozen=True)
+class CachedDailyBars:
+    """A single-source, single-basis, single-revision closed daily series.
+
+    Never splice together provider sources or revision numbers. The cache is a
+    persisted OHLCV window; Pine always recalculates indicators from the last
+    requested closed bars, rather than incrementally carrying EMA seed state.
+    """
+
+    source: str
+    price_basis: PriceBasis
+    series_revision: int
+    bars: tuple[CanonicalBar, ...]
+
+    def __post_init__(self) -> None:
+        if not self.source or not self.bars:
+            raise ValueError("CachedDailyBars requires a source and closed bars")
+        if len({b.close_time for b in self.bars}) != len(self.bars):
+            raise ValueError("CachedDailyBars contains duplicate bar timestamps")
+        if tuple(sorted(self.bars, key=lambda b: b.close_time)) != self.bars:
+            raise ValueError("CachedDailyBars must be ordered by bar close time")
