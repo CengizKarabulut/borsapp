@@ -998,6 +998,7 @@ f_r17_closed_chart() =>
     [ready, entry, score, activeSetup, newSetup, rvol, pct20, adx, guard, base] = f_r17_frame(600)
     bool available = ready and barstate.isconfirmed
     [available, available and entry, score, activeSetup, newSetup, rvol, pct20, adx, guard, base]
+
 // INTRADAY consumer: request only from "1D" with lookahead_on. EVERY field is
 // offset. This reports the prior completed daily event at the next daily period.
 // Do not label it a 1h/4h/1W rule17; deduplicate by returned source time_close.
