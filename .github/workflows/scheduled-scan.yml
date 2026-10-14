@@ -27,7 +27,8 @@ on:
         type: boolean
   schedule:
     - cron: "*/15 7-14 * * 1-5"
-    - cron: "0 15 * * 1-5"
+    # 18:30 TRT after BIST closing auction; 18:00 TRT was too early.
+    - cron: "30 15 * * 1-5"
 
 permissions:
   contents: read
