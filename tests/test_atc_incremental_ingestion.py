@@ -134,14 +134,14 @@ class IncrementalDailyIngestionTests(unittest.TestCase):
         from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvider
 
         provider = BorsapyProvider()
-        self.assertEqual(provider._history_period(request(624).__class__(
-            **{
-                "provider_symbol": "ASELS",
-                "timeframe": Timeframe.D1,
-                "bars": 12,
-                "as_of": request(624).as_of,
-            }
-        )), "1mo")
+        from market_intelligence.market_data.providers import FetchRequest
+
+        self.assertEqual(
+            provider._history_period(
+                FetchRequest("ASELS", Timeframe.D1, 12, request(624).as_of)
+            ),
+            "1mo",
+        )
         self.assertEqual(YFinanceBistProvider.name, "yfinance")
 
 
