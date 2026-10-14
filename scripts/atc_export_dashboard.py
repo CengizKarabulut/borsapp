@@ -33,8 +33,23 @@ LATEST_SQL = """
 SELECT DISTINCT ON (e.instrument_id, e.timeframe, e.scanner_id)
     e.instrument_id, e.timeframe, e.scanner_id, e.scanner_version,
     e.ruleset_hash, e.bar_time, e.status, e.error_code, e.evaluation_id,
-    ARRAY(SELECT DISTINCT ev.direction FROM scan_events ev
-          WHERE ev.evaluation_id = e.evaluation_id ORDER BY ev.direction)
+    ARRAY(
+        SELECT DISTINCT evidence.direction
+        FROM (
+            SELECT ev.direction AS direction FROM scan_events ev
+            WHERE ev.evaluation_id = e.evaluation_id
+            UNION ALL
+            SELECT st.metrics ->> '_atc_direction' AS direction FROM active_states st
+            WHERE st.instrument_id = e.instrument_id
+              AND st.scanner_id = e.scanner_id
+              AND st.timeframe = e.timeframe
+              AND st.producer_version = e.scanner_version
+              AND st.ruleset_hash = e.ruleset_hash
+              AND st.last_seen_at = e.bar_time
+              AND st.status = 'active'
+        ) evidence WHERE evidence.direction IS NOT NULL
+        ORDER BY evidence.direction
+    )
 FROM scan_evaluations e
 JOIN scan_cycles c ON c.cycle_id = e.cycle_id
 WHERE c.universe_id = %s AND e.instrument_id = ANY(%s::uuid[])
