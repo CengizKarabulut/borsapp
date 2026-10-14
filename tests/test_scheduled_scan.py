@@ -153,6 +153,66 @@ class ScheduledScanServiceTests(unittest.TestCase):
         self.assertEqual(repository.updated, [datetime(2026, 9, 7, 13, 0, tzinfo=ISTANBUL)])
         self.assertEqual(repository.failures[0].symbol, "BAD")
 
+    def test_atc_pinned_watchlist_uses_current_date_at_overnight_bootstrap(self) -> None:
+        class DatesRepository(Repository):
+            def __init__(self):
+                super().__init__()
+                self.as_of_dates = []
+
+            def earliest_watermark(self, **kwargs):
+                return None
+
+            def list_universe(self, universe_id, *, as_of):
+                self.as_of_dates.append(as_of)
+                return super().list_universe(universe_id, as_of=as_of)
+
+        class YesterdayPlanner:
+            def due(self, **kwargs):
+                return (datetime(2026, 10, 14, 18, 0, tzinfo=ISTANBUL),)
+
+        repo = DatesRepository()
+        runner = ScheduledScanService(
+            repository=repo, ingestion=Ingestion(),
+            coordinator=Coordinator(), planner=YesterdayPlanner(),
+        )
+        result = runner.run(
+            ScheduledScanRequest(
+                market="BIST", universe_id="ATC_630", timeframe=Timeframe.H1,
+                bars=600, evaluation_time=datetime(2026, 10, 15, 2, 15, tzinfo=ISTANBUL),
+            ),
+            (Binding(),),
+        )
+        self.assertEqual(result.successful_instruments, 1)
+        self.assertEqual(repo.as_of_dates, [datetime(2026, 10, 15).date()])
+
+    def test_historical_bist_universe_keeps_bar_date(self) -> None:
+        class DatesRepository(Repository):
+            def __init__(self):
+                super().__init__()
+                self.as_of_dates = []
+
+            def list_universe(self, universe_id, *, as_of):
+                self.as_of_dates.append(as_of)
+                return super().list_universe(universe_id, as_of=as_of)
+
+        class YesterdayPlanner:
+            def due(self, **kwargs):
+                return (datetime(2026, 10, 14, 18, 0, tzinfo=ISTANBUL),)
+
+        repo = DatesRepository()
+        runner = ScheduledScanService(
+            repository=repo, ingestion=Ingestion(),
+            coordinator=Coordinator(), planner=YesterdayPlanner(),
+        )
+        runner.run(
+            ScheduledScanRequest(
+                market="BIST", universe_id="BIST_ALL", timeframe=Timeframe.H1,
+                bars=600, evaluation_time=datetime(2026, 10, 15, 2, 15, tzinfo=ISTANBUL),
+            ),
+            (Binding(),),
+        )
+        self.assertEqual(repo.as_of_dates, [datetime(2026, 10, 14).date()])
+
     def test_empty_universe_fails_loudly(self) -> None:
         class EmptyRepository(Repository):
             def list_universe(self, universe_id, *, as_of):
