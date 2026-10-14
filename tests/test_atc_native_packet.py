@@ -1,112 +1,122 @@
 from __future__ import annotations
 
+import hashlib
+import math
 import unittest
-from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from market_intelligence.core.enums import EvaluationStatus
-from market_intelligence.features.momentum import (
-    MACD_12_26_9,
-    RSI_14,
-    SMI_10_3_3,
-    MacdSnapshot,
-    RsiSnapshot,
-    SmiSnapshot,
+from market_intelligence.core.enums import EvaluationStatus, PriceBasis
+from market_intelligence.core.timeframes import Timeframe
+from market_intelligence.features.atc_native import (
+    ATC_NATIVE_PACKET,
+    AtcNativePacketProvider,
+    calculate_native_packet,
 )
-from market_intelligence.features.trend import (
-    INCLUSIVE_VOLUME_SMA_20,
-    LEGACY_TREND_MA_SET,
-    InclusiveVolumeSnapshot,
-    LegacyTrendMaSnapshot,
-)
-from market_intelligence.scanning.engine import ScannerEngine
+from market_intelligence.features.registry import FeatureEngine, FeatureRegistry
+from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
+from market_intelligence.scanning.pipeline import ScanPipeline
 from market_intelligence.scanning.signal.atc_native_packet import (
     ATC_NATIVE_SIGNAL_IDS,
+    ATC_SCRIPT_SHA256,
     AtcNativeSignalScanner,
 )
-from tests.test_volume_spike import context, frame
+from tests.test_volume_spike import frame
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def price_frame(prices: list[float]) -> CanonicalFrame:
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    candles = []
+    for i, close in enumerate(prices):
+        opened = start + timedelta(days=i)
+        candles.append(
+            CanonicalBar(
+                open_time=opened,
+                close_time=opened + timedelta(hours=1),
+                open=close, high=close + 2.0, low=close - 2.0,
+                close=close, volume=1000.0 + i % 13,
+            )
+        )
+    return CanonicalFrame(
+        instrument_id="example-1", symbol_at_snapshot="ATC",
+        market="BIST", timeframe=Timeframe.D1, snapshot_id="snap-1",
+        series_revision=1, price_basis=PriceBasis.RAW, source="fixture",
+        bars=tuple(candles),
+    )
+
+
+def pipeline() -> ScanPipeline:
+    registry = FeatureRegistry()
+    registry.register(AtcNativePacketProvider())
+    return ScanPipeline(FeatureEngine(registry))
+
+
+def context(source):
+    from market_intelligence.scanning.contracts import ScanContext
+
+    return ScanContext(
+        evaluation_time=source.through_bar_time + timedelta(seconds=5),
+        bar_close_time=source.through_bar_time,
+        market_session_id="BIST:test",
+        calendar_version="bist-session-v1", ruleset_hash="atc-test",
+    )
 
 
 class AtcPineNativeSignalTests(unittest.TestCase):
-    def test_all_nine_rules_use_latest_source(self):
+    def test_exact_user_source_was_preserved_byte_for_byte_in_crlf_form(self):
+        source = ROOT / "docs/reference/ATC_TV200_18_TARAMA_20261012.pine"
+        canonical = (source.read_text(encoding="utf-8").rstrip("\n") + "\n").replace("\n", "\r\n")
+        self.assertEqual(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), ATC_SCRIPT_SHA256)
+
+    def test_all_nine_rules_use_one_shared_native_packet_feature(self):
         self.assertEqual(len(ATC_NATIVE_SIGNAL_IDS), 9)
         for i, scanner_id in enumerate(ATC_NATIVE_SIGNAL_IDS, 1):
             scanner = AtcNativeSignalScanner(scanner_id)
             self.assertEqual(scanner.rule_number, i)
             self.assertEqual(scanner.version, "2.0.0")
+            self.assertEqual(scanner.required_features, (ATC_NATIVE_PACKET,))
             self.assertFalse(scanner.accepts_partial_bars)
 
-    def test_rule_one_matches_native_packet_without_chart_extra_filters(self):
-        source = frame(last_volume=100.0)
-        scanner = AtcNativeSignalScanner(ATC_NATIVE_SIGNAL_IDS[0])
-        features = {
-            MACD_12_26_9.feature_id: MacdSnapshot(
-                line=0.5, signal=0.3, histogram=0.2,
-                previous_line=0.35, previous_signal=0.35, previous_histogram=0,
-            ),
-            RSI_14.feature_id: RsiSnapshot(value=55, previous_value=48),
-        }
-        result = ScannerEngine().run(
-            cycle_id="test-cycle", frame=source,
-            scanner=scanner, context=context(source, features)
-        )
-        self.assertEqual(result.evaluation.status, EvaluationStatus.MATCH)
-        self.assertEqual(result.findings[0].metrics["atc_rule_number"], 1)
-        # The legacy chart overlay demanded additional trend/volume conditions
-        # that are absent from the authoritative native alarm packet.
+    def test_old_history_outside_600_bars_cannot_affect_current_packet(self):
+        last600 = [100.0 + i * 0.04 + 3 * math.sin(i / 9) for i in range(600)]
+        source600 = price_frame(last600)
+        source800 = price_frame([30.0] * 200 + last600)
+        a = calculate_native_packet(source600)
+        b = calculate_native_packet(source800)
+        self.assertIsNotNone(a)
+        self.assertIsNotNone(b)
+        self.assertEqual(a, b)
+        self.assertEqual(len(a.known), 9)
+        self.assertTrue(all(a.known))
 
-    def test_rule_seven_and_eight_are_mutually_exclusive(self):
-        source = frame(last_volume=200.0)
-        trend = LegacyTrendMaSnapshot(
-            close=10.0,
-            sma={200: 9.0},
-            ema={}, previous_ema={},
-        )
-        features = {
-            MACD_12_26_9.feature_id: MacdSnapshot(
-                line=-0.2, signal=-0.3, histogram=-0.1,
-                previous_line=-0.3, previous_signal=-0.2, previous_histogram=-0.2
-            ),
-            SMI_10_3_3.feature_id: SmiSnapshot(
-                value=-10, signal=-12, previous_value=-13, previous_signal=-11
-            ),
-            LEGACY_TREND_MA_SET.feature_id: trend,
-            INCLUSIVE_VOLUME_SMA_20.feature_id: InclusiveVolumeSnapshot(
-                observed_volume=200, mean_volume=100, ratio=2
-            ),
-        }
-        # G/H both need >=200 bars for MA200 availability, but the scorer
-        # consumes canonical frame quality separately from the snapshot.
-        additional = []
-        last = source.bars[-1]
-        for i in range(180):
-            opened = last.close_time + timedelta(hours=i)
-            additional.append(replace(last, open_time=opened, close_time=opened + timedelta(hours=1)))
-        extended = replace(source, bars=source.bars + tuple(additional), snapshot_id="longer")
-        statuses = []
-        for rule in (7, 8):
-            scanner = AtcNativeSignalScanner(ATC_NATIVE_SIGNAL_IDS[rule - 1])
-            result = ScannerEngine().run(
-                cycle_id="test-cycle", frame=extended,
-                scanner=scanner, context=context(extended, features)
-            )
-            statuses.append(result.evaluation.status)
-        self.assertEqual(statuses.count(EvaluationStatus.MATCH), 1)
-
-    def test_unknown_and_unconfirmed_are_not_silent_no_match(self):
-        scanner = AtcNativeSignalScanner(ATC_NATIVE_SIGNAL_IDS[0])
+    def test_insufficient_history_returns_unknown_not_false(self):
         source = frame()
-        engine = ScannerEngine()
-        missing = engine.run(
-            cycle_id="x", frame=source, scanner=scanner, context=context(source)
+        scan = AtcNativeSignalScanner(ATC_NATIVE_SIGNAL_IDS[0])
+        run = pipeline().run(cycle_id="pilot", frame=source, scanner=scan, context=context(source))
+        self.assertEqual(run.scan.evaluation.status, EvaluationStatus.UNKNOWN)
+        self.assertEqual(run.scan.evaluation.error_code, "scanner_input_unavailable")
+
+    def test_available_no_match_does_not_become_unknown(self):
+        source = price_frame([60.0 + i * 0.01 for i in range(250)])
+        scan = AtcNativeSignalScanner(ATC_NATIVE_SIGNAL_IDS[8])
+        run = pipeline().run(cycle_id="pilot", frame=source, scanner=scan, context=context(source))
+        self.assertIn(run.scan.evaluation.status, (EvaluationStatus.MATCH, EvaluationStatus.NO_MATCH))
+        self.assertEqual(run.features.unavailable, ())
+
+    def test_invalid_price_and_partial_bar_are_unknown(self):
+        source = frame()
+        partial = source.__class__(
+            **{**source.__dict__, "is_partial": True}
         )
-        self.assertEqual(missing.evaluation.status, EvaluationStatus.UNKNOWN)
-        partial = replace(source, is_partial=True)
-        blocked = engine.run(
-            cycle_id="x", frame=partial, scanner=scanner, context=context(partial)
+        result = pipeline().run(
+            cycle_id="pilot", frame=partial,
+            scanner=AtcNativeSignalScanner(ATC_NATIVE_SIGNAL_IDS[0]), context=context(partial),
         )
-        self.assertEqual(blocked.evaluation.status, EvaluationStatus.UNKNOWN)
-        self.assertEqual(blocked.evaluation.error_code, "partial_bar_rejected")
+        self.assertEqual(result.scan.evaluation.status, EvaluationStatus.UNKNOWN)
+        self.assertEqual(result.scan.evaluation.error_code, "partial_bar_rejected")
 
 
 if __name__ == "__main__":
