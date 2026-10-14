@@ -24,6 +24,9 @@ dev = [
     "reportlab>=4.2,<5",
     "ruff>=0.5,<1",
 ]
+atcdata = [
+    "tvdatafeed-enhanced==2.2.1",
+]
 runtime = [
     "beautifulsoup4>=4.13,<5",
     "borsapy>=0.10,<1",
