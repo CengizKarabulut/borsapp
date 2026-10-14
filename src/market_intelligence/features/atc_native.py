@@ -70,7 +70,7 @@ def calculate_native_packet(frame: CanonicalFrame, *, requested_bars: int = 600)
     smi_seed = False
 
     for i in range(n):
-        c, h, l = close[i], high[i], low[i]
+        c, h, low_value = close[i], high[i], low[i]
         if i:
             change = c - close[i - 1]
             gain, loss = max(change, 0.0), max(-change, 0.0)
@@ -84,7 +84,7 @@ def calculate_native_packet(frame: CanonicalFrame, *, requested_bars: int = 600)
                 l14 = loss / 14 + 13 / 14 * l14
             rsi7[i] = (100.0 if g7 > 0 else None) if l7 == 0 else 100 - 100 / (1 + g7 / l7)
             rsi14[i] = (100.0 if g14 > 0 else None) if l14 == 0 else 100 - 100 / (1 + g14 / l14)
-            tr = max(h - l, abs(h - close[i - 1]), abs(l - close[i - 1]))
+            tr = max(h - low_value, abs(h - close[i - 1]), abs(low_value - close[i - 1]))
             if i <= 14:
                 gtotal += gain
                 ltotal += loss
