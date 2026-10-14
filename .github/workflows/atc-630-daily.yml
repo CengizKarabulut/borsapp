@@ -91,6 +91,22 @@ jobs:
         run: python scripts/atc_universe_seed.py --apply
       # MA rule 18 is refreshed by the independent ma-research.yml workflow.
       # Its long 630 x 112 MA quality pass MUST NOT block daily rules 1-17.
+      - name: Verify ATC_630 membership for Istanbul run date
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import psycopg
+          from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
+          as_of = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+          with psycopg.connect(os.environ["DATABASE_URL"]) as db:
+              members = PostgresRuntimeRepository(db).list_universe("ATC_630", as_of=as_of)
+          print(f"ATC_630 active members on {as_of}: {len(members)}", flush=True)
+          if len(members) != 630:
+              raise SystemExit("ATC_630 watchlist not visible at scan evaluation date")
+          PY
       - name: Run 630-symbol daily scan with native Pine rules
         id: daily
         continue-on-error: true
