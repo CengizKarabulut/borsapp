@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-from datetime import date
+from datetime import UTC, date
 import json
 import os
 from pathlib import Path
@@ -95,7 +95,7 @@ def matrix_rows(members, evaluations, bindings, *, timeframes=TIMEFRAMES):
                     row['Durum'] = 'VERI_YOK'
                 else:
                     _, _, _, version, rule_hash, bar_time, status, error_code, _, directions = ev
-                    row.update(MumKapanisiUTC=bar_time.isoformat(), MotorSurumu=version,
+                    row.update(MumKapanisiUTC=bar_time.astimezone(UTC).isoformat(), MotorSurumu=version,
                                KuralHash=rule_hash, HataKodu=error_code or '',
                                VeriKaynagi='borsapp:scan_evaluations')
                     if version != binding.scanner.version or rule_hash != binding.ruleset_hash:
