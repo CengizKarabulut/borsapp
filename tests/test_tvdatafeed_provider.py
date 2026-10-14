@@ -15,7 +15,6 @@ from market_intelligence.market_data.adapters.fallback import FallbackMarketData
 from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistProvider
 from market_intelligence.market_data.providers import FetchRequest
 
-
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 
 
