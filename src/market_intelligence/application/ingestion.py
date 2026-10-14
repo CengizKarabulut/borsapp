@@ -100,13 +100,17 @@ class IngestionService:
             return None
         overlap_bars = min(request.bars, max(12, days + 10))
         try:
-            raw = self.provider.fetch(
-                FetchRequest(
-                    provider_symbol=request.provider_symbol,
-                    timeframe=Timeframe.D1,
-                    bars=overlap_bars,
-                    as_of=request.as_of,
-                )
+            fetch_request = FetchRequest(
+                provider_symbol=request.provider_symbol,
+                timeframe=Timeframe.D1,
+                bars=overlap_bars,
+                as_of=request.as_of,
+            )
+            fetch_source = getattr(self.provider, "fetch_from_source", None)
+            raw = (
+                fetch_source(cache.source, fetch_request)
+                if callable(fetch_source)
+                else self.provider.fetch(fetch_request)
             )
             if raw.provider != cache.source or raw.price_basis != cache.price_basis:
                 return None
