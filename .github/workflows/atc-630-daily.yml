@@ -48,6 +48,10 @@ jobs:
         run: borsapp db-migrate
       - name: Seed all 630 watched symbols and report provider gaps
         run: python scripts/atc_universe_seed.py --apply
+      - name: Refresh 18th-rule MA historical qualification on same 600 bars
+        id: ma
+        continue-on-error: true
+        run: borsapp ma-research-universe --universe ATC_630 --timeframe 1d --bars 600
       - name: Run 630-symbol daily scan with native Pine rules
         id: daily
         continue-on-error: true
