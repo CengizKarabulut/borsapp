@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from market_intelligence.core.identity import canonical_json, stable_hash
 from market_intelligence.core.enums import PriceBasis
+from market_intelligence.core.identity import canonical_json, stable_hash
 from market_intelligence.market_data.bars import CachedDailyBars, CanonicalBar, CanonicalFrame
 from market_intelligence.market_data.errors import SeriesRevisionConflict
 
