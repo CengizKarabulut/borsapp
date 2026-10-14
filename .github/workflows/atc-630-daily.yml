@@ -2,6 +2,11 @@ name: ATC 630 daily confirmed scan
 
 on:
   workflow_dispatch:
+  # One-time live-data pilot when the workflow definition is installed/updated.
+  # Other main-branch commits do not trigger expensive market-wide scans.
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-630-daily.yml]
   schedule:
     # 18:45 Türkiye saati, BIST 18:10 kapanış müzayedesinden sonra.
     - cron: "45 15 * * 1-5"
