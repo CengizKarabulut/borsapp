@@ -105,12 +105,17 @@ def matrix_rows(members, evaluations, bindings, *, timeframes=TIMEFRAMES):
                 yield row
 
 
-def export_matrix(db, universe, config_path, destination, *, as_of: date):
+def export_matrix(db, universe, config_path, destination, *, as_of: date, require_members: int = 0):
     bindings_tuple = load_scanner_catalog(Path(config_path))
     bindings = {binding.scanner.id: binding for binding in bindings_tuple}
     members = PostgresRuntimeRepository(db).list_universe(universe, as_of=as_of)
     if not members:
         raise ValueError(f'Evren boş: {universe}; universe-sync çalıştırın')
+    if require_members and len(members) < require_members:
+        raise ValueError(
+            f'ATC kapsam eksik: BIST evreni {len(members)} hisse; hedef {require_members}. '
+            'Eksik sembolleri doğrulamadan 630 hisse raporu üretilemez.'
+        )
     member_pairs = [(member.instrument_id, member.symbol) for member in members]
     with db.cursor() as cursor:
         cursor.execute(LATEST_SQL, (universe, [member.instrument_id for member in members]))
@@ -140,13 +145,16 @@ def main():
     parser.add_argument('--as-of', type=date.fromisoformat, default=date.today())
     parser.add_argument('--config', default='config/scanners.toml')
     parser.add_argument('--output', default='runtime_artifacts/ATC_Tarama_Matris.csv')
+    parser.add_argument('--require-members', type=int, default=0,
+                        help='Kapsam bu sayıdan azsa sessiz eksik rapor yerine hata ver')
     args = parser.parse_args()
     database_url = os.getenv('DATABASE_URL')
     if not database_url:
         parser.error('DATABASE_URL ayarlanmalı; kimlik bilgilerini repoya koymayın')
     import psycopg
     with psycopg.connect(database_url) as db:
-        result = export_matrix(db, args.universe, args.config, args.output, as_of=args.as_of)
+        result = export_matrix(db, args.universe, args.config, args.output,
+                               as_of=args.as_of, require_members=args.require_members)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
