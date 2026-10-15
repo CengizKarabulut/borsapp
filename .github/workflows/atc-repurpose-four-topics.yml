@@ -71,7 +71,11 @@ jobs:
               print("Old legacy messages still queued in reused topics:",
                     [(int(thread), int(count)) for thread, count in pending])
               raise SystemExit("Resolve old outbox backlog before renaming topics")
-          print("Safe to repurpose the four existing topics; no legacy backlog.")
+          for thread in (6, 11, 9, 10, 28327):
+              if api("sendChatAction", chat_id=chat, message_thread_id=thread,
+                     action="typing") is not True:
+                  raise SystemExit(f"Existing topic {thread} is inaccessible")
+          print("All five existing topics reachable; no legacy backlog.")
           PY
       - name: Rename EXACTLY four existing topics and verify sendMessage in each
         run: |
