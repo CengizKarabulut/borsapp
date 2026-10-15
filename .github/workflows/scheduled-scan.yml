@@ -174,10 +174,13 @@ jobs:
     needs: prepare
     strategy:
       fail-fast: false
+      # Two independent timeframes, eight workers each; limit provider
+      # concurrency and GitHub Actions usage while initial history warms up.
+      max-parallel: 2
       matrix:
         timeframe: ${{ fromJSON(needs.prepare.outputs.timeframes) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     env:
       APP_ENV: production
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
