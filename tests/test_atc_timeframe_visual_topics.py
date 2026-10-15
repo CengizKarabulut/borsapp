@@ -58,17 +58,14 @@ class OldTimeframeTopicTests(unittest.TestCase):
                 settings, mapped, Timeframe.M30, identity={"test": 1}, payload={}
             )
 
-    def test_user_existing_four_topics_apply_only_to_matching_group(self):
+    def test_message_links_never_become_telegram_thread_ids(self):
         configured = {
             "TELEGRAM_CHAT_ID": "-1004439315048",
             "TELEGRAM_TOPIC_SCANS": "5",
         }
-        current = timeframe_topic_ids(configured)
-        self.assertEqual(current[Timeframe.H1], 326)
-        self.assertEqual(current[Timeframe.H4], 327)
-        self.assertEqual(current[Timeframe.D1], 328)
-        self.assertEqual(current[Timeframe.W1], 329)
-        self.assertNotIn(Timeframe.M15, current)
+        # A historical t.me/c/.../328 link was rejected by the Bot API as
+        # 'message thread not found'. No screenshot-derived hardcoded fallback.
+        self.assertEqual(timeframe_topic_ids(configured), {})
         self.assertEqual(timeframe_topic_ids({
             "TELEGRAM_CHAT_ID": "-1001234567890"
         }), {})
