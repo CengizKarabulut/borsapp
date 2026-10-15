@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.market_data.adapters.fallback import FallbackMarketDataProvider
-from market_intelligence.market_data.providers import FetchRequest
 from market_intelligence.market_data.provider_cooldown import ProviderRetryCooldowns
+from market_intelligence.market_data.providers import FetchRequest
 
 
 class FakeCooldown:
