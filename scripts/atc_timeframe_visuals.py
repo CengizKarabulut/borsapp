@@ -75,6 +75,9 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows: list[tuple[str,
     draw.text((340, 229), "KOSUL", font=_font(19, bold=True), fill="#51687D")
     draw.text((805, 229), "YON", font=_font(19, bold=True), fill="#51687D")
     draw.line((52, 260, 1025, 260), fill="#D5DFE8", width=2)
+    if not rows and matched_count == 0:
+        draw.text((53, 290), "Teyitli kapanışta eşleşen koşul yok.",
+                  font=_font(23, bold=True), fill="#52697F")
     for index, (symbol, number, state) in enumerate(rows):
         top = 267 + index * 46
         if index % 2 == 0:
@@ -232,11 +235,9 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             members, ev, bindings, tf.value, now=now
         )
         if not matches:
-            print(f"Visual scanner {tf.value}: 0 matches; no empty/fabricated image", flush=True)
-            return {"bar_time": bar_time.isoformat(), "covered": covered, "matches": 0,
-                    "sent": 0}
+            print(f"Visual scanner {tf.value}: confirmed 0 matches; publishing verified empty result card", flush=True)
         rows = matches[:MAX_ROWS_PER_CARD * MAX_CARDS]
-        pages = (len(rows) + MAX_ROWS_PER_CARD - 1) // MAX_ROWS_PER_CARD
+        pages = max(1, (len(rows) + MAX_ROWS_PER_CARD - 1) // MAX_ROWS_PER_CARD)
         envelopes = []
         for i in range(pages):
             page_rows = rows[i * MAX_ROWS_PER_CARD:(i + 1) * MAX_ROWS_PER_CARD]

@@ -129,6 +129,17 @@ class OldTimeframeTopicTests(unittest.TestCase):
         self.assertGreater(image.width, 900)
         self.assertGreater(image.height, 350)
 
+    def test_no_match_card_explicitly_displays_verified_zero_not_missing_data(self):
+        bar_time = datetime(2026, 10, 15, 14, tzinfo=IST)
+        png = render_card_png(
+            timeframe="1h", bar_time=bar_time, rows=[],
+            matched_count=0, total_symbols=630, page=1, pages=1,
+        )
+        image = Image.open(io.BytesIO(png))
+        self.assertEqual(image.format, "PNG")
+        self.assertGreater(len(png), 1000)
+        self.assertEqual(image.width, 1080)
+
     def test_provisional_daily_card_and_complete_csv_share_verified_topic(self):
         settings = TelegramSettings.from_mapping(environment())
         now = datetime(2026, 10, 15, 12, 45, tzinfo=IST)

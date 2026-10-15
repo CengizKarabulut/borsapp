@@ -39,7 +39,10 @@ concurrency:
 
 jobs:
   prepare:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_SCANS != 'false' }}
+    # Scheduled scans explicitly requested by owner on 15 October 2026.
+    # Old ENABLE_SCHEDULED_SCANS=false repository variable had silently
+    # disabled every schedule. This workflow is now the source of truth.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     outputs:
       timeframes: ${{ steps.due.outputs.timeframes }}
     runs-on: ubuntu-latest
@@ -81,9 +84,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Skip until PostgreSQL is configured
+      - name: Reject missing PostgreSQL instead of silently skipping
         if: ${{ env.DATABASE_URL == '' }}
-        run: echo "DATABASE_URL secret is not configured; scan skipped."
+        run: |
+          echo "::error::DATABASE_URL secret is missing; cannot run ATC scheduled scanning"
+          exit 1
       - name: Install runtime
         if: ${{ env.DATABASE_URL != '' }}
         run: python -m pip install ".[runtime,atcdata]"
@@ -165,14 +170,17 @@ jobs:
           fi
 
   scheduled-scan:
-    if: ${{ github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_SCANS != 'false' && needs.prepare.outputs.timeframes != '' && needs.prepare.outputs.timeframes != '[]' }}
+    if: ${{ github.event_name == 'schedule' && needs.prepare.outputs.timeframes != '' && needs.prepare.outputs.timeframes != '[]' }}
     needs: prepare
     strategy:
       fail-fast: false
+      # Two independent timeframes, eight workers each; limit provider
+      # concurrency and GitHub Actions usage while initial history warms up.
+      max-parallel: 2
       matrix:
         timeframe: ${{ fromJSON(needs.prepare.outputs.timeframes) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     env:
       APP_ENV: production
       APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
