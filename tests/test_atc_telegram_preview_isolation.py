@@ -88,5 +88,56 @@ class PreviewIsolationTests(unittest.TestCase):
         self.assertEqual(provider.source, "borsapy")
 
 
+    def test_fallback_builds_only_from_real_contiguous_5m_today(self):
+        class FiveMinuteProvider(PreviewProvider):
+            def fetch_from_source(self, source, request):
+                if request.timeframe is Timeframe.D1:
+                    raise RuntimeError("No mutable daily candle")
+                return ProviderFrame(
+                    provider=source, provider_symbol=request.provider_symbol,
+                    timeframe=Timeframe.M5,
+                    timestamp_kind=TimestampKind.OPEN,
+                    timestamp_timezone="Europe/Istanbul",
+                    price_basis=PriceBasis.SPLIT_ADJUSTED,
+                    bars=(
+                        ProviderBar(datetime(2026, 10, 15, 10, 0, tzinfo=IST),
+                                    100, 102, 99, 101, 1000),
+                        ProviderBar(datetime(2026, 10, 15, 10, 5, tzinfo=IST),
+                                    101, 104, 100, 103, 1400),
+                    ),
+                )
+
+        day = datetime(2026, 10, 14, 10, tzinfo=IST) - timedelta(days=45)
+        bars = []
+        while day.date() <= datetime(2026, 10, 14).date():
+            if day.weekday() < 5:
+                bars.append(CanonicalBar(
+                    open_time=day, close_time=day.replace(hour=18),
+                    open=100, high=104, low=98, close=102, volume=1200,
+                ))
+            day += timedelta(days=1)
+        cache = CachedDailyBars("borsapy", PriceBasis.SPLIT_ADJUSTED, 1, tuple(bars))
+        store = PreviewOnlyStore(cache)
+        member = SimpleNamespace(
+            instrument_id="i", symbol="ATC_TEST", market="BIST",
+            provider_symbol="ATC_TEST",
+        )
+        settings = SimpleNamespace(runtime=SimpleNamespace(database_url="postgresql://unused"))
+        with patch("scripts.atc_telegram_briefings.PostgresSnapshotStore", return_value=store):
+            with patch("scripts.atc_telegram_briefings._market_data_provider",
+                       return_value=FiveMinuteProvider()):
+                with patch("scripts.atc_telegram_briefings.last_closed_session",
+                           return_value=datetime(2026, 10, 14).date()):
+                    preview = make_daily_preview_frame(
+                        object(), member, settings,
+                        now=datetime(2026, 10, 15, 10, 7, tzinfo=IST),
+                    )
+        self.assertEqual(preview.bars[-1].high, 104)
+        self.assertEqual(preview.bars[-1].low, 99)
+        self.assertEqual(preview.bars[-1].close, 103)
+        self.assertEqual(preview.bars[-1].volume, 2400)
+        self.assertEqual(store.writes, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
