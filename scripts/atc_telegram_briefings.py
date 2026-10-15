@@ -341,7 +341,27 @@ def run_preview(connection, settings, now, *, workers):
     slot = now.replace(minute=0, second=0, microsecond=0)
     queued = enqueue(connection, now=now, identity=f"preview:{slot.isoformat()}",
                      publications=[(PublicationKind.SCAN_EVENT, {"text": text})])
-    print(f"Intraday preview: {len(finished)}/630, {hits} matches, queued={queued}, "
+    # Mirror the verified same-hour preview to the EXISTING daily topic.
+    # This is not a confirmed candle: do not persist preview scan_evaluations.
+    visual_count = 0
+    if os.getenv("ENABLE_TIMEFRAME_IMAGE_REPORTS", "true").casefold() == "true":
+        from market_intelligence.delivery.telegram.timeframe_topics import timeframe_topic_ids
+        from scripts.atc_timeframe_visuals import preview_visual_envelopes
+
+        mapped_topics = timeframe_topic_ids(os.environ)
+        if Timeframe.D1 in mapped_topics:
+            telegram = TelegramSettings.from_mapping({**os.environ, "DELIVERY_MODE": "live"})
+            visuals = preview_visual_envelopes(
+                telegram, mapped_topics, now=now, slot=slot,
+                finished=finished, expected=len(members),
+            )
+            visual_count = PostgresOutboxRepository(connection).enqueue(
+                visuals, ordered=True,
+            )
+        else:
+            print("ATC preview visuals skipped: no verified EXISTING 1d topic", flush=True)
+    print(f"Intraday preview: {len(finished)}/630, {hits} matches, "
+          f"summary_queued={queued}, visual_queued={visual_count}, "
           f"errors={dict(failures)}", flush=True)
 
 
