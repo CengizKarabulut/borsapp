@@ -51,6 +51,24 @@ class OldTimeframeTopicTests(unittest.TestCase):
                 settings, mapped, Timeframe.M30, identity={"test": 1}, payload={}
             )
 
+    def test_user_existing_four_topics_apply_only_to_matching_group(self):
+        configured = {
+            "TELEGRAM_CHAT_ID": "-1004439315048",
+            "TELEGRAM_TOPIC_SCANS": "5",
+        }
+        current = timeframe_topic_ids(configured)
+        self.assertEqual(current[Timeframe.H1], 326)
+        self.assertEqual(current[Timeframe.H4], 327)
+        self.assertEqual(current[Timeframe.D1], 328)
+        self.assertEqual(current[Timeframe.W1], 329)
+        self.assertNotIn(Timeframe.M15, current)
+        self.assertEqual(timeframe_topic_ids({
+            "TELEGRAM_CHAT_ID": "-1001234567890"
+        }), {})
+        self.assertEqual(timeframe_topic_ids({
+            **configured, "TELEGRAM_TOPIC_1H": "999"
+        })[Timeframe.H1], 999)
+
     def test_json_mapping_and_disallow_duplicate_topic_reuse(self):
         mapped = timeframe_topic_ids({
             "TELEGRAM_TIMEFRAME_TOPICS": '{"15m":170,"1h":100,"1d":900}',
