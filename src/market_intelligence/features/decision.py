@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -44,7 +45,14 @@ def _frame(source: CanonicalFrame) -> pd.DataFrame:
             "close": [bar.close for bar in source.bars],
             "volume": [bar.volume for bar in source.bars],
         },
-        index=pd.DatetimeIndex([bar.close_time for bar in source.bars]),
+        # Cached historical candles can be UTC while today's hypothetical
+        # close is in Europe/Istanbul. Pandas rejects mixed aware timezones,
+        # but all represent valid absolute bar close instants. Normalize
+        # explicitly to the exchange timezone before building the index.
+        index=pd.DatetimeIndex([
+            bar.close_time.astimezone(ZoneInfo("Europe/Istanbul"))
+            for bar in source.bars
+        ]),
     )
 
 
