@@ -48,6 +48,8 @@ class HttpxTelegramTransport:
             raw_path = data.pop(f"{media_field}_path", None)
             raw_base64 = data.pop(f"{media_field}_base64", None)
             document_name = str(data.pop("filename", "")).strip() or None
+            if method == "sendDocument" and document_name and document_name.lower().endswith(".csv"):
+                media_mime = "text/csv"
             if isinstance(raw_path, str) and raw_path.strip():
                 candidate = Path(raw_path).resolve()
                 if candidate.is_file():
