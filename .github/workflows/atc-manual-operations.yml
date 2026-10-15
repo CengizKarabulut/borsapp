@@ -81,7 +81,8 @@ jobs:
         run: |
           set -euo pipefail
           python -m scripts.atc_telegram_briefings morning
-          borsapp publisher-once --limit 25
+          # Only the report publisher is live; manual scanner remains no-notify.
+          DELIVERY_MODE=live borsapp publisher-once --limit 25
           python - <<'PY'
           import os
           import psycopg
