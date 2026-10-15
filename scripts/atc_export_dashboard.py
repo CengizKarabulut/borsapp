@@ -14,6 +14,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
+from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from market_intelligence.scanning.catalog import load_scanner_catalog
 
 SCANNER_ORDER = (
@@ -122,7 +123,9 @@ def matrix_rows(members, evaluations, bindings, *, timeframes=TIMEFRAMES):
 
 
 def export_matrix(db, universe, config_path, destination, *, as_of: date, require_members: int = 0):
-    bindings_tuple = load_scanner_catalog(Path(config_path))
+    bindings_tuple = load_scanner_catalog(
+        Path(config_path), calendar_version=ExchangeCalendarsXist().version
+    )
     bindings = {binding.scanner.id: binding for binding in bindings_tuple}
     members = PostgresRuntimeRepository(db).list_universe(universe, as_of=as_of)
     if not members:
