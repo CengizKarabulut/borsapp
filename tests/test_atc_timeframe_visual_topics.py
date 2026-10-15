@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import csv
 import io
 import unittest
 from datetime import datetime, timedelta
@@ -14,7 +16,12 @@ from market_intelligence.delivery.telegram.timeframe_topics import (
     route_timeframe_image,
     timeframe_topic_ids,
 )
-from scripts.atc_timeframe_visuals import render_card_png, select_verified_matches
+from scripts.atc_timeframe_visuals import (
+    preview_visual_envelopes,
+    preview_visual_identity,
+    render_card_png,
+    select_verified_matches,
+)
 from tests.test_telegram_routing import environment
 
 IST = ZoneInfo("Europe/Istanbul")
@@ -94,6 +101,37 @@ class OldTimeframeTopicTests(unittest.TestCase):
         self.assertEqual(image.format, "PNG")
         self.assertGreater(image.width, 900)
         self.assertGreater(image.height, 350)
+
+    def test_provisional_daily_card_and_complete_csv_share_verified_topic(self):
+        settings = TelegramSettings.from_mapping(environment())
+        now = datetime(2026, 10, 15, 12, 45, tzinfo=IST)
+        slot = now.replace(minute=0)
+        finished = [
+            (f"TEST{i:03d}", [(1, ("bullish",)), (2, ("bearish",))])
+            for i in range(25)
+        ]
+        finished.append(("UNKNOWN", [(3, ())]))
+        cards = preview_visual_envelopes(
+            settings, {Timeframe.D1: 328}, now=now, slot=slot,
+            finished=finished, expected=630,
+        )
+        self.assertEqual(len(cards), 2)
+        self.assertEqual([e.message_thread_id for e in cards], [328, 328])
+        self.assertEqual(cards[0].payload["_method"], "sendPhoto")
+        self.assertEqual(cards[1].payload["_method"], "sendDocument")
+        img = Image.open(io.BytesIO(base64.b64decode(cards[0].payload["photo_base64"])))
+        self.assertGreater(img.width, 900)
+        self.assertIn("TEYITSIZ", cards[1].payload["filename"])
+        records = list(csv.reader(io.StringIO(
+            base64.b64decode(cards[1].payload["document_base64"]).decode("utf-8-sig")
+        )))
+        self.assertEqual(len(records), 52)  # header + 51 actual matches
+        self.assertEqual(records[-1][3], "ESLESME_YON_BELIRSIZ")
+        self.assertEqual(
+            preview_visual_identity(slot, "photo")["format"], "photo",
+        )
+        with self.assertRaises(ValueError):
+            preview_visual_identity(slot, "unknown")
 
     def test_stale_and_wrong_ruleset_cannot_become_visible_match(self):
         settings = SimpleNamespace(
