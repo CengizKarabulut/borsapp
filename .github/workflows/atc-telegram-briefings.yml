@@ -1,0 +1,79 @@
+name: ATC Telegram intraday, morning and final reports
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Run one of the three explicitly labelled ATC Telegram reports
+        type: choice
+        required: true
+        options: [morning, preview, eod]
+        default: morning
+  schedule:
+    # All cron expressions are UTC. Istanbul = UTC+3 year round.
+    - cron: "35 5 * * 1-5"    # 08:35 TSİ, morning pivot report (all 630 in CSV)
+    - cron: "45 7-14 * * 1-5" # 10:45–17:45 TSİ, live provisional what-if scan
+    - cron: "15 18 * * 1-5"   # 21:15 TSİ, confirmed daily scan summary
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-telegram-briefings
+  cancel-in-progress: false
+
+jobs:
+  telegram-briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      TZ: UTC
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DELIVERY_MODE: live
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      SELECTED_MODE: ${{ inputs.mode || '' }}
+      SCHEDULE_EXPRESSION: ${{ github.event.schedule }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Verify configured Telegram and PostgreSQL destinations
+        run: |
+          for variable in DATABASE_URL TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID TELEGRAM_TOPIC_SCANS TELEGRAM_TOPIC_REPORTS; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::$variable is not configured"; exit 1
+            fi
+          done
+      - name: Install existing scanner runtime
+        run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Select schedule mode and queue uniquely identified bulletin
+        shell: bash
+        run: |
+          mode="$SELECTED_MODE"
+          if [ -z "$mode" ]; then
+            case "$SCHEDULE_EXPRESSION" in
+              "35 5 * * 1-5") mode=morning ;;
+              "45 7-14 * * 1-5") mode=preview ;;
+              "15 18 * * 1-5") mode=eod ;;
+              *) echo "::error::Unexpected cron expression"; exit 1 ;;
+            esac
+          fi
+          echo "ATC Telegram mode=$mode"
+          python scripts/atc_telegram_briefings.py "$mode" --workers 8
+      - name: Publish queued reports to Telegram topics
+        run: borsapp publisher-once --limit 25
