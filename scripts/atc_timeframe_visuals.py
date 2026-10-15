@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import csv
 import io
 import os
 from datetime import datetime, timedelta
@@ -53,7 +54,8 @@ def _font(size, *, bold=False):
 
 
 def render_card_png(*, timeframe: str, bar_time: datetime, rows: list[tuple[str, int, str]],
-                    matched_count: int, total_symbols: int, page: int, pages: int) -> bytes:
+                    matched_count: int, total_symbols: int, page: int, pages: int,
+                    provisional: bool = False, visible_count: int | None = None) -> bytes:
     """Use saved, consistent typography; no artificial/generated market prices."""
     width = 1080
     height = 310 + max(1, len(rows)) * 46 + 72
@@ -61,9 +63,10 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows: list[tuple[str,
     draw = ImageDraw.Draw(img)
     draw.rounded_rectangle((20, 20, width - 20, height - 20), radius=20, fill="#FFFFFF")
     draw.rectangle((20, 20, width - 20, 105), fill="#102C46")
+    kind = "CANLI / TEYİTSİZ" if provisional else "TEYİTLİ"
     title = f"ALPHA TREND CIPHER · {timeframe.upper()} TARAMA"
     draw.text((52, 38), title, font=_font(27, bold=True), fill="#FFFFFF")
-    draw.text((52, 136), f"Teyitli mum: {bar_time.astimezone(ISTANBUL):%d.%m.%Y %H:%M} TSİ",
+    draw.text((52, 136), f"{kind} · {bar_time.astimezone(ISTANBUL):%d.%m.%Y %H:%M} TSİ",
               font=_font(21), fill="#26374C")
     draw.text((52, 181), f"Değerlendirilen: {total_symbols}/630 hisse  ·  Eşleşme: {matched_count}",
               font=_font(21, bold=True), fill="#26374C")
@@ -83,9 +86,14 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows: list[tuple[str,
                   font=_font(19), fill="#33485B")
         draw.text((805, top + 10), state,
                   font=_font(19, bold=True), fill=COLORS[state])
-    draw.text((52, height - 76), f"Sayfa {page}/{pages} · ATC teyitli tarama",
+    shown = visible_count if visible_count is not None else matched_count
+    footer = (f"Sayfa {page}/{pages} · {shown}/{matched_count} eşleşme görselde"
+              if shown != matched_count else f"Sayfa {page}/{pages} · {kind} tarama")
+    draw.text((52, height - 76), footer,
               font=_font(19), fill="#60748A")
-    draw.text((52, height - 45), "Bilgilendirme amaçlıdır, yatırım tavsiyesi değildir.",
+    disclaimer = ("Geçici senaryodur; mum kapanınca değişebilir. YTD."
+                  if provisional else "Bilgilendirme amaçlıdır, yatırım tavsiyesi değildir.")
+    draw.text((52, height - 45), disclaimer,
               font=_font(16), fill="#60748A")
     output = io.BytesIO()
     img.save(output, format="PNG", optimize=True)
@@ -125,6 +133,71 @@ def select_verified_matches(members, evaluations, bindings, timeframe, *, now):
                             SCANNER_ORDER.index(scanner_id) + 1, label))
     return close, len(covered), sorted(
         set(matches), key=lambda x: (x[1], x[0], x[2])
+    )
+
+
+def preview_visual_identity(slot: datetime, media: str) -> dict:
+    """Stable slot-scoped identities for targeted-only intraday publishing."""
+    if media not in {"photo", "csv"}:
+        raise ValueError("Unexpected ATC visual format")
+    return {
+        "source": "atc-intraday-visual-v1",
+        "timeframe": Timeframe.D1.value,
+        "slot": slot.isoformat(),
+        "format": media,
+    }
+
+
+def preview_visual_envelopes(settings, topic_ids, *, now, slot, finished, expected=630):
+    """Show evaluated provisional matches; attach ALL results without truncation.
+
+    Never persist provisional signals to confirmed scan_evaluations.
+    """
+    rows = []
+    for symbol, scans in finished:
+        for number, directions in scans:
+            if not 1 <= number <= len(SCANNER_ORDER):
+                raise ValueError(f"Unknown provisional scanner number: {number}")
+            rows.append((symbol, number, status_label("match", directions)))
+    rows = sorted(set(rows), key=lambda row: (row[1], row[0], row[2]))
+    visible = [row for row in rows if row[2] in MATCH_STATES][:MAX_ROWS_PER_CARD]
+    png = render_card_png(
+        timeframe="1d", bar_time=now, rows=visible,
+        matched_count=len(rows), total_symbols=len(finished),
+        page=1, pages=1, provisional=True, visible_count=len(visible),
+    )
+    table = io.StringIO()
+    writer = csv.writer(table)
+    writer.writerow(("Hisse", "TaramaNo", "Tarama", "Durum", "KontrolSaatiTSI", "MumDurumu"))
+    for symbol, number, state in rows:
+        writer.writerow((
+            symbol, number, SCANNER_ORDER[number - 1], state,
+            now.astimezone(ISTANBUL).isoformat(), "CANLI_TEYITSIZ",
+        ))
+    csv_bytes = ("\ufeff" + table.getvalue()).encode("utf-8")
+    common = (f"ATC GÜNLÜK CANLI / TEYİTSİZ · {now:%d.%m.%Y %H:%M} TSİ · "
+              f"{len(finished)}/{expected} hisse · {len(rows)} eşleşme. "
+              "Kapanışta değişebilir; yatırım tavsiyesi değildir.")
+    return (
+        route_timeframe_image(
+            settings, topic_ids, Timeframe.D1,
+            identity=preview_visual_identity(slot, "photo"),
+            payload={
+                "_method": "sendPhoto", "photo_base64": base64.b64encode(png).decode("ascii"),
+                "filename": "ATC_1D_CANLI_TEYITSIZ.png",
+                "caption": common + f" Görselde ilk {len(visible)} eşleşme; tamamı CSV'de.",
+            },
+        ),
+        route_timeframe_image(
+            settings, topic_ids, Timeframe.D1,
+            identity=preview_visual_identity(slot, "csv"),
+            payload={
+                "_method": "sendDocument",
+                "document_base64": base64.b64encode(csv_bytes).decode("ascii"),
+                "filename": f"ATC_1D_CANLI_TEYITSIZ_{slot:%Y%m%d_%H%M}.csv",
+                "caption": common + " Tam eşleşme listesi (yön belirsizliği korunur).",
+            },
+        ),
     )
 
 
@@ -168,7 +241,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             pic = render_card_png(
                 timeframe=tf.value, bar_time=bar_time, rows=page_rows,
                 matched_count=len(matches), total_symbols=covered,
-                page=i + 1, pages=pages,
+                page=i + 1, pages=pages, visible_count=len(rows),
             )
             envelopes.append(route_timeframe_image(
                 settings, topic_ids, tf,
@@ -185,10 +258,39 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                         f"ATC {tf.value.upper()} | "
                         f"{bar_time.astimezone(ISTANBUL):%d.%m.%Y %H:%M} TSİ | "
                         f"Teyitli {covered}/630 | {len(matches)} koşul eşleşmesi | "
-                        f"Sayfa {i + 1}/{pages} · YTD"
+                        f"Sayfa {i + 1}/{pages} · "
+                        f"görselde {len(rows)}/{len(matches)} · tam liste CSV'de · YTD"
                     ),
                 },
             ))
+        # Maximum images limits Telegram flood, not data completeness.
+        # Every verified match goes in a complete CSV in the same topic.
+        complete_table = io.StringIO()
+        writer = csv.writer(complete_table)
+        writer.writerow(("Hisse", "TaramaNo", "Tarama", "Durum", "TeyitliMumTSI"))
+        for symbol, number, state in matches:
+            writer.writerow((
+                symbol, number, SCANNER_ORDER[number - 1], state,
+                bar_time.astimezone(ISTANBUL).isoformat(),
+            ))
+        complete_bytes = ("\ufeff" + complete_table.getvalue()).encode("utf-8")
+        envelopes.append(route_timeframe_image(
+            settings, topic_ids, tf,
+            identity={
+                "source": "atc-timeframe-visual-v1",
+                "timeframe": tf.value,
+                "bar_close": bar_time.isoformat(), "format": "csv",
+            },
+            payload={
+                "_method": "sendDocument",
+                "document_base64": base64.b64encode(complete_bytes).decode("ascii"),
+                "filename": f"ATC_{tf.value}_TEYITLI_{bar_time:%Y%m%d_%H%M}.csv",
+                "caption": (
+                    f"ATC {tf.value.upper()} | TEYİTLİ | {len(matches)} eşleşmenin "
+                    "eksiksiz listesi · yatırım tavsiyesi değildir."
+                ),
+            },
+        ))
         inserted = PostgresOutboxRepository(db).enqueue(tuple(envelopes), ordered=True)
         # Reuse the targeted-only queue implementation; never flush old news.
         outbox = AtcOnlyOutbox(db, [e.semantic_key for e in envelopes])
@@ -218,7 +320,15 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeframe", required=True)
+    parser.add_argument("--skip-if-unmapped", action="store_true",
+                        help="Skip missing existing topic rather than misroute to SCANS")
     args = parser.parse_args()
+    if args.skip_if_unmapped:
+        tf = parse_timeframe(args.timeframe)
+        topics = timeframe_topic_ids(os.environ)
+        if tf not in topics:
+            print(f"ATC {tf.value}: no verified existing topic; visual delivery skipped", flush=True)
+            return
     publish_timeframe(args.timeframe)
 
 
