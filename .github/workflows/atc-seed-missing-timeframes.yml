@@ -57,6 +57,8 @@ jobs:
           cache: pip
       - name: Install scanner, vendor data adapters and image renderer
         run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Enforce Neon storage headroom before initial six-timeframe seeding
+        run: python -m scripts.atc_database_capacity
       - name: Verify exact 630 active BIST equities
         run: |
           python - <<'PY'
