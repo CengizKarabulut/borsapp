@@ -2,9 +2,6 @@ name: ATC publish existing confirmed daily results to Telegram
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, fix/atc-live-eight-timeframes-20261015]
-    paths: [.github/workflows/atc-live-daily-publish-pilot.yml]
 
 permissions:
   contents: read
