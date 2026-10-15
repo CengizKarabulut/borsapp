@@ -76,6 +76,7 @@ from market_intelligence.market_data.adapters.borsapy_universe import (
 from market_intelligence.market_data.adapters.fallback import FallbackMarketDataProvider
 from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistProvider
 from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvider
+from market_intelligence.market_data.provider_cooldown import cooldowns_for
 from market_intelligence.market_data.universe import (
     build_universe_sync_plan,
     validate_universe_sync_plan,
@@ -860,6 +861,7 @@ def _market_data_provider(settings: ApplicationSettings) -> FallbackMarketDataPr
             YFinanceBistProvider(timestamp_timezone=settings.runtime.timezone.key),
         ),
         prefer_complete_history=True,
+        cooldowns=cooldowns_for(settings.runtime.database_url),
     )
 
 
