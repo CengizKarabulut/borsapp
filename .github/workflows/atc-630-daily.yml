@@ -136,7 +136,7 @@ jobs:
           if len(bindings) != 18:
               raise SystemExit("Expected exactly 18 ATC scanner bindings")
           PY
-      - name: Deliver confirmed daily PNGs and complete CSV to EXISTING daily topic
+      - name: Deliver confirmed PNG/CSV with persistent Telegram delivery diagnostics
         if: ${{ steps.daily.outcome == 'success' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS != 'false' }}
         run: python -m scripts.atc_timeframe_visuals --timeframe 1d --skip-if-unmapped
       - name: Report scan engine failure to Actions checks
