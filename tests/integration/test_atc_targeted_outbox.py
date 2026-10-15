@@ -36,6 +36,33 @@ class TargetKeyTests(unittest.TestCase):
             target_keys(settings, mode="unknown", now=at)
 
 
+    def test_preview_keys_target_verified_daily_thread_only(self):
+        env = {
+            **environment(),
+            "TELEGRAM_CHAT_ID": "-1004439315048",
+            "ENABLE_TIMEFRAME_IMAGE_REPORTS": "true",
+        }
+        now = datetime(2026, 10, 15, 12, 45, tzinfo=ISTANBUL)
+        with patch.dict(os.environ, env, clear=True):
+            settings = TelegramSettings.from_mapping(env)
+            keys = target_keys(settings, mode="preview", now=now)
+            from market_intelligence.core.timeframes import Timeframe
+            from market_intelligence.delivery.telegram.timeframe_topics import (
+                route_timeframe_image,
+            )
+            from scripts.atc_timeframe_visuals import preview_visual_identity
+
+            slot = now.replace(minute=0, second=0, microsecond=0)
+            pictures = tuple(route_timeframe_image(
+                settings, {Timeframe.D1: 328}, Timeframe.D1,
+                identity=preview_visual_identity(slot, media),
+                payload={},
+            ).semantic_key for media in ("photo", "csv"))
+            self.assertEqual(len(keys), 3)
+            self.assertEqual(keys[1:], pictures)
+            self.assertEqual(len(set(keys)), 3)
+
+
 @unittest.skipUnless(os.environ.get("TEST_DATABASE_URL"), "TEST_DATABASE_URL required")
 class TargetedOutboxIntegrationTests(unittest.TestCase):
     def test_older_pending_messages_are_never_claimed(self):
