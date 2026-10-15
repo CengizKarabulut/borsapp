@@ -6,7 +6,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from market_intelligence.scanning.catalog import load_scanner_catalog
-from scripts.atc_export_dashboard import SCANNER_ORDER, TIMEFRAMES, export_matrix, matrix_rows, status_label
+from scripts.atc_export_dashboard import (
+    SCANNER_ORDER,
+    TIMEFRAMES,
+    export_matrix,
+    matrix_rows,
+    status_label,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
