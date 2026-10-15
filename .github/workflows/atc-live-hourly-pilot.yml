@@ -1,0 +1,67 @@
+name: ATC real 630-share hourly scan and topic pilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, fix/atc-live-eight-timeframes-20261015]
+    paths: [.github/workflows/atc-live-hourly-pilot.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-real-hourly-pilot
+  cancel-in-progress: false
+
+jobs:
+  real-hourly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DELIVERY_MODE: disabled
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_1H: ${{ vars.TELEGRAM_TOPIC_1H || secrets.TELEGRAM_TOPIC_1H }}
+      TELEGRAM_TOPIC_60M: ${{ vars.TELEGRAM_TOPIC_60M || secrets.TELEGRAM_TOPIC_60M }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the real scanner and source adapters
+        run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Check 630 active members before scanning
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import psycopg
+          from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
+          with psycopg.connect(os.environ['DATABASE_URL']) as db:
+              members=PostgresRuntimeRepository(db).list_universe(
+                  'ATC_630', as_of=datetime.now(ZoneInfo('Europe/Istanbul')).date()
+              )
+          print('ATC pilot members:',len(members))
+          if len(members)!=630:
+              raise SystemExit('630/630 required; no partial-market pilot')
+          PY
+      - name: Run real 1-hour scan using original 18 rules (NO synthetic signals)
+        run: borsapp scan-due --universe ATC_630 --timeframe 1h --bars 600 --workers 8 --lookback-days 1
+      - name: Send PNG plus complete CSV only if real scan coverage is sufficient
+        run: python -m scripts.atc_timeframe_visuals --timeframe 1h
