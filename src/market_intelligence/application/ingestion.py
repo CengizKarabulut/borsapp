@@ -176,7 +176,10 @@ class IngestionService:
             as_of=request.as_of,
             limit=request.bars,
         )
-        if cached is None or len(cached.bars) < 30:
+        # Resampled 4h buckets may legitimately end with a partially formed
+        # bucket on the first seed, leaving 29 (not 30) confirmed candles.
+        # Requiring exactly 30 would force expensive full history forever.
+        if cached is None or len(cached.bars) < 20:
             return None
         latest_revision = self.store.latest_series_revision(
             instrument_id=request.instrument_id,
