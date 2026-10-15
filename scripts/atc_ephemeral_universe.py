@@ -11,6 +11,7 @@ import argparse
 import os
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from market_intelligence.market_data.universe import (
@@ -47,6 +48,21 @@ def seed_ephemeral_universe(db, *, path: Path, on_date):
     return actual
 
 
+def assert_local_ephemeral_url(url: str) -> None:
+    """Reject every remote DB hostname, even if query/password says localhost."""
+    try:
+        parsed = urlsplit(url)
+        hostname = parsed.hostname
+    except ValueError as exc:
+        raise ValueError("Malformed PostgreSQL URL") from exc
+    if (parsed.scheme not in ("postgresql", "postgres")
+            or hostname not in ("localhost", "127.0.0.1")
+            or parsed.path != "/atc_scan"):
+        raise ValueError(
+            "Ephemeral seed requires exactly the LOCAL atc_scan PostgreSQL database"
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -58,8 +74,7 @@ def main() -> None:
     if not url:
         parser.error("DATABASE_URL must point to runner-local PostgreSQL")
     # Safeguard: NEVER initialize or mutate the user's persistent database.
-    if not any(host in url for host in ("@localhost:", "@127.0.0.1:")):
-        raise SystemExit("ATC ephemeral seed accepts only LOCAL runner PostgreSQL")
+    assert_local_ephemeral_url(url)
     import psycopg
     today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
     with psycopg.connect(url) as db:
