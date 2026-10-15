@@ -1,0 +1,156 @@
+name: ATC manual operations and first morning verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Which safe diagnostic/report to run?
+        required: true
+        default: all
+        type: choice
+        options: [all, morning, symbol, ma, audit]
+      symbol:
+        description: Single BIST code for manual smoke
+        type: string
+        default: ASELS
+      timeframe:
+        description: Single-symbol timeframe (when task=symbol)
+        type: choice
+        default: 1h
+        options: [15m, 1h, 4h, 1d, 1wk]
+  # One-time test when this workflow is first installed on the default branch.
+  # Subsequent ordinary pushes DO NOT rerun this test automatically.
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-manual-operations.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-manual-ops
+  cancel-in-progress: false
+
+jobs:
+  safe-morning-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      TZ: UTC
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DELIVERY_MODE: disabled
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      REQUESTED_TASK: ${{ inputs.task || 'all' }}
+      REQUESTED_SYMBOL: ${{ inputs.symbol || 'ASELS' }}
+      REQUESTED_TIMEFRAME: ${{ inputs.timeframe || '1h' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Verify existing credentials (never print secret values)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in DATABASE_URL TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID TELEGRAM_TOPIC_REPORTS; do
+            if [ -z "${!key}" ]; then echo "::error::$key is missing"; exit 1; fi
+          done
+      - name: Install data adapters and scanner
+        run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Ensure current PostgreSQL schema
+        run: borsapp db-migrate
+      - name: Morning 630-share support and resistance to Telegram reports
+        id: morning
+        if: ${{ env.REQUESTED_TASK == 'all' || env.REQUESTED_TASK == 'morning' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m scripts.atc_telegram_briefings morning
+          borsapp publisher-once --limit 25
+          python - <<'PY'
+          import os
+          import psycopg
+          with psycopg.connect(os.environ["DATABASE_URL"]) as db:
+              rows = db.execute("""
+                  SELECT status, count(*)
+                  FROM telegram_outbox
+                  WHERE created_at >= now() - interval '3 hours'
+                    AND (payload::text LIKE %s OR payload::text LIKE %s)
+                  GROUP BY status ORDER BY status
+              """, ("%ATC | Sabah destek%", "%ATC_630_destek_direnc_%")).fetchall()
+          print("ATC morning Telegram outbox statuses:", rows, flush=True)
+          if not rows or any(status != "sent" for status, count in rows if count):
+              raise SystemExit("Morning outbox queued but Telegram delivery not verified")
+          PY
+      - name: ASELS smoke — native scanners and selected timeframes, never notify
+        id: symbol
+        if: ${{ env.REQUESTED_TASK == 'all' || env.REQUESTED_TASK == 'symbol' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$REQUESTED_TASK" = "all" ]; then
+            for tf in 15m 1h 4h 1d; do
+              echo "ATC manual single-symbol scan: $REQUESTED_SYMBOL $tf"
+              borsapp scan-symbol "$REQUESTED_SYMBOL" --timeframe "$tf" --bars 600
+            done
+          else
+            borsapp scan-symbol "$REQUESTED_SYMBOL" --timeframe "$REQUESTED_TIMEFRAME" --bars 600
+          fi
+      - name: ASELS daily historical MA quality research
+        id: ma
+        if: ${{ env.REQUESTED_TASK == 'all' || env.REQUESTED_TASK == 'ma' }}
+        continue-on-error: true
+        run: borsapp ma-research-symbol "$REQUESTED_SYMBOL" --timeframe 1d --bars 600
+        shell: bash
+      - name: Read-only 630-share previous-session result matrix audit
+        id: audit
+        if: ${{ env.REQUESTED_TASK == 'all' || env.REQUESTED_TASK == 'audit' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The pinned ATC_630 watch universe was created on Oct 15. For
+          # previous-session scans use today's WATCHLIST membership, but
+          # all evidence remains tied to its original closed bar timestamps.
+          istanbul_date=$(python - <<'PY'
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          print(datetime.now(ZoneInfo("Europe/Istanbul")).date().isoformat())
+          PY
+          )
+          python -m scripts.atc_export_dashboard --universe ATC_630 \
+            --require-members 630 --as-of "$istanbul_date" \
+            --output runtime_artifacts/ATC_MANUEL_DENETIM.csv
+          echo "CSV kept private on GitHub runner; no public artifact exposure."
+      - name: Summarize requested smoke checks
+        if: always()
+        env:
+          MORNING_OUTCOME: ${{ steps.morning.outcome }}
+          SYMBOL_OUTCOME: ${{ steps.symbol.outcome }}
+          MA_OUTCOME: ${{ steps.ma.outcome }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        shell: bash
+        run: |
+          echo "ATC smoke: morning=$MORNING_OUTCOME, symbol=$SYMBOL_OUTCOME, ma=$MA_OUTCOME, audit=$AUDIT_OUTCOME"
+          for status in "$MORNING_OUTCOME" "$SYMBOL_OUTCOME" "$MA_OUTCOME" "$AUDIT_OUTCOME"; do
+            if [ "$status" = "failure" ]; then
+              echo "::error::One requested ATC task failed. Review exact job logs."
+              exit 1
+            fi
+          done
