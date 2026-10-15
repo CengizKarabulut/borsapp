@@ -53,6 +53,7 @@ jobs:
           print(f"Configured existing timeframe topics: {len(mapping)}/{len(TIMEFRAME_TOPICS)}")
           print(f"Timeframe image reports enabled by default: {os.getenv('ENABLE_TIMEFRAME_IMAGE_REPORTS', '').strip().casefold() != 'false'}")
           print(f"Verified existing intersection topic: {'configured' if existing_intersection_topic_id(os.environ) else 'not available'}")
+          print("Topic repurposing policy: 15m=6, 30m=11, 45m=9, 120m=10; legacy flows rerouted.")
           if missing:
               print(f"::warning::PARTIAL existing topic mapping ({len(mapping)}/{len(TIMEFRAME_TOPICS)}). Missing: {', '.join(missing)}. Their image jobs skip delivery; no new topics are created.")
           else:
