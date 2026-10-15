@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 15
     env:
       APP_ENV: production
-      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -102,7 +102,7 @@ jobs:
     timeout-minutes: 90
     env:
       APP_ENV: production
-      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: ${{ vars.SCAN_DELIVERY_MODE || 'shadow' }}
       ENABLE_SHADOW_PARITY: ${{ vars.ENABLE_SHADOW_PARITY || 'false' }}
@@ -175,7 +175,7 @@ jobs:
     timeout-minutes: 90
     env:
       APP_ENV: production
-      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       # Telegram visuals are published by the targeted sender only.
       # Keep legacy scanner notifications off to avoid unrelated backlog.
