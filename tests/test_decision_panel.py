@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import math
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from market_intelligence.core.enums import EvaluationStatus, PriceBasis
 from market_intelligence.core.timeframes import Timeframe
@@ -73,6 +75,20 @@ class DecisionPanelTests(unittest.TestCase):
         self.assertAlmostEqual(current.adx, legacy["adx"], places=10)
         self.assertEqual(current.pullback_guard, legacy["pullback_guard"])
         self.assertEqual(current.pullback_base, legacy["pullback_base"])
+
+    def test_same_bars_with_mixed_utc_and_istanbul_tz_keep_same_result(self) -> None:
+        original = daily_frame()
+        last = original.bars[-1]
+        ist = ZoneInfo("Europe/Istanbul")
+        revised = replace(
+            last,
+            open_time=last.open_time.astimezone(ist),
+            close_time=last.close_time.astimezone(ist),
+        )
+        mixed = replace(original, bars=original.bars[:-1] + (revised,))
+        baseline = DecisionPanelV645Provider().compute(original)
+        actual = DecisionPanelV645Provider().compute(mixed)
+        self.assertEqual(actual, baseline)
 
     def test_new_entry_becomes_bullish_event(self) -> None:
         source = daily_frame()

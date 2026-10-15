@@ -1,0 +1,84 @@
+name: ATC initial REAL 630 equity missing-timeframe scans
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/atc-recovery-multitf-intersections-20261015]
+    paths: [.github/workflows/atc-seed-missing-timeframes.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-seed-missing-timeframes
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        timeframe: [15m, 30m, 45m, 2h, 4h, 1wk]
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DELIVERY_MODE: disabled
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_15M: ${{ vars.TELEGRAM_TOPIC_15M || secrets.TELEGRAM_TOPIC_15M }}
+      TELEGRAM_TOPIC_30M: ${{ vars.TELEGRAM_TOPIC_30M || secrets.TELEGRAM_TOPIC_30M }}
+      TELEGRAM_TOPIC_45M: ${{ vars.TELEGRAM_TOPIC_45M || secrets.TELEGRAM_TOPIC_45M }}
+      TELEGRAM_TOPIC_120M: ${{ vars.TELEGRAM_TOPIC_120M || secrets.TELEGRAM_TOPIC_120M }}
+      TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
+      TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
+      TELEGRAM_TOPIC_240M: ${{ vars.TELEGRAM_TOPIC_240M || secrets.TELEGRAM_TOPIC_240M }}
+      TELEGRAM_TOPIC_1WK: ${{ vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1WK }}
+      TELEGRAM_TOPIC_HAFTALIK: ${{ vars.TELEGRAM_TOPIC_HAFTALIK || secrets.TELEGRAM_TOPIC_HAFTALIK }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install scanner, vendor data adapters and image renderer
+        run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Enforce Neon storage headroom before initial six-timeframe seeding
+        run: python -m scripts.atc_database_capacity
+      - name: Verify exact 630 active BIST equities
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import psycopg
+          from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
+          with psycopg.connect(os.environ['DATABASE_URL']) as db:
+              members=PostgresRuntimeRepository(db).list_universe('ATC_630',as_of=datetime.now(ZoneInfo('Europe/Istanbul')).date())
+          print('ATC watched equity coverage:',len(members),'/630',flush=True)
+          if len(members)!=630:
+              raise SystemExit('Missing BIST stocks; scanner cannot publish incomplete market')
+          PY
+      - name: Scan real confirmed newest interval without inventing bars
+        env:
+          ATC_TIMEFRAME: ${{ matrix.timeframe }}
+        run: |
+          borsapp scan-due --universe ATC_630 --timeframe "$ATC_TIMEFRAME" --bars 600 --workers 8 --lookback-days 1
+      - name: Send PNG plus complete CSV ONLY after at least 90% real evaluation coverage
+        env:
+          ATC_TIMEFRAME: ${{ matrix.timeframe }}
+        run: python -m scripts.atc_timeframe_visuals --timeframe "$ATC_TIMEFRAME"

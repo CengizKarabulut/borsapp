@@ -13,7 +13,7 @@ on:
     # All cron expressions are UTC. Istanbul = UTC+3 year round.
     - cron: "35 5 * * 1-5"    # 08:35 TSİ, morning pivot report (all 630 in CSV)
     - cron: "45 7-14 * * 1-5" # 10:45–17:45 TSİ, live provisional what-if scan
-    - cron: "15 18 * * 1-5"   # 21:15 TSİ, confirmed daily scan summary
+    - cron: "15 16 * * 1-5"   # 19:15 TSİ, after confirmed EOD scan completes
 
 permissions:
   contents: read
@@ -74,7 +74,7 @@ jobs:
             case "$SCHEDULE_EXPRESSION" in
               "35 5 * * 1-5") mode=morning ;;
               "45 7-14 * * 1-5") mode=preview ;;
-              "15 18 * * 1-5") mode=eod ;;
+              "15 16 * * 1-5") mode=eod ;;
               *) echo "::error::Unexpected cron expression"; exit 1 ;;
             esac
           fi

@@ -26,7 +26,9 @@ on:
         default: false
         type: boolean
   schedule:
-    - cron: "*/15 7-14 * * 1-5"
+    # Seven-minute post-close offset avoids GitHub's peak :00/:15 cron load.
+    # The 12-minute due window still picks only newly completed BIST candles.
+    - cron: "7,22,37,52 7-14 * * 1-5"
     # 18:30 TRT after BIST closing auction; 18:00 TRT was too early.
     - cron: "30 15 * * 1-5"
 
@@ -92,6 +94,9 @@ jobs:
       - name: Install runtime
         if: ${{ env.DATABASE_URL != '' }}
         run: python -m pip install ".[runtime,atcdata]"
+      - name: Check database storage capacity before 630-equity scan writes
+        if: ${{ env.DATABASE_URL != '' }}
+        run: python -m scripts.atc_database_capacity
       - name: Apply database migrations
         if: ${{ env.DATABASE_URL != '' }}
         run: borsapp db-migrate
