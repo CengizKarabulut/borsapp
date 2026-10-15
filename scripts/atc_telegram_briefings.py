@@ -143,30 +143,70 @@ def make_daily_preview_frame(connection, member, settings, *, now):
     if cache.bars[-1].close_time.astimezone(ISTANBUL).date() != prior_close:
         raise ValueError("Latest saved daily candle is stale; no live preview")
     provider = _market_data_provider(settings)
-    raw = provider.fetch_from_source(
-        cache.source,
-        FetchRequest(
-            provider_symbol=member.provider_symbol,
-            timeframe=Timeframe.D1,
-            bars=2,
-            as_of=session_close + timedelta(minutes=1),
-        ),
-    )
-    if raw.price_basis != cache.price_basis or raw.provider != cache.source:
-        raise ValueError("Live provider series differs from confirmed archive")
-    recent = Canonicalizer().build(
-        instrument_id=member.instrument_id,
-        symbol_at_snapshot=member.symbol,
-        market=member.market,
-        provider_frame=raw,
-        target_timeframe=Timeframe.D1,
-        series_revision=cache.series_revision,
-    )
-    today = [bar for bar in recent.bars if bar.open_time.date() == now.date()]
-    if len(today) != 1 or today[0].close_time != session_close:
-        raise ValueError("Provider did not return today's mutable daily candle")
+    snapshot = None
+    try:
+        raw = provider.fetch_from_source(
+            cache.source,
+            FetchRequest(
+                provider_symbol=member.provider_symbol,
+                timeframe=Timeframe.D1,
+                bars=2,
+                as_of=session_close + timedelta(minutes=1),
+            ),
+        )
+        if raw.price_basis == cache.price_basis and raw.provider == cache.source:
+            recent = Canonicalizer().build(
+                instrument_id=member.instrument_id,
+                symbol_at_snapshot=member.symbol,
+                market=member.market,
+                provider_frame=raw,
+                target_timeframe=Timeframe.D1,
+                series_revision=cache.series_revision,
+            )
+            today = [bar for bar in recent.bars if bar.open_time.date() == now.date()]
+            if len(today) == 1 and today[0].close_time == session_close:
+                snapshot = today[0]
+    except (RuntimeError, ValueError):
+        pass  # A vendor that hides mutable D1 may still supply live 5m candles.
+    if snapshot is None:
+        from market_intelligence.market_data.bars import CanonicalBar
+
+        raw5 = provider.fetch_from_source(
+            cache.source,
+            FetchRequest(
+                provider_symbol=member.provider_symbol,
+                timeframe=Timeframe.M5,
+                bars=96,
+                as_of=now + timedelta(minutes=5),
+            ),
+        )
+        if raw5.provider != cache.source or raw5.price_basis != cache.price_basis:
+            raise ValueError("5m source/adjustment does not match saved daily candles")
+        frame5 = Canonicalizer().build(
+            instrument_id=member.instrument_id,
+            symbol_at_snapshot=member.symbol,
+            market=member.market,
+            provider_frame=raw5,
+            target_timeframe=Timeframe.M5,
+            series_revision=cache.series_revision,
+        )
+        intraday = [bar for bar in frame5.bars
+                    if bar.open_time >= session_open and bar.open_time <= now]
+        if (not intraday or intraday[0].open_time != session_open
+                or any(left.close_time != right.open_time
+                       for left, right in zip(intraday, intraday[1:], strict=False))):
+            raise ValueError("5m live OHLCV coverage has gaps; no invented daily candle")
+        snapshot = CanonicalBar(
+            open_time=session_open,
+            close_time=session_close,
+            open=intraday[0].open,
+            high=max(bar.high for bar in intraday),
+            low=min(bar.low for bar in intraday),
+            close=intraday[-1].close,
+            volume=sum(bar.volume for bar in intraday),
+        )
     old_bars = tuple(b for b in cache.bars if b.close_time <= session_open)
-    bars = (old_bars[-599:] + (today[0],))[-600:]
+    bars = (old_bars[-599:] + (snapshot,))[-600:]
     identity = stable_hash({
         "kind": "atc-intraday-only-what-if",
         "symbol": member.symbol, "now": now.isoformat(),
