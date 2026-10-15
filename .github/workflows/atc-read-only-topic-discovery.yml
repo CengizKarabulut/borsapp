@@ -1,0 +1,71 @@
+name: ATC read-only Telegram topic discovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-read-only-topic-discovery.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: Inspect recent topic metadata only, without consuming updates
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.error import HTTPError, URLError
+          from urllib.request import urlopen
+
+          token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+          group = os.getenv("TELEGRAM_CHAT_ID", "")
+          if not token or not group:
+              raise SystemExit("Telegram secrets are missing")
+          base = "https://api.telegram.org/bot" + token + "/"
+
+          def call(method, params=""):
+              try:
+                  with urlopen(base + method + params, timeout=20) as response:
+                      return json.load(response)
+              except (HTTPError, URLError) as error:
+                  return {"ok": False, "description": type(error).__name__}
+
+          webhook = call("getWebhookInfo")
+          if not webhook.get("ok"):
+              raise SystemExit("Bot webhook status unavailable")
+          if webhook.get("result", {}).get("url"):
+              print("Webhook enabled; getUpdates intentionally not called.")
+              raise SystemExit(0)
+          updates = call("getUpdates", "?limit=100&timeout=0")
+          if not updates.get("ok"):
+              print("Recent topic discovery unavailable: " +
+                    str(updates.get("description", "unknown"))[:120])
+              raise SystemExit(0)
+          found = set()
+          for entry in updates.get("result", []):
+              message = entry.get("message") or entry.get("edited_message") or {}
+              if str(message.get("chat", {}).get("id")) != group:
+                  continue
+              thread = message.get("message_thread_id")
+              if not isinstance(thread, int) or thread <= 0:
+                  continue
+              created = message.get("forum_topic_created") or {}
+              edited = message.get("forum_topic_edited") or {}
+              title = str(created.get("name") or edited.get("name") or "(title unavailable)")
+              found.add((thread, title))
+          print("Recent topic IDs in configured chat:", len(found))
+          for thread, title in sorted(found):
+              print(f"existing topic thread={thread} title={title[:80]}")
+          if not found:
+              print("No recent incoming topic updates. No new topics created.")
+          # No offset argument: getUpdates does not acknowledge/delete updates.
+          # Message bodies, sender information and bot token are never printed.
+          PY
