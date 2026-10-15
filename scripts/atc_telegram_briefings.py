@@ -19,7 +19,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from market_intelligence.cli import _feature_engine, _market_data_provider
-from market_intelligence.settings import ApplicationSettings
 from market_intelligence.core.enums import EvaluationStatus
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.core.timeframes import Timeframe
@@ -34,6 +33,7 @@ from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scanning.contracts import ScanContext
 from market_intelligence.scanning.pipeline import ScanPipeline
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
+from market_intelligence.settings import ApplicationSettings
 from scripts.atc_cloud_summary import prepare_daily_report
 from scripts.atc_export_dashboard import export_matrix
 
@@ -216,7 +216,7 @@ def summarize_preview(finished, *, now, expected=630):
     matches = Counter()
     symbols = {}
     for symbol, scans in finished:
-        for number, directions in scans:
+        for number, _directions in scans:
             matches[number] += 1
             symbols.setdefault(number, []).append(symbol)
     lines = [
