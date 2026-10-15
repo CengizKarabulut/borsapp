@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 8
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,6 +43,30 @@ jobs:
           """
           with psycopg.connect(os.environ["DATABASE_URL"]) as db:
               rows = db.execute(sql).fetchall()
+              historic = db.execute("""
+                  SELECT message_thread_id, topic_kind, publication_kind,
+                         count(*), max(sent_at)
+                  FROM telegram_outbox
+                  WHERE chat_id=%s AND status='sent'
+                  GROUP BY message_thread_id, topic_kind, publication_kind
+                  ORDER BY max(sent_at) DESC LIMIT 40
+              """, (os.environ["TELEGRAM_CHAT_ID"],)).fetchall()
+              old_media = db.execute("""
+                  SELECT DISTINCT message_thread_id,
+                         payload->'message'->>'filename' AS filename
+                  FROM telegram_outbox
+                  WHERE chat_id=%s AND status='sent'
+                    AND (payload->'message'->>'filename' LIKE 'ATC_%%'
+                         OR payload->'message'->>'caption' ILIKE '%%TARAMA%%')
+                  ORDER BY message_thread_id LIMIT 80
+              """, (os.environ["TELEGRAM_CHAT_ID"],)).fetchall()
+          print("Previously SENT Telegram thread groups:", len(historic))
+          for thread, topic_kind, publication, count, last_sent in historic:
+              print(f"sent thread={thread}, kind={topic_kind}, "
+                    f"publication={publication}, count={count}, last={last_sent}")
+          print("Previously SENT ATC media identifiers:", len(old_media))
+          for thread, filename in old_media:
+              print(f"existing sent media: thread={thread}, file={filename or '-'}")
           print("ATC visual delivery records:", len(rows))
           for filename, status, error, attempts, created, available in rows:
               # Never print bot token, original photo data, chat ID or raw payload.
