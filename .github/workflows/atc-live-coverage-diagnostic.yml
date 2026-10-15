@@ -63,6 +63,21 @@ jobs:
           """
           with psycopg.connect(url, connect_timeout=20) as db:
               rows=db.execute(sql).fetchall()
+              cycles=db.execute("""
+                SELECT timeframe, bar_time, status, expected_instruments,
+                       successful_instruments, failed_instruments, started_at
+                FROM scan_cycles
+                WHERE universe_id='ATC_630'
+                ORDER BY started_at DESC LIMIT 12
+              """).fetchall()
+              errors=db.execute("""
+                SELECT f.error_code, count(*)
+                FROM scan_cycle_failures f
+                JOIN scan_cycles c ON c.cycle_id=f.cycle_id
+                WHERE c.universe_id='ATC_630'
+                  AND c.started_at > now()-interval '2 hours'
+                GROUP BY f.error_code ORDER BY count(*) DESC LIMIT 8
+              """).fetchall()
               recent=db.execute("""
                 SELECT message_thread_id, status, count(*), max(created_at)
                 FROM telegram_outbox
@@ -72,6 +87,11 @@ jobs:
                 GROUP BY message_thread_id, status
                 ORDER BY message_thread_id, status
               """, (os.environ.get('TELEGRAM_CHAT_ID'),)).fetchall()
+          print('Recent ATC scan cycle progress:')
+          for tf, bar_time, state, expected, successful, failed, started in cycles:
+              print(f'cycle tf={tf} bar={bar_time} state={state} expected={expected} '
+                    f'success={successful} failed={failed} started={started}')
+          print('Recent failure codes:', [(str(code), int(count)) for code, count in errors])
           print('Latest actual ATC scan_evaluations by timeframe:')
           for tf, close, members, evaluations, matches, unknown in rows:
               print(f'timeframe={tf} last_bar={close} members={members}/630 '
