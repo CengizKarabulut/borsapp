@@ -46,7 +46,7 @@ class AtcTelegramBriefingTests(unittest.TestCase):
         self.assertIn("veri eksik 40", text)
         self.assertIn("VERI_YOK", data.decode("utf-8-sig"))
         with self.assertRaisesRegex(ValueError, "coverage"):
-            morning_messages(datetime(2026, 10, 14).date(), samples[:30])
+            morning_messages(datetime(2026, 10, 14).date(), samples[:30] + samples[-40:])
 
     def test_open_bar_preview_is_never_described_as_confirmed(self):
         stamp = datetime(2026, 10, 15, 12, 45, tzinfo=ISTANBUL)
