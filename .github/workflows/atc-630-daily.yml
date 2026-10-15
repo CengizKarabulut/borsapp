@@ -70,6 +70,9 @@ jobs:
       TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+      TELEGRAM_TOPIC_DAILY: ${{ vars.TELEGRAM_TOPIC_DAILY || secrets.TELEGRAM_TOPIC_DAILY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -118,6 +121,9 @@ jobs:
             --universe ATC_630 \
             --require-members 630 \
             --output runtime_artifacts/ATC_Tarama_Matris.csv
+      - name: Deliver confirmed daily PNGs to EXISTING daily Telegram topic
+        if: ${{ steps.daily.outcome == 'success' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS == 'true' }}
+        run: python -m scripts.atc_timeframe_visuals --timeframe 1d
       - name: Report scan engine failure to Actions checks
         if: steps.daily.outcome == 'failure'
         run: |
