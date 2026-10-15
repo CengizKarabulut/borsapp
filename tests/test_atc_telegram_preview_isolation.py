@@ -74,10 +74,12 @@ class PreviewIsolationTests(unittest.TestCase):
         )
         with patch("scripts.atc_telegram_briefings.PostgresSnapshotStore", return_value=store):
             with patch("scripts.atc_telegram_briefings._market_data_provider", return_value=provider):
-                preview = make_daily_preview_frame(
-                    object(), member, settings,
-                    now=datetime(2026, 10, 15, 12, 45, tzinfo=IST),
-                )
+                with patch("scripts.atc_telegram_briefings.last_closed_session",
+                           return_value=datetime(2026, 10, 14).date()):
+                    preview = make_daily_preview_frame(
+                        object(), member, settings,
+                        now=datetime(2026, 10, 15, 12, 45, tzinfo=IST),
+                    )
         self.assertEqual(preview.bars[-1].close, 101)
         self.assertEqual(preview.through_bar_time.hour, 18)
         self.assertEqual(preview.quality, "PROVISIONAL_WHAT_IF_NOT_PERSISTED")
