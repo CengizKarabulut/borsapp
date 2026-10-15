@@ -1,0 +1,51 @@
+name: ATC diagnose hourly provider errors and workflow health
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/atc-recovery-multitf-intersections-20261015]
+    paths: [.github/workflows/atc-problem-diagnostics.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'psycopg[binary]>=3,<4'
+      - name: Show sanitized, aggregated real failure reasons and scan status
+        run: |
+          python - <<'PY'
+          import os
+          from collections import Counter
+          import psycopg
+          with psycopg.connect(os.environ['DATABASE_URL']) as db:
+              rows=db.execute("""
+                SELECT c.timeframe, c.bar_time, c.status, c.expected_instruments,
+                       c.successful_instruments, c.failed_instruments
+                FROM scan_cycles c WHERE c.universe_id='ATC_630'
+                ORDER BY c.started_at DESC LIMIT 16
+              """).fetchall()
+              failures=db.execute("""
+                SELECT c.timeframe, f.error_code, f.error_detail
+                FROM scan_cycle_failures f JOIN scan_cycles c ON c.cycle_id=f.cycle_id
+                WHERE c.universe_id='ATC_630'
+                ORDER BY f.observed_at DESC LIMIT 400
+              """).fetchall()
+          print('Recent ATC scan cycles:')
+          for tf,bar,status,expected,success,failed in rows:
+              print(f'{tf}: bar={bar}, state={status}, success={success}/{expected}, failed={failed}')
+          grouped=Counter((tf,code,detail[:130]) for tf,code,detail in failures)
+          print('Top sanitized failure groups:')
+          for (tf,code,description),count in grouped.most_common(15):
+              safe=description.replace('postgresql://','[DB]').replace('https://','[URL]')
+              print(f'{tf} | {code} | count={count} | {safe}')
+          PY
