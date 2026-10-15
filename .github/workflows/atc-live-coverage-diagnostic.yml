@@ -99,4 +99,19 @@ jobs:
           print('Last 3 days ATC media delivery states:')
           for thread, state, count, created in recent:
               print(f'topic={thread} state={state} count={count} last={created}')
+          with psycopg.connect(url, connect_timeout=20) as db:
+              sent=db.execute("""
+                SELECT message_thread_id, telegram_message_id,
+                       payload->'message'->>'filename'
+                FROM telegram_outbox
+                WHERE chat_id=%s AND status='sent'
+                  AND message_thread_id=28328
+                  AND sent_at >= now()-interval '6 hours'
+                  AND payload->'message'->>'filename' LIKE 'ATC_1d_%%'
+                ORDER BY sent_at ASC LIMIT 20
+              """, (os.environ.get('TELEGRAM_CHAT_ID'),)).fetchall()
+          print('Confirmed daily photos and complete CSV Telegram links:')
+          for thread, message_id, filename in sent:
+              if message_id:
+                  print(f'{filename} https://t.me/c/4439315048/{thread}/{message_id}')
           PY
