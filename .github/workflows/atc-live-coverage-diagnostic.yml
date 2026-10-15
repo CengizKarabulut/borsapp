@@ -105,12 +105,12 @@ jobs:
                        payload->'message'->>'filename'
                 FROM telegram_outbox
                 WHERE chat_id=%s AND status='sent'
-                  AND message_thread_id=28328
+                  AND message_thread_id IN (28326, 28328)
                   AND sent_at >= now()-interval '6 hours'
-                  AND payload->'message'->>'filename' LIKE 'ATC_1d_%%'
-                ORDER BY sent_at ASC LIMIT 20
+                  AND payload->'message'->>'filename' LIKE 'ATC_%%'
+                ORDER BY sent_at ASC LIMIT 40
               """, (os.environ.get('TELEGRAM_CHAT_ID'),)).fetchall()
-          print('Confirmed daily photos and complete CSV Telegram links:')
+          print('Confirmed 1h and daily photos and complete CSV Telegram links:')
           for thread, message_id, filename in sent:
               if message_id:
                   print(f'{filename} https://t.me/c/4439315048/{thread}/{message_id}')
