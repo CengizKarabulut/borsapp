@@ -90,11 +90,11 @@ jobs:
           if chat != "-1004439315048":
               raise SystemExit("Unrecognized Telegram forum")
           base = "https://api.telegram.org/bot" + token + "/"
-          def api(name, **kwargs):
-              with urlopen(Request(base + name, data=urlencode(kwargs).encode("utf-8")), timeout=30) as resp:
+          def api(method, **kwargs):
+              with urlopen(Request(base + method, data=urlencode(kwargs).encode("utf-8")), timeout=30) as resp:
                   result = json.load(resp)
               if not result.get("ok"):
-                  raise RuntimeError(name + ": " + str(result.get("description", "unknown"))[:200])
+                  raise RuntimeError(method + ": " + str(result.get("description", "unknown"))[:200])
               return result.get("result")
           for thread_id, title in (
               (6, "15 DK TARAMA"),
