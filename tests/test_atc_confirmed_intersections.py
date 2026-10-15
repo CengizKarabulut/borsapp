@@ -13,7 +13,9 @@ from PIL import Image
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.delivery.telegram.config import TelegramSettings
 from scripts.atc_confirmed_intersections import (
-    build_confirmed_intersections, export_intersections_csv, make_envelopes,
+    build_confirmed_intersections,
+    export_intersections_csv,
+    make_envelopes,
 )
 from scripts.atc_export_dashboard import SCANNER_ORDER
 from tests.test_telegram_routing import environment
