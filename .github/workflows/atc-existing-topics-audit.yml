@@ -50,7 +50,7 @@ jobs:
               print(f"{tf.value}: {'configured' if tf in mapping else 'NOT CONFIGURED'}")
           missing = [tf.value for tf in TIMEFRAME_TOPICS if tf not in mapping]
           print(f"Configured existing timeframe topics: {len(mapping)}/{len(TIMEFRAME_TOPICS)}")
-          print(f"Timeframe image reports enabled: {os.getenv('ENABLE_TIMEFRAME_IMAGE_REPORTS') == 'true'}")
+          print(f"Timeframe image reports enabled by default: {os.getenv('ENABLE_TIMEFRAME_IMAGE_REPORTS', '').strip().casefold() != 'false'}")
           if missing:
               print(f"::error::Existing topic mapping incomplete ({len(mapping)}/{len(TIMEFRAME_TOPICS)}). Missing timeframes: {', '.join(missing)}. No new topics were created.")
               raise SystemExit(1)
