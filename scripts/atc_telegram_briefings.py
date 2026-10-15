@@ -319,6 +319,7 @@ def run_preview(connection, settings, now, *, workers):
     bindings = load_scanner_catalog(Path("config/scanners.toml"),
                                     calendar_version=calendar.version)
     finished, failures = [], Counter()
+    failure_examples = {}
     with ThreadPoolExecutor(max_workers=workers) as pool:
         future_map = {
             pool.submit(
@@ -330,7 +331,17 @@ def run_preview(connection, settings, now, *, workers):
             try:
                 finished.append(future.result())
             except Exception as exc:
-                failures[type(exc).__name__] += 1
+                name = type(exc).__name__
+                failures[name] += 1
+                if name not in failure_examples:
+                    reason = str(exc)
+                    for secret in ("DATABASE_URL", "TELEGRAM_BOT_TOKEN"):
+                        private = os.getenv(secret, "")
+                        if private:
+                            reason = reason.replace(private, "[REDACTED]")
+                    failure_examples[name] = reason[:150]
+    print(f"ATC preview data-quality errors: {dict(failures)}; "
+          f"representative_reasons={failure_examples}", flush=True)
     if len(finished) < 0.80 * len(members):
         raise ValueError(
             f"Live partial OHLCV coverage too low: {len(finished)}/{len(members)} "
