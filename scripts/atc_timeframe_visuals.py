@@ -11,6 +11,7 @@ import csv
 import io
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageFont
@@ -221,7 +222,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         if len(members) != 630:
             raise ValueError(f"Expected 630 watched symbols, got {len(members)}")
         bindings = load_scanner_catalog(
-            "config/scanners.toml", calendar_version=ExchangeCalendarsXist().version
+            Path("config/scanners.toml"), calendar_version=ExchangeCalendarsXist().version
         )
         with db.cursor() as cur:
             cur.execute(LATEST_SQL, ("ATC_630", [m.instrument_id for m in members]))
