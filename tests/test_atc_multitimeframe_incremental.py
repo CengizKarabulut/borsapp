@@ -90,10 +90,11 @@ class TimeframeCacheTests(unittest.TestCase):
         # exist in the new overlap after first historical snapshot.
         first_at = closes[-18]
         second_at = closes[-1]
-        request = lambda when: IngestionRequest(
-            instrument_id="i-1", symbol="TEST", provider_symbol="TEST", market="BIST",
-            timeframe=target, bars=count, as_of=when, series_revision=1,
-        )
+        def request(when):
+            return IngestionRequest(
+                instrument_id="i-1", symbol="TEST", provider_symbol="TEST", market="BIST",
+                timeframe=target, bars=count, as_of=when, series_revision=1,
+            )
         first = service.ingest(request(first_at))
         second = service.ingest(request(second_at))
         self.assertLess(provider.calls[1], provider.calls[0])
