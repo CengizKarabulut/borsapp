@@ -14,8 +14,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
-from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 
 SCANNER_ORDER = (
     'signal.macd_positive_cross', 'signal.smi_macd_positive',
