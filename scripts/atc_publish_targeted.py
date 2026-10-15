@@ -11,8 +11,6 @@ import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import psycopg
-
 from market_intelligence.delivery.telegram.config import TelegramSettings
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.delivery.telegram.publisher import (
@@ -106,6 +104,8 @@ def publish(mode: str, *, now=None):
     database_url = os.environ.get("DATABASE_URL", "")
     if not database_url:
         raise ValueError("DATABASE_URL secret required")
+    import psycopg
+
     keys = target_keys(settings, mode=mode, now=now)
     with psycopg.connect(database_url) as connection:
         repository = AtcOnlyOutbox(connection, keys)
