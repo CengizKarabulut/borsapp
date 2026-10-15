@@ -55,7 +55,7 @@ jobs:
               ("KESISIM", cross, 28330),
           )
           sender = HttpxTelegramTransport(token)
-          at = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M TSİ")
+          at = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M TRT")
           failures = []
           for label, thread_id, verified_id in expected:
               if thread_id != verified_id:
