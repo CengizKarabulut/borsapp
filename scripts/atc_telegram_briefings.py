@@ -139,6 +139,9 @@ def make_daily_preview_frame(connection, member, settings, *, now):
     )
     if cache is None or len(cache.bars) < 30:
         raise ValueError("Not enough persisted historical daily candles")
+    prior_close = last_closed_session(ExchangeCalendarsXist(), now.date())
+    if cache.bars[-1].close_time.astimezone(ISTANBUL).date() != prior_close:
+        raise ValueError("Latest saved daily candle is stale; no live preview")
     provider = _market_data_provider(settings)
     raw = provider.fetch_from_source(
         cache.source,
