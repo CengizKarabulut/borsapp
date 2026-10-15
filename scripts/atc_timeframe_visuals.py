@@ -9,7 +9,6 @@ import argparse
 import base64
 import io
 import os
-from collections import Counter
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
