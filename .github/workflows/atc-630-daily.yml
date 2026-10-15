@@ -88,6 +88,8 @@ jobs:
           fi
       - name: Install existing Python scanner runtime
         run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Enforce Neon storage headroom before any market data writes
+        run: python -m scripts.atc_database_capacity
       - name: Migrate existing database
         run: borsapp db-migrate
       - name: Seed all 630 watched symbols and report provider gaps
