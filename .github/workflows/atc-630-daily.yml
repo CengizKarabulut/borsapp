@@ -121,6 +121,21 @@ jobs:
             --universe ATC_630 \
             --require-members 630 \
             --output runtime_artifacts/ATC_Tarama_Matris.csv
+      - name: Validate 18 scanner bindings before live visual delivery
+        if: ${{ steps.daily.outcome == 'success' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS != 'false' }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from market_intelligence.scanning.catalog import load_scanner_catalog
+          from market_intelligence.scheduling.xist import ExchangeCalendarsXist
+          bindings = load_scanner_catalog(
+              Path("config/scanners.toml"),
+              calendar_version=ExchangeCalendarsXist().version,
+          )
+          print("Live visual scanner catalog:", len(bindings), "bindings")
+          if len(bindings) != 18:
+              raise SystemExit("Expected exactly 18 ATC scanner bindings")
+          PY
       - name: Deliver confirmed daily PNGs and complete CSV to EXISTING daily topic
         if: ${{ steps.daily.outcome == 'success' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS != 'false' }}
         run: python -m scripts.atc_timeframe_visuals --timeframe 1d --skip-if-unmapped
