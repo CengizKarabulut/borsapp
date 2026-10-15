@@ -74,6 +74,6 @@ jobs:
             esac
           fi
           echo "ATC Telegram mode=$mode"
-          python scripts/atc_telegram_briefings.py "$mode" --workers 8
+          python -m scripts.atc_telegram_briefings "$mode" --workers 8
       - name: Publish queued reports to Telegram topics
         run: borsapp publisher-once --limit 25
