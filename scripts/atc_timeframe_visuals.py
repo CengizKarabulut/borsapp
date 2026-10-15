@@ -217,7 +217,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
     uri = os.environ.get("DATABASE_URL", "")
     if not uri:
         raise ValueError("DATABASE_URL missing")
-    with psycopg.connect(uri) as db:
+    # Outbox state must survive delivery failures for safe retries and diagnostics.
+    with psycopg.connect(uri, autocommit=True) as db:
         members = PostgresRuntimeRepository(db).list_universe("ATC_630", as_of=now.date())
         if len(members) != 630:
             raise ValueError(f"Expected 630 watched symbols, got {len(members)}")
@@ -306,6 +307,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 ([e.semantic_key for e in envelopes],),
             )
             states = dict(cur.fetchall())
+        for error in result.error_samples:
+            print(f"ATC Telegram visual delivery error: {error[:350]}", flush=True)
         if (len(states) != len(envelopes)
                 or any(states.get(e.semantic_key) != "sent" for e in envelopes)):
             raise RuntimeError(
