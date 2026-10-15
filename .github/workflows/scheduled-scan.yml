@@ -39,12 +39,14 @@ concurrency:
 
 jobs:
   prepare:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_SCANS == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_SCANS != 'false' }}
+    outputs:
+      timeframes: ${{ steps.due.outputs.timeframes }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       APP_ENV: production
-      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -88,6 +90,10 @@ jobs:
       - name: Apply database migrations
         if: ${{ env.DATABASE_URL != '' }}
         run: borsapp db-migrate
+      - name: Determine only newly closed BIST candle intervals
+        id: due
+        if: ${{ github.event_name == 'schedule' && env.DATABASE_URL != '' }}
+        run: python scripts/atc_due_timeframes.py
 
   manual-scan:
     if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -96,7 +102,7 @@ jobs:
     timeout-minutes: 90
     env:
       APP_ENV: production
-      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: ${{ vars.SCAN_DELIVERY_MODE || 'shadow' }}
       ENABLE_SHADOW_PARITY: ${{ vars.ENABLE_SHADOW_PARITY || 'false' }}
@@ -159,19 +165,21 @@ jobs:
           fi
 
   scheduled-scan:
-    if: ${{ github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_SCANS == 'true' }}
+    if: ${{ github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_SCANS != 'false' && needs.prepare.outputs.timeframes != '' && needs.prepare.outputs.timeframes != '[]' }}
     needs: prepare
     strategy:
       fail-fast: false
       matrix:
-        timeframe: [15m, 30m, 45m, 1h, 2h, 4h, 1d]
+        timeframe: ${{ fromJSON(needs.prepare.outputs.timeframes) }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
       APP_ENV: production
-      APP_TIMEZONE: ${{ vars.APP_TIMEZONE }}
+      APP_TIMEZONE: ${{ vars.APP_TIMEZONE || 'Europe/Istanbul' }}
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
-      DELIVERY_MODE: ${{ vars.SCAN_DELIVERY_MODE || 'shadow' }}
+      # Telegram visuals are published by the targeted sender only.
+      # Keep legacy scanner notifications off to avoid unrelated backlog.
+      DELIVERY_MODE: disabled
       ENABLE_SHADOW_PARITY: ${{ matrix.timeframe == '1d' && vars.ENABLE_SHADOW_PARITY || 'false' }}
       ATC_SCAN_UNIVERSE: ${{ vars.ATC_SCAN_UNIVERSE || 'ATC_630' }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -216,17 +224,12 @@ jobs:
         env:
           SCAN_TIMEFRAME: ${{ matrix.timeframe }}
         run: |
-          notify_flag=()
-          if [ "$DELIVERY_MODE" = "live" ]; then notify_flag=(--notify); fi
-          borsapp scan-due --universe "$ATC_SCAN_UNIVERSE" --timeframe "$SCAN_TIMEFRAME" "${notify_flag[@]}"
+          borsapp scan-due --universe "$ATC_SCAN_UNIVERSE" --timeframe "$SCAN_TIMEFRAME" --bars 600 --workers 8
       - name: Reuse existing timeframe topic and send PNG cards from confirmed scan
-        if: ${{ env.DATABASE_URL != '' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS == 'true' }}
+        if: ${{ env.DATABASE_URL != '' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS != 'false' }}
         env:
           SCAN_TIMEFRAME: ${{ matrix.timeframe }}
-        run: python -m scripts.atc_timeframe_visuals --timeframe "$SCAN_TIMEFRAME"
-      - name: Publish eligible findings
-        if: ${{ env.DATABASE_URL != '' && always() }}
-        run: borsapp publisher-once --limit 100
+        run: python -m scripts.atc_timeframe_visuals --timeframe "$SCAN_TIMEFRAME" --skip-if-unmapped
       - name: Report shadow parity
         if: ${{ env.DATABASE_URL != '' && env.ENABLE_SHADOW_PARITY == 'true' && matrix.timeframe == '1d' }}
         run: borsapp shadow-report --days 30

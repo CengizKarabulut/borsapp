@@ -91,11 +91,32 @@ def target_keys(settings, *, mode: str, now):
         slot, kind, count = f"preview:{hour.isoformat()}", PublicationKind.SCAN_EVENT, 1
     else:
         raise ValueError("Unknown ATC Telegram report mode")
-    return tuple(router.route(
+    keys = tuple(router.route(
         publication_kind=kind,
         semantic_identity={"source": "atc-bulletins-v1", "slot": slot, "part": index},
         payload={},
     ).semantic_key for index in range(count))
+    if mode == "preview" and os.getenv(
+        "ENABLE_TIMEFRAME_IMAGE_REPORTS", "true"
+    ).casefold() == "true":
+        from market_intelligence.core.timeframes import Timeframe
+        from market_intelligence.delivery.telegram.timeframe_topics import (
+            route_timeframe_image,
+            timeframe_topic_ids,
+        )
+        from scripts.atc_timeframe_visuals import preview_visual_identity
+
+        topics = timeframe_topic_ids(os.environ)
+        if Timeframe.D1 in topics:
+            keys += tuple(
+                route_timeframe_image(
+                    settings, topics, Timeframe.D1,
+                    identity=preview_visual_identity(hour, media),
+                    payload={},
+                ).semantic_key
+                for media in ("photo", "csv")
+            )
+    return keys
 
 
 def publish(mode: str, *, now=None):

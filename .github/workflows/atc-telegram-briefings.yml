@@ -45,6 +45,10 @@ jobs:
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
       SELECTED_MODE: ${{ inputs.mode || '' }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+      TELEGRAM_TOPIC_DAILY: ${{ vars.TELEGRAM_TOPIC_DAILY || secrets.TELEGRAM_TOPIC_DAILY }}
+      ENABLE_TIMEFRAME_IMAGE_REPORTS: ${{ vars.ENABLE_TIMEFRAME_IMAGE_REPORTS || 'true' }}
       SCHEDULE_EXPRESSION: ${{ github.event.schedule }}
     steps:
       - uses: actions/checkout@v4
