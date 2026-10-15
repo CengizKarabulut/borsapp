@@ -23,6 +23,17 @@ _ALIASES = {
     Timeframe.H1: "1H", Timeframe.H2: "2H", Timeframe.H4: "4H",
     Timeframe.D1: "1D", Timeframe.W1: "1W",
 }
+# Existing Telegram forum message-thread IDs verified from the user's
+# t.me/c/4439315048 screenshots on 15 Oct 2026. Never create new topics.
+# Explicit GitHub variables override these four verified defaults.
+_VERIFIED_EXISTING_THREADS = {
+    Timeframe.H1: 326,    # 60 DK
+    Timeframe.H4: 327,    # 240 DK
+    Timeframe.D1: 328,    # GÜNLÜK
+    Timeframe.W1: 329,    # HAFTALIK
+}
+_VERIFIED_FORUM_LINK_ID = "4439315048"
+
 _OLD_NAMES = {
     Timeframe.H1: ("60M", "60DK"), Timeframe.H2: ("120M", "120DK"),
     Timeframe.H4: ("240M", "240DK"), Timeframe.D1: ("DAILY", "GUNLUK"),
@@ -82,6 +93,12 @@ def timeframe_topic_ids(values: Mapping[str, str]) -> dict[Timeframe, int]:
             if raw:
                 mapping[tf] = _topic_id(raw, key)
                 break
+    # These defaults are appropriate ONLY when the configured chat matches
+    # the very same forum identified by the supplied Telegram screenshots.
+    configured_chat = (values.get("TELEGRAM_CHAT_ID") or "").strip()
+    if configured_chat == "-100" + _VERIFIED_FORUM_LINK_ID:
+        for timeframe, thread_id in _VERIFIED_EXISTING_THREADS.items():
+            mapping.setdefault(timeframe, thread_id)
     if len(set(mapping.values())) != len(mapping):
         raise ValueError("Farklı zaman dilimleri aynı topic'e bağlı; eski eşleşmeyi doğrulayın")
     return mapping
