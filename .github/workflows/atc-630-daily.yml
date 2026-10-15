@@ -110,7 +110,7 @@ jobs:
       - name: Run 630-symbol daily scan with native Pine rules
         id: daily
         continue-on-error: true
-        run: borsapp scan-due --universe ATC_630 --timeframe 1d --bars 600
+        run: borsapp scan-due --universe ATC_630 --timeframe 1d --bars 600 --workers 8
       - name: Export real outcomes, no synthetic signals
         if: always() && steps.daily.outcome != 'skipped'
         run: |
