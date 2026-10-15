@@ -62,6 +62,7 @@ jobs:
       - name: Install existing scanner runtime
         run: python -m pip install --editable ".[runtime,atcdata]"
       - name: Select schedule mode and queue uniquely identified bulletin
+        id: queue
         shell: bash
         run: |
           mode="$SELECTED_MODE"
@@ -74,6 +75,7 @@ jobs:
             esac
           fi
           echo "ATC Telegram mode=$mode"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
           python -m scripts.atc_telegram_briefings "$mode" --workers 8
-      - name: Publish queued reports to Telegram topics
-        run: borsapp publisher-once --limit 25
+      - name: Publish ONLY queued ATC bulletin to its Telegram topic
+        run: python -m scripts.atc_publish_targeted "${{ steps.queue.outputs.mode }}"

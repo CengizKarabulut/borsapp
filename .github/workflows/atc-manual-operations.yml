@@ -53,7 +53,7 @@ jobs:
       TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
-      REQUESTED_TASK: ${{ inputs.task || 'all' }}
+      REQUESTED_TASK: ${{ github.event_name == 'push' && 'morning' || inputs.task || 'all' }}
       REQUESTED_SYMBOL: ${{ inputs.symbol || 'ASELS' }}
       REQUESTED_TIMEFRAME: ${{ inputs.timeframe || '1h' }}
     steps:
@@ -82,7 +82,7 @@ jobs:
           set -euo pipefail
           python -m scripts.atc_telegram_briefings morning
           # Only the report publisher is live; manual scanner remains no-notify.
-          DELIVERY_MODE=live borsapp publisher-once --limit 25
+          python -m scripts.atc_publish_targeted morning
           python - <<'PY'
           import os
           import psycopg
