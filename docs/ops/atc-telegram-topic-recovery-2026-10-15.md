@@ -53,6 +53,42 @@ test mesajı (Günlük için PNG) göndererek Bot API kabulünü sınar.
 Gerçek Bot API sonucunu ve `message_id` kaydını görmeden teslimat
 başarılı olarak raporlanmamalı.
 
+## 240 DK ve dört eski konunun yeniden kullanımı — 15 Ekim
+
+Kullanıcının 240 DK için sağladığı güncel bağlantı:
+https://t.me/c/4439315048/28327/32627 → **240 DK topic ID = 28327**.
+
+Kodda yalnız `TELEGRAM_CHAT_ID=-1004439315048` için aşağıdaki
+**sekiz** zaman dilimi eşlemesi bulunuyor:
+
+| Zaman dilimi | Mevcut ID | Açıklama |
+|---|---:|---|
+| 15 DK | 6 | Eski Charts konusu yeniden adlandırılır |
+| 30 DK | 11 | Eski Analysis konusu yeniden adlandırılır |
+| 45 DK | 9 | Eski Calendar konusu yeniden adlandırılır |
+| 60 DK | 28326 | Kullanıcının gönderdiği gerçek bağlantı |
+| 120 DK | 10 | Eski System konusu yeniden adlandırılır |
+| 240 DK | 28327 | Kullanıcının gönderdiği gerçek bağlantı |
+| Günlük | 28328 | Kullanıcının gönderdiği gerçek bağlantı |
+| Haftalık | 28329 | Kullanıcının gönderdiği gerçek bağlantı |
+
+Kesişim ayrı konu olarak **28330**'da kalır. Diğer korunan konular:
+Command 4, Scans 5, News 7, Reports 8.
+
+**Yayın karışmasını önleme:** Daha önce bir `CHART` mesajı topic 6'ya
+giderken artık topic 5 (Scans)'e gider. `ANALYSIS` → 8 (Reports),
+`CALENDAR` → 7 (News), `SYSTEM` → 4 (Command). Bu düzenleme
+yalnız söz konusu forum için geçerlidir. Geçmiş Telegram mesajları
+silinmez; farklı Chat ID kullanan grupların yönlendirmeleri aynı kalır.
+
+`.github/workflows/atc-repurpose-four-topics.yml` ilgili grup kimliği,
+bot yönetim yetkisi, önceki mesaj kuyrukları ve konu erişimlerini
+kontrol ettikten sonra **yalnız dört mevcut** topic adını değiştirir.
+İş akışının canlı sonucu doğru Bot API cevabıyla doğrulanana dek
+konuların yeniden adlandırıldığı iddia edilmemelidir.
+Kesişim topic'inin varlığı, kesişim tarama matematiğinin otomatik
+çalıştırıldığı anlamına gelmez; ayrı entegrasyon kontrolü gerekir.
+
 ## Test ve tanılama
 
 - `.github/workflows/atc-existing-topics-audit.yml`: doğrulanmış eşleştirmeler eksikse açık hata verir.

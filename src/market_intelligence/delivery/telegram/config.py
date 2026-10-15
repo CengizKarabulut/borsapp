@@ -87,6 +87,15 @@ class TelegramSettings:
                 topics[kind] = _positive_int(raw, env_key)
         if missing:
             raise ValueError("Eksik Telegram topic ayarları: " + ", ".join(missing))
+        # In this verified ATC forum four old, low-traffic topics have been
+        # repurposed as interval-specific scanner topics. Never deliver
+        # historical CHART/ANALYSIS/CALENDAR/SYSTEM publications into them.
+        # Keep unrelated forums' routing exactly as configured.
+        if chat_id == -1004439315048:
+            topics[TopicKind.CHARTS] = topics[TopicKind.SCANS]
+            topics[TopicKind.ANALYSIS] = topics[TopicKind.REPORTS]
+            topics[TopicKind.CALENDAR] = topics[TopicKind.NEWS]
+            topics[TopicKind.SYSTEM] = topics[TopicKind.COMMAND]
         try:
             delivery_mode = DeliveryMode(
                 values.get("DELIVERY_MODE", DeliveryMode.DISABLED.value).strip().casefold()

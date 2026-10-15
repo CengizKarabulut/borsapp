@@ -1,0 +1,122 @@
+name: ATC safely repurpose four EXISTING Telegram topics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-repurpose-four-topics.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-repurpose-four-existing-telegram-topics
+  cancel-in-progress: false
+
+jobs:
+  repurpose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PostgreSQL client to check queued legacy messages
+        run: python -m pip install "psycopg[binary]>=3,<4"
+      - name: Verify original forum, bot topic management rights, and empty legacy outbox
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+          import psycopg
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+          chat = os.environ.get("TELEGRAM_CHAT_ID", "")
+          db_url = os.environ.get("DATABASE_URL", "")
+          if chat != "-1004439315048" or not token or not db_url:
+              raise SystemExit("Original Telegram forum and configured secrets required")
+
+          base = "https://api.telegram.org/bot" + token + "/"
+          def api(name, **kwargs):
+              form = urlencode(kwargs).encode("utf-8")
+              with urlopen(Request(base + name, data=form), timeout=25) as response:
+                  data = json.load(response)
+              if not data.get("ok"):
+                  raise RuntimeError(name + ": " + str(data.get("description", "unknown"))[:160])
+              return data.get("result")
+          me = api("getMe")
+          member = api("getChatMember", chat_id=chat, user_id=me["id"])
+          if member.get("status") not in ("creator", "administrator"):
+              raise SystemExit("Telegram bot must be an administrator to rename topics")
+          if member.get("status") != "creator" and not member.get("can_manage_topics"):
+              raise SystemExit("Bot needs can_manage_topics to rename old forum topics")
+          # Do not strand queued legacy messages in newly renamed scanner topics.
+          with psycopg.connect(db_url) as connection:
+              pending = connection.execute("""
+                  SELECT message_thread_id, count(*)
+                  FROM telegram_outbox
+                  WHERE chat_id=%s AND message_thread_id=ANY(%s::bigint[])
+                    AND status IN ('pending','failed','processing')
+                    AND available_at < 'infinity'::timestamptz
+                  GROUP BY message_thread_id
+              """, (chat, [6, 11, 9, 10])).fetchall()
+          if pending:
+              print("Old legacy messages still queued in reused topics:",
+                    [(int(thread), int(count)) for thread, count in pending])
+              raise SystemExit("Resolve old outbox backlog before renaming topics")
+          for thread in (6, 11, 9, 10, 28327):
+              if api("sendChatAction", chat_id=chat, message_thread_id=thread,
+                     action="typing") is not True:
+                  raise SystemExit(f"Existing topic {thread} is inaccessible")
+          print("All five existing topics reachable; no legacy backlog.")
+          PY
+      - name: Rename EXACTLY four existing topics and verify sendMessage in each
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          token = os.environ["TELEGRAM_BOT_TOKEN"]
+          chat = os.environ["TELEGRAM_CHAT_ID"]
+          if chat != "-1004439315048":
+              raise SystemExit("Unrecognized Telegram forum")
+          base = "https://api.telegram.org/bot" + token + "/"
+          def api(name, **kwargs):
+              with urlopen(Request(base + name, data=urlencode(kwargs).encode("utf-8")), timeout=30) as resp:
+                  result = json.load(resp)
+              if not result.get("ok"):
+                  raise RuntimeError(name + ": " + str(result.get("description", "unknown"))[:200])
+              return result.get("result")
+          for thread_id, title in (
+              (6, "15 DK TARAMA"),
+              (11, "30 DK TARAMA"),
+              (9, "45 DK TARAMA"),
+              (10, "120 DK TARAMA"),
+          ):
+              if api("editForumTopic", chat_id=chat, message_thread_id=thread_id, name=title) is not True:
+                  raise RuntimeError("Topic rename was not confirmed")
+              posted = api(
+                  "sendMessage", chat_id=chat, message_thread_id=thread_id,
+                  text="ALPHA TREND CIPHER | " + title +
+                       " | KONU DÜZENLEME TESTİ. Piyasa sinyali değildir.",
+              )
+              message_id = posted.get("message_id")
+              if not isinstance(message_id, int):
+                  raise RuntimeError("Telegram did not return message ID")
+              print(f"RENAMED and VERIFIED topic={thread_id} label={title}, "
+                    f"url=https://t.me/c/4439315048/{thread_id}/{message_id}")
+          # Separately test the user-linked 240 DK topic, without renaming it.
+          test = api("sendMessage", chat_id=chat, message_thread_id=28327,
+                     text="ATC 240 DK | KONU BAĞLANTI TESTİ. Piyasa sinyali değildir.")
+          print("240 DK verified: https://t.me/c/4439315048/28327/" +
+                str(test["message_id"]))
+          PY

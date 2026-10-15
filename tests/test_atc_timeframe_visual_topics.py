@@ -66,14 +66,16 @@ class OldTimeframeTopicTests(unittest.TestCase):
         }
         mapping = timeframe_topic_ids(configured)
         self.assertEqual(mapping, {
+            Timeframe.M15: 6,
+            Timeframe.M30: 11,
+            Timeframe.M45: 9,
             Timeframe.H1: 28326,
+            Timeframe.H2: 10,
+            Timeframe.H4: 28327,
             Timeframe.D1: 28328,
             Timeframe.W1: 28329,
         })
         self.assertEqual(existing_intersection_topic_id(configured), 28330)
-        self.assertNotIn(Timeframe.H4, mapping)  # 240m link supplied no topic ID
-        for unknown in (Timeframe.M15, Timeframe.M30, Timeframe.M45, Timeframe.H2):
-            self.assertNotIn(unknown, mapping)
         self.assertEqual(timeframe_topic_ids({
             "TELEGRAM_CHAT_ID": "-1001234567890",
         }), {})
@@ -87,6 +89,14 @@ class OldTimeframeTopicTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "eski/uyuşmayan"):
             timeframe_topic_ids({
                 **configured, "TELEGRAM_TIMEFRAME_TOPICS": '{"1h":326}',
+            })
+        with self.assertRaisesRegex(ValueError, "eski/uyuşmayan"):
+            timeframe_topic_ids({
+                **configured, "TELEGRAM_TOPIC_4H": "327",
+            })
+        with self.assertRaisesRegex(ValueError, "eski/uyuşmayan"):
+            timeframe_topic_ids({
+                **configured, "TELEGRAM_TOPIC_15M": "999",
             })
         with self.assertRaisesRegex(ValueError, "eski/uyuşmayan"):
             existing_intersection_topic_id({
