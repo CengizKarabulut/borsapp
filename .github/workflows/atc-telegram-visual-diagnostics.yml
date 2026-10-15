@@ -1,0 +1,50 @@
+name: ATC Telegram visual delivery diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-telegram-visual-diagnostics.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PostgreSQL client only
+        run: python -m pip install "psycopg[binary]>=3,<4"
+      - name: Diagnose ATC visual delivery without printing credentials or payloads
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg
+
+          if not os.getenv("DATABASE_URL"):
+              raise SystemExit("DATABASE_URL secret missing")
+          sql = """
+          SELECT payload->'message'->>'filename' AS filename,
+                 status, COALESCE(last_error, ''), attempt_count,
+                 created_at, available_at
+          FROM telegram_outbox
+          WHERE created_at >= now() - interval '12 hours'
+            AND payload->'message'->>'filename' LIKE 'ATC_1d_%'
+          ORDER BY created_at DESC
+          LIMIT 35
+          """
+          with psycopg.connect(os.environ["DATABASE_URL"]) as db:
+              rows = db.execute(sql).fetchall()
+          print("ATC visual delivery records:", len(rows))
+          for filename, status, error, attempts, created, available in rows:
+              # Never print bot token, original photo data, chat ID or raw payload.
+              print(f"{filename}: {status}; tries={attempts}; "
+                    f"error={error[:250]!r}; created={created}; next_retry={available}")
+          PY
