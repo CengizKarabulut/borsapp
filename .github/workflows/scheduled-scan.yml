@@ -94,6 +94,9 @@ jobs:
       - name: Install runtime
         if: ${{ env.DATABASE_URL != '' }}
         run: python -m pip install ".[runtime,atcdata]"
+      - name: Check database storage capacity before 630-equity scan writes
+        if: ${{ env.DATABASE_URL != '' }}
+        run: python -m scripts.atc_database_capacity
       - name: Apply database migrations
         if: ${{ env.DATABASE_URL != '' }}
         run: borsapp db-migrate
