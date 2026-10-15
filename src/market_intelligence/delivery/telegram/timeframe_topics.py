@@ -35,6 +35,16 @@ _USER_CONFIRMED_TIMEFRAME_TOPICS = {
     Timeframe.D1: 28328,  # t.me/c/4439315048/28328/32792
     Timeframe.W1: 28329,  # t.me/c/4439315048/28329/32912
 }
+# Four PRE-EXISTING, lower-traffic forum topics will be renamed rather than
+# creating four new ones. Original semantic messages are rerouted by
+# TelegramSettings before these topics are reused for timeframe PNG/CSV.
+_REPURPOSED_TIMEFRAME_TOPICS = {
+    Timeframe.M15: 6,    # formerly CHARTS
+    Timeframe.M30: 11,   # formerly ANALYSIS
+    Timeframe.M45: 9,    # formerly CALENDAR
+    Timeframe.H2: 10,    # formerly SYSTEM
+}
+
 # Non-timeframe topic supplied in the same message; reserved for intersection
 # reporting, not used as a substitute for any missing timeframe.
 _USER_CONFIRMED_INTERSECTION_TOPIC = 28330
@@ -99,11 +109,15 @@ def timeframe_topic_ids(values: Mapping[str, str]) -> dict[Timeframe, int]:
                 mapping[tf] = _topic_id(raw, key)
                 break
     if (values.get("TELEGRAM_CHAT_ID") or "").strip() == _VERIFIED_FORUM_CHAT_ID:
-        for tf, verified_id in _USER_CONFIRMED_TIMEFRAME_TOPICS.items():
+        expected = {
+            **_USER_CONFIRMED_TIMEFRAME_TOPICS,
+            **_REPURPOSED_TIMEFRAME_TOPICS,
+        }
+        for tf, verified_id in expected.items():
             if tf in mapping and mapping[tf] != verified_id:
                 raise ValueError(
                     f"{tf.value}: eski/uyuşmayan Telegram topic ID {mapping[tf]}; "
-                    f"kullanıcının güncel konu bağlantısındaki ID {verified_id}"
+                    f"bu forum için ayrılmış mevcut topic ID {verified_id}"
                 )
             mapping[tf] = verified_id
     if len(set(mapping.values())) != len(mapping):
