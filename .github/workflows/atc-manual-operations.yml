@@ -125,18 +125,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          session_date=$(python - <<'PY'
-          from datetime import datetime, timedelta
+          # The pinned ATC_630 watch universe was created on Oct 15. For
+          # previous-session scans use today's WATCHLIST membership, but
+          # all evidence remains tied to its original closed bar timestamps.
+          istanbul_date=$(python - <<'PY'
+          from datetime import datetime
           from zoneinfo import ZoneInfo
-          from market_intelligence.scheduling.xist import ExchangeCalendarsXist
-          now = datetime.now(ZoneInfo("Europe/Istanbul")).date()
-          sessions = ExchangeCalendarsXist().sessions(now - timedelta(days=15), now - timedelta(days=1))
-          if not sessions: raise SystemExit("No previous confirmed session")
-          print(sessions[-1].isoformat())
+          print(datetime.now(ZoneInfo("Europe/Istanbul")).date().isoformat())
           PY
           )
           python -m scripts.atc_export_dashboard --universe ATC_630 \
-            --require-members 630 --as-of "$session_date" \
+            --require-members 630 --as-of "$istanbul_date" \
             --output runtime_artifacts/ATC_MANUEL_DENETIM.csv
           echo "CSV kept private on GitHub runner; no public artifact exposure."
       - name: Summarize requested smoke checks
