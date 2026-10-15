@@ -42,6 +42,41 @@ class TelegramSettingsTests(unittest.TestCase):
         settings = TelegramSettings.from_mapping(values)
         self.assertTrue(settings.allow_chat_admins)
 
+    def test_repurposed_topics_keep_legacy_publications_out(self) -> None:
+        values = environment()
+        values.update({
+            "TELEGRAM_CHAT_ID": "-1004439315048",
+            "TELEGRAM_TOPIC_COMMAND": "4",
+            "TELEGRAM_TOPIC_SCANS": "5",
+            "TELEGRAM_TOPIC_ANALYSIS": "11",
+            "TELEGRAM_TOPIC_CHARTS": "6",
+            "TELEGRAM_TOPIC_NEWS": "7",
+            "TELEGRAM_TOPIC_CALENDAR": "9",
+            "TELEGRAM_TOPIC_REPORTS": "8",
+            "TELEGRAM_TOPIC_SYSTEM": "10",
+        })
+        settings = TelegramSettings.from_mapping(values)
+        router = TopicRouter(settings)
+        expected = {
+            PublicationKind.CHART: 5,
+            PublicationKind.ANALYSIS: 8,
+            PublicationKind.CALENDAR: 7,
+            PublicationKind.SYSTEM: 4,
+            PublicationKind.NEWS: 7,
+            PublicationKind.SCAN_EVENT: 5,
+            PublicationKind.REPORT: 8,
+        }
+        for kind, thread in expected.items():
+            result = router.route(
+                publication_kind=kind,
+                semantic_identity={"test": kind.value}, payload={"text": "test"},
+            )
+            self.assertEqual(result.message_thread_id, thread)
+            self.assertNotIn(thread, (6, 11, 9, 10))
+        self.assertEqual(
+            TelegramSettings.from_mapping(environment()).topic_id(TopicKind.SYSTEM), 80
+        )
+
     def test_configured_chat_members_can_be_explicitly_authorized(self) -> None:
         values = environment()
         values["TELEGRAM_ALLOW_CHAT_MEMBERS"] = "true"
