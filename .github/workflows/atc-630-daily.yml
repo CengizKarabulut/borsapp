@@ -121,9 +121,9 @@ jobs:
             --universe ATC_630 \
             --require-members 630 \
             --output runtime_artifacts/ATC_Tarama_Matris.csv
-      - name: Deliver confirmed daily PNGs to EXISTING daily Telegram topic
-        if: ${{ steps.daily.outcome == 'success' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS == 'true' }}
-        run: python -m scripts.atc_timeframe_visuals --timeframe 1d
+      - name: Deliver confirmed daily PNGs and complete CSV to EXISTING daily topic
+        if: ${{ steps.daily.outcome == 'success' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS != 'false' }}
+        run: python -m scripts.atc_timeframe_visuals --timeframe 1d --skip-if-unmapped
       - name: Report scan engine failure to Actions checks
         if: steps.daily.outcome == 'failure'
         run: |
