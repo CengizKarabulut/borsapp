@@ -1,0 +1,51 @@
+name: ATC existing Telegram timeframe topics audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-existing-topics-audit.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_15M: ${{ vars.TELEGRAM_TOPIC_15M || secrets.TELEGRAM_TOPIC_15M }}
+      TELEGRAM_TOPIC_30M: ${{ vars.TELEGRAM_TOPIC_30M || secrets.TELEGRAM_TOPIC_30M }}
+      TELEGRAM_TOPIC_45M: ${{ vars.TELEGRAM_TOPIC_45M || secrets.TELEGRAM_TOPIC_45M }}
+      TELEGRAM_TOPIC_1H: ${{ vars.TELEGRAM_TOPIC_1H || secrets.TELEGRAM_TOPIC_1H }}
+      TELEGRAM_TOPIC_60M: ${{ vars.TELEGRAM_TOPIC_60M || secrets.TELEGRAM_TOPIC_60M }}
+      TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
+      TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
+      TELEGRAM_TOPIC_240M: ${{ vars.TELEGRAM_TOPIC_240M || secrets.TELEGRAM_TOPIC_240M }}
+      TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+      TELEGRAM_TOPIC_DAILY: ${{ vars.TELEGRAM_TOPIC_DAILY || secrets.TELEGRAM_TOPIC_DAILY }}
+      TELEGRAM_TOPIC_1W: ${{ vars.TELEGRAM_TOPIC_1W || secrets.TELEGRAM_TOPIC_1W }}
+      TELEGRAM_TOPIC_1WK: ${{ vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1WK }}
+      TELEGRAM_TOPIC_HAFTALIK: ${{ vars.TELEGRAM_TOPIC_HAFTALIK || secrets.TELEGRAM_TOPIC_HAFTALIK }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project for routing audit
+        run: python -m pip install --editable .
+      - name: Audit existing per-timeframe topics WITHOUT printing their IDs
+        run: |
+          python - <<'PY'
+          import os
+          from market_intelligence.delivery.telegram.timeframe_topics import (
+              TIMEFRAME_TOPICS, timeframe_topic_ids,
+          )
+          mapping = timeframe_topic_ids(os.environ)
+          for tf in TIMEFRAME_TOPICS:
+              print(f"{tf.value}: {'configured' if tf in mapping else 'NOT CONFIGURED'}")
+          print(f"Configured existing timeframe topics: {len(mapping)}/{len(TIMEFRAME_TOPICS)}")
+          if not mapping:
+              print("::warning::Existing Telegram topics exist but no per-timeframe IDs are accessible through the GitHub repo variables/secrets.")
+          PY

@@ -58,6 +58,21 @@ jobs:
       TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_15M: ${{ vars.TELEGRAM_TOPIC_15M || secrets.TELEGRAM_TOPIC_15M }}
+      TELEGRAM_TOPIC_30M: ${{ vars.TELEGRAM_TOPIC_30M || secrets.TELEGRAM_TOPIC_30M }}
+      TELEGRAM_TOPIC_45M: ${{ vars.TELEGRAM_TOPIC_45M || secrets.TELEGRAM_TOPIC_45M }}
+      TELEGRAM_TOPIC_1H: ${{ vars.TELEGRAM_TOPIC_1H || secrets.TELEGRAM_TOPIC_1H }}
+      TELEGRAM_TOPIC_60M: ${{ vars.TELEGRAM_TOPIC_60M || secrets.TELEGRAM_TOPIC_60M }}
+      TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
+      TELEGRAM_TOPIC_120M: ${{ vars.TELEGRAM_TOPIC_120M || secrets.TELEGRAM_TOPIC_120M }}
+      TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
+      TELEGRAM_TOPIC_240M: ${{ vars.TELEGRAM_TOPIC_240M || secrets.TELEGRAM_TOPIC_240M }}
+      TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+      TELEGRAM_TOPIC_DAILY: ${{ vars.TELEGRAM_TOPIC_DAILY || secrets.TELEGRAM_TOPIC_DAILY }}
+      TELEGRAM_TOPIC_1W: ${{ vars.TELEGRAM_TOPIC_1W || secrets.TELEGRAM_TOPIC_1W }}
+      TELEGRAM_TOPIC_1WK: ${{ vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1WK }}
+      TELEGRAM_TOPIC_HAFTALIK: ${{ vars.TELEGRAM_TOPIC_HAFTALIK || secrets.TELEGRAM_TOPIC_HAFTALIK }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -97,6 +112,21 @@ jobs:
       TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_15M: ${{ vars.TELEGRAM_TOPIC_15M || secrets.TELEGRAM_TOPIC_15M }}
+      TELEGRAM_TOPIC_30M: ${{ vars.TELEGRAM_TOPIC_30M || secrets.TELEGRAM_TOPIC_30M }}
+      TELEGRAM_TOPIC_45M: ${{ vars.TELEGRAM_TOPIC_45M || secrets.TELEGRAM_TOPIC_45M }}
+      TELEGRAM_TOPIC_1H: ${{ vars.TELEGRAM_TOPIC_1H || secrets.TELEGRAM_TOPIC_1H }}
+      TELEGRAM_TOPIC_60M: ${{ vars.TELEGRAM_TOPIC_60M || secrets.TELEGRAM_TOPIC_60M }}
+      TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
+      TELEGRAM_TOPIC_120M: ${{ vars.TELEGRAM_TOPIC_120M || secrets.TELEGRAM_TOPIC_120M }}
+      TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
+      TELEGRAM_TOPIC_240M: ${{ vars.TELEGRAM_TOPIC_240M || secrets.TELEGRAM_TOPIC_240M }}
+      TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+      TELEGRAM_TOPIC_DAILY: ${{ vars.TELEGRAM_TOPIC_DAILY || secrets.TELEGRAM_TOPIC_DAILY }}
+      TELEGRAM_TOPIC_1W: ${{ vars.TELEGRAM_TOPIC_1W || secrets.TELEGRAM_TOPIC_1W }}
+      TELEGRAM_TOPIC_1WK: ${{ vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1WK }}
+      TELEGRAM_TOPIC_HAFTALIK: ${{ vars.TELEGRAM_TOPIC_HAFTALIK || secrets.TELEGRAM_TOPIC_HAFTALIK }}
       ATC_SCAN_UNIVERSE: ${{ vars.ATC_SCAN_UNIVERSE || 'ATC_630' }}
       MANUAL_SCOPE: ${{ inputs.scope }}
       MANUAL_SYMBOL: ${{ inputs.symbol }}
@@ -156,6 +186,21 @@ jobs:
       TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
       TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
       TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_15M: ${{ vars.TELEGRAM_TOPIC_15M || secrets.TELEGRAM_TOPIC_15M }}
+      TELEGRAM_TOPIC_30M: ${{ vars.TELEGRAM_TOPIC_30M || secrets.TELEGRAM_TOPIC_30M }}
+      TELEGRAM_TOPIC_45M: ${{ vars.TELEGRAM_TOPIC_45M || secrets.TELEGRAM_TOPIC_45M }}
+      TELEGRAM_TOPIC_1H: ${{ vars.TELEGRAM_TOPIC_1H || secrets.TELEGRAM_TOPIC_1H }}
+      TELEGRAM_TOPIC_60M: ${{ vars.TELEGRAM_TOPIC_60M || secrets.TELEGRAM_TOPIC_60M }}
+      TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
+      TELEGRAM_TOPIC_120M: ${{ vars.TELEGRAM_TOPIC_120M || secrets.TELEGRAM_TOPIC_120M }}
+      TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
+      TELEGRAM_TOPIC_240M: ${{ vars.TELEGRAM_TOPIC_240M || secrets.TELEGRAM_TOPIC_240M }}
+      TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+      TELEGRAM_TOPIC_DAILY: ${{ vars.TELEGRAM_TOPIC_DAILY || secrets.TELEGRAM_TOPIC_DAILY }}
+      TELEGRAM_TOPIC_1W: ${{ vars.TELEGRAM_TOPIC_1W || secrets.TELEGRAM_TOPIC_1W }}
+      TELEGRAM_TOPIC_1WK: ${{ vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1WK }}
+      TELEGRAM_TOPIC_HAFTALIK: ${{ vars.TELEGRAM_TOPIC_HAFTALIK || secrets.TELEGRAM_TOPIC_HAFTALIK }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -174,6 +219,11 @@ jobs:
           notify_flag=()
           if [ "$DELIVERY_MODE" = "live" ]; then notify_flag=(--notify); fi
           borsapp scan-due --universe "$ATC_SCAN_UNIVERSE" --timeframe "$SCAN_TIMEFRAME" "${notify_flag[@]}"
+      - name: Reuse existing timeframe topic and send PNG cards from confirmed scan
+        if: ${{ env.DATABASE_URL != '' && vars.ENABLE_TIMEFRAME_IMAGE_REPORTS == 'true' }}
+        env:
+          SCAN_TIMEFRAME: ${{ matrix.timeframe }}
+        run: python -m scripts.atc_timeframe_visuals --timeframe "$SCAN_TIMEFRAME"
       - name: Publish eligible findings
         if: ${{ env.DATABASE_URL != '' && always() }}
         run: borsapp publisher-once --limit 100
