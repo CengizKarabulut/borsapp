@@ -15,7 +15,10 @@ import psycopg
 
 from market_intelligence.delivery.telegram.config import TelegramSettings
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
-from market_intelligence.delivery.telegram.publisher import PendingTelegramMessage, TelegramPublisher
+from market_intelligence.delivery.telegram.publisher import (
+    PendingTelegramMessage,
+    TelegramPublisher,
+)
 from market_intelligence.delivery.telegram.routing import PublicationKind, TopicRouter
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
