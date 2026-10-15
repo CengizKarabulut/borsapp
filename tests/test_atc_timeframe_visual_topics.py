@@ -13,6 +13,7 @@ from PIL import Image
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.delivery.telegram.config import TelegramSettings
 from market_intelligence.delivery.telegram.timeframe_topics import (
+    existing_intersection_topic_id,
     route_timeframe_image,
     timeframe_topic_ids,
 )
@@ -58,20 +59,39 @@ class OldTimeframeTopicTests(unittest.TestCase):
                 settings, mapped, Timeframe.M30, identity={"test": 1}, payload={}
             )
 
-    def test_message_links_never_become_telegram_thread_ids(self):
+    def test_user_provided_topic_links_first_segment_is_thread(self):
         configured = {
             "TELEGRAM_CHAT_ID": "-1004439315048",
             "TELEGRAM_TOPIC_SCANS": "5",
         }
-        # A historical t.me/c/.../328 link was rejected by the Bot API as
-        # 'message thread not found'. No screenshot-derived hardcoded fallback.
-        self.assertEqual(timeframe_topic_ids(configured), {})
+        mapping = timeframe_topic_ids(configured)
+        self.assertEqual(mapping, {
+            Timeframe.H1: 28326,
+            Timeframe.D1: 28328,
+            Timeframe.W1: 28329,
+        })
+        self.assertEqual(existing_intersection_topic_id(configured), 28330)
+        self.assertNotIn(Timeframe.H4, mapping)  # 240m link supplied no topic ID
+        for unknown in (Timeframe.M15, Timeframe.M30, Timeframe.M45, Timeframe.H2):
+            self.assertNotIn(unknown, mapping)
         self.assertEqual(timeframe_topic_ids({
-            "TELEGRAM_CHAT_ID": "-1001234567890"
+            "TELEGRAM_CHAT_ID": "-1001234567890",
         }), {})
-        self.assertEqual(timeframe_topic_ids({
-            **configured, "TELEGRAM_TOPIC_1H": "999"
-        })[Timeframe.H1], 999)
+        self.assertIsNone(existing_intersection_topic_id({
+            "TELEGRAM_CHAT_ID": "-1001234567890",
+        }))
+        with self.assertRaisesRegex(ValueError, "eski/uyuşmayan"):
+            timeframe_topic_ids({
+                **configured, "TELEGRAM_TOPIC_DAILY": "328",
+            })
+        with self.assertRaisesRegex(ValueError, "eski/uyuşmayan"):
+            timeframe_topic_ids({
+                **configured, "TELEGRAM_TIMEFRAME_TOPICS": '{"1h":326}',
+            })
+        with self.assertRaisesRegex(ValueError, "eski/uyuşmayan"):
+            existing_intersection_topic_id({
+                **configured, "TELEGRAM_TOPIC_INTERSECTIONS": "123",
+            })
 
     def test_json_mapping_and_disallow_duplicate_topic_reuse(self):
         mapped = timeframe_topic_ids({

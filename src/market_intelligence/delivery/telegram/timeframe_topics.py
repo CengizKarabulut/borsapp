@@ -23,10 +23,21 @@ _ALIASES = {
     Timeframe.H1: "1H", Timeframe.H2: "2H", Timeframe.H4: "4H",
     Timeframe.D1: "1D", Timeframe.W1: "1W",
 }
-# Message links in historical screenshots are NOT authoritative Bot API
-# message_thread_id values. The prior inferred 1d=328 was rejected live with
-# 'Bad Request: message thread not found' on 15 Oct 2026.
-# Use only explicit existing-topic mapping supplied from GitHub vars/secrets.
+# In t.me/c/<forum>/<topic>/<message>, the FIRST number after the forum is
+# the existing forum topic ID; the trailing number is a message ID.
+# The user explicitly provided these current links on 15 October 2026.
+# Previous screenshot-derived 326/328/329 values were rejected by Bot API.
+# These defaults MUST be scoped to the correct original Telegram forum.
+_VERIFIED_FORUM_CHAT_ID = "-1004439315048"
+_USER_CONFIRMED_TIMEFRAME_TOPICS = {
+    Timeframe.H1: 28326,  # t.me/c/4439315048/28326/32542
+    Timeframe.D1: 28328,  # t.me/c/4439315048/28328/32792
+    Timeframe.W1: 28329,  # t.me/c/4439315048/28329/32912
+}
+# Non-timeframe topic supplied in the same message; reserved for intersection
+# reporting, not used as a substitute for any missing timeframe.
+_USER_CONFIRMED_INTERSECTION_TOPIC = 28330
+
 _OLD_NAMES = {
     Timeframe.H1: ("60M", "60DK"), Timeframe.H2: ("120M", "120DK"),
     Timeframe.H4: ("240M", "240DK"), Timeframe.D1: ("DAILY", "GUNLUK"),
@@ -86,9 +97,30 @@ def timeframe_topic_ids(values: Mapping[str, str]) -> dict[Timeframe, int]:
             if raw:
                 mapping[tf] = _topic_id(raw, key)
                 break
+    if (values.get("TELEGRAM_CHAT_ID") or "").strip() == _VERIFIED_FORUM_CHAT_ID:
+        for tf, verified_id in _USER_CONFIRMED_TIMEFRAME_TOPICS.items():
+            if tf in mapping and mapping[tf] != verified_id:
+                raise ValueError(
+                    f"{tf.value}: eski/uyuşmayan Telegram topic ID {mapping[tf]}; "
+                    f"kullanıcının güncel konu bağlantısındaki ID {verified_id}"
+                )
+            mapping[tf] = verified_id
     if len(set(mapping.values())) != len(mapping):
         raise ValueError("Farklı zaman dilimleri aynı topic'e bağlı; eski eşleşmeyi doğrulayın")
     return mapping
+
+
+def existing_intersection_topic_id(values: Mapping[str, str]) -> int | None:
+    """Return existing Kesişim topic only for the correct user-supplied forum."""
+    chat = (values.get("TELEGRAM_CHAT_ID") or "").strip()
+    if chat != _VERIFIED_FORUM_CHAT_ID:
+        return None
+    candidate = (values.get("TELEGRAM_TOPIC_INTERSECTIONS") or "").strip()
+    if candidate:
+        explicit = _topic_id(candidate, "Kesişim topic")
+        if explicit != _USER_CONFIRMED_INTERSECTION_TOPIC:
+            raise ValueError("Kesişim için eski/uyuşmayan Telegram topic ID")
+    return _USER_CONFIRMED_INTERSECTION_TOPIC
 
 
 def route_timeframe_image(

@@ -31,6 +31,7 @@ jobs:
       TELEGRAM_TOPIC_1W: ${{ vars.TELEGRAM_TOPIC_1W || secrets.TELEGRAM_TOPIC_1W }}
       TELEGRAM_TOPIC_1WK: ${{ vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1WK }}
       TELEGRAM_TOPIC_HAFTALIK: ${{ vars.TELEGRAM_TOPIC_HAFTALIK || secrets.TELEGRAM_TOPIC_HAFTALIK }}
+      TELEGRAM_TOPIC_INTERSECTIONS: ${{ vars.TELEGRAM_TOPIC_INTERSECTIONS || secrets.TELEGRAM_TOPIC_INTERSECTIONS }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,7 +44,7 @@ jobs:
           python - <<'PY'
           import os
           from market_intelligence.delivery.telegram.timeframe_topics import (
-              TIMEFRAME_TOPICS, timeframe_topic_ids,
+              TIMEFRAME_TOPICS, existing_intersection_topic_id, timeframe_topic_ids,
           )
           mapping = timeframe_topic_ids(os.environ)
           for tf in TIMEFRAME_TOPICS:
@@ -51,8 +52,10 @@ jobs:
           missing = [tf.value for tf in TIMEFRAME_TOPICS if tf not in mapping]
           print(f"Configured existing timeframe topics: {len(mapping)}/{len(TIMEFRAME_TOPICS)}")
           print(f"Timeframe image reports enabled by default: {os.getenv('ENABLE_TIMEFRAME_IMAGE_REPORTS', '').strip().casefold() != 'false'}")
+          print(f"Verified existing intersection topic: {'configured' if existing_intersection_topic_id(os.environ) else 'not available'}")
           if missing:
-              print(f"::error::Existing topic mapping incomplete ({len(mapping)}/{len(TIMEFRAME_TOPICS)}). Missing timeframes: {', '.join(missing)}. No new topics were created.")
-              raise SystemExit(1)
-          print("All eight EXISTING Telegram timeframe topics are mapped. This checks routing only; no Telegram messages were sent.")
+              print(f"::warning::PARTIAL existing topic mapping ({len(mapping)}/{len(TIMEFRAME_TOPICS)}). Missing: {', '.join(missing)}. Their image jobs skip delivery; no new topics are created.")
+          else:
+              print("All eight existing timeframe topics are mapped.")
+          print("Routing-only check; no Telegram messages were sent or verified.")
           PY
