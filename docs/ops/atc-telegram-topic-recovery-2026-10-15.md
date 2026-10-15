@@ -89,6 +89,38 @@ konuların yeniden adlandırıldığı iddia edilmemelidir.
 Kesişim topic'inin varlığı, kesişim tarama matematiğinin otomatik
 çalıştırıldığı anlamına gelmez; ayrı entegrasyon kontrolü gerekir.
 
+## 15 Ekim gerçek piyasa pilotu: kesin teslimat kayıtları
+
+**Günlük 1d (14 Ekim kapanışı):** ATC_630 630/630 sembol ve 18 tarama,
+11.340 değerlendirme, 215 koşul eşleşmesi. 10 PNG kart ve **215 koşul
+eşleşmesinin tamamını** içeren CSV `Günlük (28328)` konusuna
+Telegram Bot API yanıtıyla başarılı olarak gönderildi: mesajlar 32961–32971.
+Tam CSV: https://t.me/c/4439315048/28328/32971
+
+**60 DK 1h (15 Ekim saat 15:00 TSİ kapanmış mum):** 630 hisse
+denendi, 591'inde tarama başarıyla tamamlandı, 39'unda sağlayıcı/hesaplama
+hatası; **251 koşul eşleşmesi**. 10 PNG + eksiksiz CSV
+`60 DK (28326)` konusuna başarıyla gönderildi: mesajlar 32972–32982.
+Tam CSV: https://t.me/c/4439315048/28326/32982
+
+Sonuçlar hisselerin yönlendirilmiş AL/SAT emri veya performans tahmini
+değildir; tek hisse birden fazla koşula uyabilir. 60 DK'da 39 başarısız
+hisseyi 591'e dahil edilmemiş kabul edin.
+
+**Gün içi teyitsiz günlük ön izleme** aynı gün gerçek sağlayıcı kapsamı
+`30/630` olduğundan kalite filtresi tarafından durduruldu ve Telegram'a
+gönderilmedi. Eksik canlı günlük veri doldurulamaz veya sahte tamamlanmış
+mumlarla değiştirilemez.
+
+**15 Ekim operasyon düzeltmesi:** GitHub repository variable'ı
+`ENABLE_SCHEDULED_SCANS=false` olduğu için eski `Scheduled BIST scan`
+workflow çalışmadan `skipped` oluyordu. PR #24 bu eski kapatma koşulunu
+kaldırdı ve zaman dilimine göre otomatik tarama başlatan iş akışını
+`main` dalına aldı. Aynı anda en fazla iki timeframe, her birinde sekiz
+worker; süre sınırı 45 dk. Bu yapılandırma testlerinin başarılı olması,
+diğer altı zaman diliminin **gerçek piyasa veri kapsamı ve Telegram teslimatının**
+doğrulandığı anlamına gelmez; her biri ayrı incelenecektir.
+
 ## Test ve tanılama
 
 - `.github/workflows/atc-existing-topics-audit.yml`: doğrulanmış eşleştirmeler eksikse açık hata verir.
