@@ -1,0 +1,60 @@
+name: ATC historical OHLCV storage detail (read-only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-storage-breakdown-readonly.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install 'psycopg[binary]>=3,<4'
+      - name: Inspect relation indexes, timeframe counts and compression candidates
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg
+          with psycopg.connect(os.environ['DATABASE_URL'],connect_timeout=15) as db:
+              breakdown=db.execute("""
+                SELECT timeframe, source, price_basis, count(*),
+                       count(DISTINCT instrument_id),
+                       min(close_time), max(close_time)
+                FROM canonical_market_bars
+                GROUP BY timeframe,source,price_basis
+                ORDER BY count(*) DESC
+              """).fetchall()
+              sizes=db.execute("""
+                SELECT idx.relname,pg_relation_size(idx.oid),
+                       x.indisprimary,x.indisunique,pg_get_indexdef(idx.oid)
+                FROM pg_class tab JOIN pg_index x ON x.indrelid=tab.oid
+                JOIN pg_class idx ON idx.oid=x.indexrelid
+                WHERE tab.relname='canonical_market_bars'
+                ORDER BY pg_relation_size(idx.oid) DESC
+              """).fetchall()
+              heap=db.execute("""
+                SELECT pg_relation_size('canonical_market_bars'::regclass),
+                       pg_indexes_size('canonical_market_bars'::regclass),
+                       pg_total_relation_size('canonical_market_bars'::regclass)
+              """).fetchone()
+          print('CANONICAL PHYSICAL: heap=%d indexes=%d total=%d bytes'%heap)
+          print('INDEX SIZES:')
+          for name,bytes_,primary,unique,definition in sizes:
+              print(f'{name}: {bytes_} bytes, primary={primary}, unique={unique}, '
+                    f'definition={definition[:190]}')
+          print('CANONICAL TIMEFRAME/SOURCE COUNTS:')
+          for tf,source,basis,count,members,old,new in breakdown:
+              print(f'{tf}/{source}/{basis}: rows={count}, members={members}, '
+                    f'oldest={old}, newest={new}')
+          PY
