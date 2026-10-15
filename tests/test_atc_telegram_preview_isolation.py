@@ -7,9 +7,9 @@ from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from market_intelligence.core.enums import PriceBasis
+from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.market_data.bars import CachedDailyBars, CanonicalBar
 from market_intelligence.market_data.providers import ProviderBar, ProviderFrame, TimestampKind
-from market_intelligence.core.timeframes import Timeframe
 from scripts.atc_telegram_briefings import make_daily_preview_frame
 
 IST = ZoneInfo("Europe/Istanbul")
