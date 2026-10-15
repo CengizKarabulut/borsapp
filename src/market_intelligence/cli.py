@@ -76,6 +76,7 @@ from market_intelligence.market_data.adapters.borsapy_universe import (
 from market_intelligence.market_data.adapters.fallback import FallbackMarketDataProvider
 from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistProvider
 from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvider
+from market_intelligence.market_data.provider_cooldown import cooldowns_for
 from market_intelligence.market_data.universe import (
     build_universe_sync_plan,
     validate_universe_sync_plan,
@@ -305,6 +306,7 @@ def _parser() -> argparse.ArgumentParser:
     due.add_argument("--lookback-days", type=int, default=7)
     due.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     due.add_argument("--notify", action="store_true")
+    due.add_argument("--workers", type=int, default=1, help="Concurrent symbols, 1–12; each uses an independent PostgreSQL connection")
 
     worker = subparsers.add_parser(
         "scan-worker",
@@ -859,6 +861,7 @@ def _market_data_provider(settings: ApplicationSettings) -> FallbackMarketDataPr
             YFinanceBistProvider(timestamp_timezone=settings.runtime.timezone.key),
         ),
         prefer_complete_history=True,
+        cooldowns=cooldowns_for(settings.runtime.database_url),
     )
 
 
@@ -1109,7 +1112,10 @@ def _scan_due(
     live: bool = False,
     executor=None,
     lane_state=None,
+    parallel_workers: int = 1,
 ) -> int:
+    if parallel_workers < 1 or parallel_workers > 12:
+        raise ValueError("--workers 1 ile 12 arasında olmalıdır")
     if bars < 40 or bars > 5000:
         raise ValueError("--bars 40 ile 5000 arasında olmalıdır")
     if lookback_days < 1 or lookback_days > 60:
@@ -1174,10 +1180,14 @@ def _scan_due(
             repository=runtime,
             ingestion=ingestion,
             coordinator=coordinator,
-            instrument_runner=run_instrument if live else None,
-            map_work=(lambda fn, items: bounded_map(executor, fn, items)) if executor else map,
+            instrument_runner=run_instrument if live or executor is not None else None,
+            map_work=(
+                lambda fn, items: bounded_map(
+                    executor, fn, items, pending_limit=max(2, 2 * parallel_workers)
+                )
+            ) if executor else map,
             clock=(lambda: datetime.now(settings.runtime.timezone)) if live else None,
-            progress=progress if live else None,
+            progress=progress if live or executor is not None else None,
             planner=ScheduledBarPlanner(
                 calendar,
                 maximum_lookback_days=lookback_days,
@@ -2042,15 +2052,30 @@ def main(argv: list[str] | None = None) -> int:
                 notify=args.notify,
             )
         if args.command == "scan-due":
-            return _scan_due(
-                settings,
-                timeframe_raw=args.timeframe,
-                universe=args.universe,
-                bars=args.bars,
-                lookback_days=args.lookback_days,
-                scanners_path=args.scanners,
-                notify=args.notify,
-            )
+            if args.workers == 1:
+                return _scan_due(
+                    settings,
+                    timeframe_raw=args.timeframe,
+                    universe=args.universe,
+                    bars=args.bars,
+                    lookback_days=args.lookback_days,
+                    scanners_path=args.scanners,
+                    notify=args.notify,
+                )
+            if not 2 <= args.workers <= 12:
+                raise ValueError("--workers 1 ile 12 arasında olmalıdır")
+            with ThreadPoolExecutor(max_workers=args.workers, thread_name_prefix="atc-scan") as pool:
+                return _scan_due(
+                    settings,
+                    timeframe_raw=args.timeframe,
+                    universe=args.universe,
+                    bars=args.bars,
+                    lookback_days=args.lookback_days,
+                    scanners_path=args.scanners,
+                    notify=args.notify,
+                    executor=pool,
+                    parallel_workers=args.workers,
+                )
         if args.command == "scan-worker":
             return _scan_worker(
                 settings,

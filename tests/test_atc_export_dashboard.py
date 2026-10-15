@@ -3,9 +3,16 @@ from __future__ import annotations
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from market_intelligence.scanning.catalog import load_scanner_catalog
-from scripts.atc_export_dashboard import SCANNER_ORDER, TIMEFRAMES, matrix_rows, status_label
+from scripts.atc_export_dashboard import (
+    SCANNER_ORDER,
+    TIMEFRAMES,
+    export_matrix,
+    matrix_rows,
+    status_label,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,6 +24,22 @@ class AtcExportTests(unittest.TestCase):
         self.assertEqual(status_label('match', ()), 'ESLESME_YON_BELIRSIZ')
         self.assertEqual(status_label('match', ('bullish', 'bearish')), 'KARMA')
         self.assertEqual(status_label('match', ('neutral',)), 'NOTR')
+
+    def test_report_uses_exact_runtime_calendar_hash(self):
+        # Catch the production regression where 630 symbols were scanned
+        # but every valid daily cell displayed SURUM_UYUSMAZLIGI.
+        class StopAfterCatalog(Exception):
+            pass
+
+        with patch("scripts.atc_export_dashboard.load_scanner_catalog",
+                   side_effect=StopAfterCatalog) as catalog:
+            with self.assertRaises(StopAfterCatalog):
+                export_matrix(None, "ATC_630", ROOT / "config/scanners.toml",
+                              "unused.csv", as_of=datetime(2026, 10, 15).date())
+        self.assertEqual(catalog.call_count, 1)
+        self.assertTrue(catalog.call_args.kwargs["calendar_version"].startswith(
+            "exchange-calendars-xist:"
+        ))
 
     def test_complete_matrix_and_ruleset_mismatch(self):
         catalog = {b.scanner.id: b for b in load_scanner_catalog(ROOT / 'config/scanners.toml')}

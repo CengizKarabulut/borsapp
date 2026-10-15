@@ -89,7 +89,7 @@ WHERE instrument_id = %s
 LOAD_LATEST_DAILY_SERIES_SQL = """
 SELECT source, price_basis, series_revision
 FROM canonical_market_bars
-WHERE instrument_id = %s AND timeframe = '1d' AND close_time <= %s
+WHERE instrument_id = %s AND timeframe = %s AND close_time <= %s
 ORDER BY close_time DESC, series_revision DESC
 LIMIT 1
 """
@@ -97,7 +97,7 @@ LIMIT 1
 LOAD_DAILY_BARS_SQL = """
 SELECT open_time, close_time, open, high, low, close, volume
 FROM canonical_market_bars
-WHERE instrument_id = %s AND timeframe = '1d'
+WHERE instrument_id = %s AND timeframe = %s
   AND source = %s AND price_basis = %s AND series_revision = %s
   AND close_time <= %s
 ORDER BY close_time DESC LIMIT %s
@@ -113,6 +113,7 @@ class PostgresSnapshotStore:
         instrument_id: str,
         as_of,
         limit: int,
+        timeframe: str = "1d",
     ) -> CachedDailyBars | None:
         """Load one persisted daily OHLCV revision for a bounded recalculation.
 
@@ -124,14 +125,14 @@ class PostgresSnapshotStore:
         if as_of.tzinfo is None or as_of.utcoffset() is None:
             raise ValueError("as_of must be timezone-aware")
         with self.connection.cursor() as cursor:
-            cursor.execute(LOAD_LATEST_DAILY_SERIES_SQL, (instrument_id, as_of))
+            cursor.execute(LOAD_LATEST_DAILY_SERIES_SQL, (instrument_id, timeframe, as_of))
             header = cursor.fetchone()
             if header is None:
                 return None
             source, basis, revision = header
             cursor.execute(
                 LOAD_DAILY_BARS_SQL,
-                (instrument_id, source, basis, revision, as_of, limit),
+                (instrument_id, timeframe, source, basis, revision, as_of, limit),
             )
             rows = cursor.fetchall()
         if not rows:
