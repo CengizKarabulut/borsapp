@@ -14,13 +14,12 @@ import io
 import os
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from market_intelligence.cli import _feature_engine, _market_data_provider
-from market_intelligence.config.settings import ApplicationSettings
+from market_intelligence.settings import ApplicationSettings
 from market_intelligence.core.enums import EvaluationStatus
 from market_intelligence.core.identity import stable_hash
 from market_intelligence.core.timeframes import Timeframe
