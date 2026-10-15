@@ -1,0 +1,55 @@
+name: ATC read-only database storage diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/atc-recovery-multitf-intersections-20261015]
+    paths: [.github/workflows/atc-db-storage-diagnostic.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  database-space:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'psycopg[binary]>=3,<4'
+      - name: Inspect size by physical relation, no writes or deletions
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg
+          with psycopg.connect(os.environ['DATABASE_URL']) as db:
+              size,pretty=db.execute("SELECT pg_database_size(current_database()), pg_size_pretty(pg_database_size(current_database()))").fetchone()
+              tables=db.execute("""
+                 SELECT schemaname, relname, pg_total_relation_size(relid) AS bytes,
+                        pg_size_pretty(pg_total_relation_size(relid)) AS pretty,
+                        n_live_tup, n_dead_tup
+                 FROM pg_stat_user_tables
+                 ORDER BY pg_total_relation_size(relid) DESC LIMIT 25
+              """).fetchall()
+              snapshots=db.execute("""
+                  SELECT table_name,column_name,data_type
+                  FROM information_schema.columns
+                  WHERE table_schema='public' AND table_name IN (
+                      'ohlcv_bars','market_snapshots','market_data_snapshots',
+                      'canonical_bars','scan_evaluations','scan_cycles',
+                      'scan_events','telegram_outbox','feature_values'
+                  )
+                  ORDER BY table_name,ordinal_position
+              """).fetchall()
+          print('DATABASE:',pretty,'bytes=',size,'/ 1024MB user project storage cap')
+          print('TOP TABLES (actual physical table + index + TOAST):')
+          for schema,table,bytes_,pretty,live,dead in tables:
+              print(f'{schema}.{table}: {pretty}; bytes={bytes_}; live_est={live}; dead_est={dead}')
+          print('RELEVANT COLUMNS:')
+          for table,col,typ in snapshots:
+              print(table,col,typ)
+          PY
