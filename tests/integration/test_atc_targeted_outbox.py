@@ -40,7 +40,7 @@ class TargetKeyTests(unittest.TestCase):
         env = {
             **environment(),
             "TELEGRAM_CHAT_ID": "-1004439315048",
-            "TELEGRAM_TOPIC_1D": "555",
+            "TELEGRAM_TOPIC_1D": "28328",
             "ENABLE_TIMEFRAME_IMAGE_REPORTS": "true",
         }
         now = datetime(2026, 10, 15, 12, 45, tzinfo=ISTANBUL)
@@ -55,7 +55,7 @@ class TargetKeyTests(unittest.TestCase):
 
             slot = now.replace(minute=0, second=0, microsecond=0)
             pictures = tuple(route_timeframe_image(
-                settings, {Timeframe.D1: 555}, Timeframe.D1,
+                settings, {Timeframe.D1: 28328}, Timeframe.D1,
                 identity=preview_visual_identity(slot, media),
                 payload={},
             ).semantic_key for media in ("photo", "csv"))
