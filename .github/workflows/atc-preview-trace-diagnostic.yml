@@ -3,7 +3,7 @@ name: ATC preview full-stack failure diagnosis (single equity, no publishing)
 on:
   workflow_dispatch:
   push:
-    branches: [fix/atc-recovery-multitf-intersections-20261015]
+    branches: [main]
     paths: [.github/workflows/atc-preview-trace-diagnostic.yml]
 
 permissions:
@@ -81,4 +81,5 @@ jobs:
                   if private:
                       report=report.replace(private,'[REDACTED]')
               print('SANITIZED PREVIEW ERROR STACK:',report[-9000:],flush=True)
+              raise
           PY
