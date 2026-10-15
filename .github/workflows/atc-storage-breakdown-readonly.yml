@@ -43,6 +43,12 @@ jobs:
                 WHERE tab.relname='canonical_market_bars'
                 ORDER BY pg_relation_size(idx.oid) DESC
               """).fetchall()
+              index_usage=db.execute("""
+                SELECT indexrelname,idx_scan,idx_tup_read,idx_tup_fetch
+                FROM pg_stat_user_indexes
+                WHERE relname='canonical_market_bars'
+                ORDER BY idx_scan DESC
+              """).fetchall()
               heap=db.execute("""
                 SELECT pg_relation_size('canonical_market_bars'::regclass),
                        pg_indexes_size('canonical_market_bars'::regclass),
@@ -53,6 +59,9 @@ jobs:
           for name,bytes_,primary,unique,definition in sizes:
               print(f'{name}: {bytes_} bytes, primary={primary}, unique={unique}, '
                     f'definition={definition[:190]}')
+          print('ACTUAL INDEX ACCESS COUNTS:')
+          for name,scans,reads,fetches in index_usage:
+              print(f'{name}: idx_scan={scans}, tuples_read={reads}, tuples_fetched={fetches}')
           print('CANONICAL TIMEFRAME/SOURCE COUNTS:')
           for tf,source,basis,count,members,old,new in breakdown:
               print(f'{tf}/{source}/{basis}: rows={count}, members={members}, '
