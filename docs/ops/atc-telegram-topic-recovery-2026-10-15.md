@@ -131,3 +131,68 @@ doğrulandığı anlamına gelmez; her biri ayrı incelenecektir.
 - `.github/workflows/scheduled-scan.yml`: yalnız kapanmış mumun zaman dilimini çalıştırır; Telegram genel yayın kuyruğunu boşaltmaz.
 
 **Not:** CI geçmesi Bot API teslimatı anlamına gelmez. Bir mesaj ancak `telegram_outbox.status = sent` ve Bot API `message_id` döndürdüğünde teslim edildi kabul edilir.
+
+
+## 15 Ekim 2026 — Neon 1 GB disk sınırı ve güvenli kurtarma
+
+**Gerçek olay:** Altı eksik zaman dilimi için başlatılan gerçek 630 hisse
+seed taramasında 30 DK 335 hisseyi başarıyla işlerken PostgreSQL
+`psycopg.errors.DiskFull: project size limit (1024 MB) has been exceeded`
+hatası verdi. 15 DK işi de başarısız oldu; diğer dört timeframe
+işi `atc-seed-missing-timeframes` ile aynı concurrency grubuna sahip
+`atc-stop-overquota-seed` workflow'u aracılığıyla iptal edildi.
+Herhangi bir tablo veya geçmiş mum **silinmedi**.
+
+Read-only SQL ölçümleri: DB yaklaşık **1001 MB**; yalnız
+`canonical_market_bars` **811 MB**, bunun heap'i 401 MB,
+indeksleri 449 MB. Primer anahtar 271 MB, ek
+`ix_canonical_market_bars_range` 178 MB. Bu ek indekse **3,22 milyon
+okuma** yapıldığı için rastgele silinmesi yüksek maliyetli sorguları
+yavaşlatabilir; **kaldırılmadı**.
+
+`canonical_market_bars` ~1,78 milyon OHLCV barını saklıyor.
+15m ve 30m barları yanında 1h/1d tarihi veri de korunuyor. Yalnız
+yeni 6 TF'nin 630 × 600 mumunu aynı ücretsiz Neon projesine daha fazla
+ham satır olarak eklemek kalıcı ve güvenli bir çözüm değildir.
+
+**Uygulanan emniyet kilidi**:
+`scripts/atc_database_capacity.py` veritabanı boyutunu okur; varsayılan
+900 MB güvenli sınırı aşılırsa ağır taramayı **veri yazmadan durdurur**.
+İş akışları önce hafif PostgreSQL istemcisini kurar, kapasite kontrolünü
+yapar, ancak uygunsa tüm scanner/adapters bağımlılıklarını kurar.
+`scheduled-scan.yml`, `atc-630-daily.yml` ve başlangıç seed
+workflow'u bu kuralla korunur. Varsa `ATC_DB_SOFT_LIMIT_MB` ile
+eşik kullanıcı tarafından değiştirilebilir, ancak kotayı aşmak için
+keyfî yükseltmek önerilmez.
+
+**Sürdürülebilir çözüm, veri kaybı olmadan**:
+1. Mevcut tablonun ve PostgreSQL'in doğrulanmış **geri yüklenebilir**
+   yedeğini önce al; harici dosyaların checksum'larını doğrula.
+2. Tarihî OHLCV'leri gerçek fiyat/zaman kimliklerini koruyan daha kompakt
+   bir seri formatına taşı veya kullanıcının Windows PC'sine ait
+   kalıcı disk üzerinde bar cache kur.
+3. PostgreSQL'de yalnız doğrulama, son durum, kısa pencere sinyalleri,
+   outbox ve canlı raporlama için gerekli kayıtları tut.
+4. Veri modeli ve geriye dönük kaynak/audit doğrulaması sınandıktan
+   sonra eski ham mumları **ayrı onayla** kompaktlaştır; yedeksiz toplu
+   `DELETE/TRUNCATE/DROP` kesinlikle uygulama.
+5. Depolama <900 MB ve gerçek mum kapsamı >=%90 olduğunda yeni zaman
+   dilimlerini kontrollü sırayla yeniden tarayıp aynı Telegram konularına
+   PNG + CSV teslimatını doğrula.
+
+**Gün içi teyitsiz ön izleme:** 15 Ekim tam 630'luk ikinci pilotta
+40/630 başarı, 590 `ValueError` oluştu. Sanitized gerçek traceback
+karışık UTC ve Europe/Istanbul saat dilimlerinden oluşan Pandas
+`DatetimeIndex` hatasını `features/decision.py` içinde gösterdi.
+Karışık saat dilimleri **aynı BIST mutlak bar zamanlarına** normalleştirildi,
+ünit testleri geçti. 600 barlık gerçek A1CAP ön izleme taraması da başarılı
+oldu. 630/630 gün içi raporun tamamı için ayrı canlı teyit hâlâ gerekiyor;
+tek sembol testini tam kapsam başarısı sayma.
+
+**Kesişim topic 28330:** En az iki farklı aynı yönlü tarama koşulunun
+iki zaman diliminde birden bulunması zorunlu. 1h (591/630) ile
+1d (630/630) üzerinden 0 uygun hisse çıktı ve açık "uygun kesişim yok"
+görseli/CSV dosyası Bot API `sent` yanıtıyla sırasıyla
+https://t.me/c/4439315048/28330/32983 ve
+https://t.me/c/4439315048/28330/32984 bağlantılarında yayımlandı.
+Eksik 6 TF veri onarıldıktan sonra bu rapor sekiz zaman dilimini kapsar.
