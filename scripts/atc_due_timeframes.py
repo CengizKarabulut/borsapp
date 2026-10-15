@@ -54,7 +54,7 @@ def due_timeframes(now: datetime, calendar=None) -> tuple[str, ...]:
         minutes=19
     ):
         return ()
-    recent_cutoff = local - timedelta(minutes=19)
+    recent_cutoff = local - timedelta(minutes=12)
     return tuple(
         tf.value for tf in SCANNED
         if tf not in (Timeframe.D1, Timeframe.W1)
