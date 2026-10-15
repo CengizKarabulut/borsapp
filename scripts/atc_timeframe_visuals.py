@@ -195,7 +195,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         result = TelegramPublisher(
             settings=settings, repository=outbox,
             transport=HttpxTelegramTransport(settings.bot_token),
-        ).publish_batch(now=now, limit=len(envelopes))
+        ).publish_batch(now=datetime.now(ISTANBUL), limit=len(envelopes))
         with db.cursor() as cur:
             cur.execute(
                 "SELECT semantic_key, status FROM telegram_outbox "
