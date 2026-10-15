@@ -2,9 +2,6 @@ name: ATC real 630-share hourly scan and topic pilot
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, fix/atc-live-eight-timeframes-20261015]
-    paths: [.github/workflows/atc-live-hourly-pilot.yml]
 
 permissions:
   contents: read
