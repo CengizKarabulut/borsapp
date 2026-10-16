@@ -12,6 +12,7 @@ from typing import NamedTuple
 
 from market_intelligence.scanning.display_codes import SCANNER_ORDER
 
+
 class PlanLevels(NamedTuple):
     entry: float
     stop: float
