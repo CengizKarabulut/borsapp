@@ -26,7 +26,7 @@ class AtcMorningVisualCardsTests(unittest.TestCase):
         self.assertEqual(len(pages[-1][1]), 10)
         self.assertEqual(pages[0][1][0][0], "EQ000")
         self.assertEqual(pages[-1][1][-1][0], "EQ629")
-        for page, entries, pic in pages:
+        for page, _entries, pic in pages:
             with self.subTest(page=page):
                 image = Image.open(io.BytesIO(pic))
                 self.assertEqual(image.format, "PNG")
