@@ -12,7 +12,6 @@ import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.scheduling.bist import BistSessionSchedule
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_due_timeframes import due_timeframes
