@@ -31,6 +31,7 @@ from market_intelligence.scanning.display_codes import direction_display, scanne
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_export_dashboard import LATEST_SQL, SCANNER_ORDER, status_label
 from scripts.atc_publish_targeted import AtcOnlyOutbox
+from scripts.atc_saved_scan_plans import fmt_level, load_saved_trade_plans
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 COLORS = {"POZITIF": "#177A4F", "NEGATIF": "#B83636",
@@ -55,56 +56,73 @@ def _font(size, *, bold=False):
     return ImageFont.load_default()
 
 
-def render_card_png(*, timeframe: str, bar_time: datetime, rows: list[tuple[str, int, str]],
+def render_card_png(*, timeframe: str, bar_time: datetime, rows,
                     matched_count: int, total_symbols: int, page: int, pages: int,
                     provisional: bool = False, visible_count: int | None = None) -> bytes:
-    """Use saved, consistent typography; no artificial/generated market prices."""
-    width = 1080
-    height = 310 + max(1, len(rows)) * 46 + 72
+    """Show real code/direction and same-evaluation reference stop/TP only.
+
+    Legacy 3-tuple callers intentionally render dashes for unavailable plans.
+    """
+    width = 1840
+    height = 310 + max(1, len(rows)) * 46 + 76
     img = Image.new("RGB", (width, height), "#EDF2F7")
     draw = ImageDraw.Draw(img)
     draw.rounded_rectangle((20, 20, width - 20, height - 20), radius=20, fill="#FFFFFF")
     draw.rectangle((20, 20, width - 20, 105), fill="#102C46")
     kind = "CANLI / TEYİTSİZ" if provisional else "TEYİTLİ"
     title = f"ALPHA TREND CIPHER · {timeframe.upper()} TARAMA"
-    draw.text((52, 38), title, font=_font(27, bold=True), fill="#FFFFFF")
+    draw.text((52, 38), title, font=_font(28, bold=True), fill="#FFFFFF")
     draw.text((52, 136), f"{kind} · {bar_time.astimezone(ISTANBUL):%d.%m.%Y %H:%M} TSİ",
               font=_font(21), fill="#26374C")
-    draw.text((52, 181), f"Değerlendirilen: {total_symbols}/630 hisse  ·  Eşleşme: {matched_count}",
+    draw.text((52, 181), f"Değerlendirilen: {total_symbols}/630 hisse · Eşleşme: {matched_count}",
               font=_font(21, bold=True), fill="#26374C")
-    draw.text((52, 229), "HISSE", font=_font(19, bold=True), fill="#51687D")
-    draw.text((340, 229), "KOD", font=_font(19, bold=True), fill="#51687D")
-    draw.text((805, 229), "YÖN", font=_font(19, bold=True), fill="#51687D")
-    draw.line((52, 260, 1025, 260), fill="#D5DFE8", width=2)
+    columns = ((55, "HİSSE"), (250, "KOD"), (355, "YÖN"), (555, "GİRİŞ"),
+               (770, "STOP"), (995, "TP1"), (1210, "TP2"), (1435, "TP3"))
+    for x, name in columns:
+        draw.text((x, 229), name, font=_font(19, bold=True), fill="#51687D")
+    draw.line((52, 260, width - 52, 260), fill="#D5DFE8", width=2)
     if not rows and matched_count == 0:
         draw.text((53, 290), "Teyitli kapanışta eşleşen koşul yok.",
                   font=_font(23, bold=True), fill="#52697F")
-    for index, (symbol, number, state) in enumerate(rows):
+    for index, row in enumerate(rows):
+        if len(row) == 3:
+            symbol, number, state = row
+            plan = None
+        elif len(row) == 4:
+            symbol, number, state, plan = row
+        else:
+            raise ValueError("Scanner display row must have 3 or 4 fields")
         top = 267 + index * 46
         if index % 2 == 0:
-            draw.rounded_rectangle((43, top, 1036, top + 44),
+            draw.rounded_rectangle((43, top, width - 43, top + 44),
                                    radius=6, fill="#F5F8FB")
-        draw.text((54, top + 10), "#" + symbol, font=_font(19, bold=True),
-                  fill="#17304C")
-        # Pine labels original 1-9 as A-I; rules 10-18 retain numbers.
-        # The chart never reveals indicator names, thresholds or formulae.
-        draw.text((340, top + 10), scanner_code(number),
-                  font=_font(21, bold=True), fill="#33485B")
-        draw.text((805, top + 10), direction_display(state),
+        draw.text((55, top + 10), "#" + symbol, font=_font(19, bold=True), fill="#17304C")
+        draw.text((250, top + 10), scanner_code(number), font=_font(21, bold=True),
+                  fill="#33485B")
+        draw.text((355, top + 10), direction_display(state),
                   font=_font(19, bold=True), fill=COLORS[state])
+        if state not in ("POZITIF", "NEGATIF"):
+            plan = None
+        numbers = (
+            (plan.entry, plan.stop, plan.tp1, plan.tp2, plan.tp3)
+            if plan is not None else (None,) * 5
+        )
+        for x, value in zip((555, 770, 995, 1210, 1435), numbers, strict=True):
+            draw.text((x, top + 10), fmt_level(value),
+                      font=_font(18, bold=x == 770), fill="#33485B")
     shown = visible_count if visible_count is not None else matched_count
     footer = (f"Sayfa {page}/{pages} · {shown}/{matched_count} eşleşme görselde"
               if shown != matched_count else f"Sayfa {page}/{pages} · {kind} tarama")
-    draw.text((52, height - 76), footer,
-              font=_font(19), fill="#60748A")
-    disclaimer = ("Geçici senaryodur; mum kapanınca değişebilir. YTD."
-                  if provisional else "Bilgilendirme amaçlıdır, yatırım tavsiyesi değildir.")
-    draw.text((52, height - 45), disclaimer,
-              font=_font(16), fill="#60748A")
+    draw.text((52, height - 76), footer, font=_font(19), fill="#60748A")
+    disclaimer = (
+        "Giriş/Stop/TP referanstır, emir değildir; geçici mumda değişebilir. YTD."
+        if provisional else
+        "Planı olmayan sinyal: — · Stop/TP referans seviyeleridir, yatırım tavsiyesi değildir."
+    )
+    draw.text((52, height - 45), disclaimer, font=_font(16), fill="#60748A")
     output = io.BytesIO()
     img.save(output, format="PNG", optimize=True)
     return output.getvalue()
-
 
 def select_verified_matches(members, evaluations, bindings, timeframe, *, now):
     tf = parse_timeframe(timeframe)
@@ -174,10 +192,11 @@ def preview_visual_envelopes(settings, topic_ids, *, now, slot, finished, expect
     )
     table = io.StringIO()
     writer = csv.writer(table)
-    writer.writerow(("Hisse", "TaramaKodu", "Yon", "KontrolSaatiTSI", "MumDurumu"))
+    writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3", "KontrolSaatiTSI", "MumDurumu"))
     for symbol, number, state in rows:
         writer.writerow((
             symbol, scanner_code(number), direction_display(state),
+            "", "", "", "", "",
             now.astimezone(ISTANBUL).isoformat(), "CANLI_TEYITSIZ",
         ))
     csv_bytes = ("\ufeff" + table.getvalue()).encode("utf-8")
@@ -238,7 +257,27 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         )
         if not matches:
             print(f"Visual scanner {tf.value}: confirmed 0 matches; publishing verified empty result card", flush=True)
-        rows = matches[:MAX_ROWS_PER_CARD * MAX_CARDS]
+        plans = load_saved_trade_plans(
+            db, members=members, evaluations=ev, matches=matches,
+            timeframe=tf.value, bar_time=bar_time,
+        )
+        planned = sum(plans.get(key) is not None for key in matches)
+        plan_eligible = sum(
+            (state == "POZITIF" and number <= 16)
+            or (state == "NEGATIF" and 10 <= number <= 16)
+            for _symbol, number, state in matches
+        )
+        print(
+            f"ATC verified stored TP: {tf.value} {planned}/{plan_eligible} "
+            "Pine-plan-eligible matches have same-evaluation valid plan",
+            flush=True,
+        )
+        if plan_eligible and not planned:
+            raise ValueError(
+                f"{tf.value}: no reliable stored stop/TP for {plan_eligible} "
+                "plan-eligible matches; refusing purported Stop/TP-enabled report"
+            )
+        rows = [(*key, plans.get(key)) for key in matches[:MAX_ROWS_PER_CARD * MAX_CARDS]]
         pages = max(1, (len(rows) + MAX_ROWS_PER_CARD - 1) // MAX_ROWS_PER_CARD)
         envelopes = []
         for i in range(pages):
@@ -251,7 +290,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             envelopes.append(route_timeframe_image(
                 settings, topic_ids, tf,
                 identity={
-                    "source": "atc-timeframe-visual-v1",
+                    "source": "atc-timeframe-visual-stop-tp-v2",
                     "timeframe": tf.value,
                     "bar_close": bar_time.isoformat(), "page": i + 1,
                 },
@@ -272,17 +311,21 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         # Every verified match goes in a complete CSV in the same topic.
         complete_table = io.StringIO()
         writer = csv.writer(complete_table)
-        writer.writerow(("Hisse", "TaramaKodu", "Yon", "TeyitliMumTSI"))
+        writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3", "FiyatBazi", "TeyitliMumTSI"))
         for symbol, number, state in matches:
+            plan = plans.get((symbol, number, state))
+            levels = (plan.entry, plan.stop, plan.tp1, plan.tp2, plan.tp3) if plan else (None,) * 5
             writer.writerow((
                 symbol, scanner_code(number), direction_display(state),
+                *(fmt_level(v, csv=True) for v in levels),
+                plan.price_basis if plan else "",
                 bar_time.astimezone(ISTANBUL).isoformat(),
             ))
         complete_bytes = ("\ufeff" + complete_table.getvalue()).encode("utf-8")
         envelopes.append(route_timeframe_image(
             settings, topic_ids, tf,
             identity={
-                "source": "atc-timeframe-visual-v1",
+                "source": "atc-timeframe-visual-stop-tp-v2",
                 "timeframe": tf.value,
                 "bar_close": bar_time.isoformat(), "format": "csv",
             },
@@ -292,7 +335,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 "filename": f"ATC_{tf.value}_TEYITLI_{bar_time:%Y%m%d_%H%M}.csv",
                 "caption": (
                     f"ATC {tf.value.upper()} | TEYİTLİ | {len(matches)} eşleşmenin "
-                    "eksiksiz listesi · yatırım tavsiyesi değildir."
+                    "eksiksiz listesi · Stop/TP geçmiş verilere dayalı referanstır · YTD."
                 ),
             },
         ))

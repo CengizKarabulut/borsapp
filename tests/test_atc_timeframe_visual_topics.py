@@ -138,7 +138,7 @@ class OldTimeframeTopicTests(unittest.TestCase):
         image = Image.open(io.BytesIO(png))
         self.assertEqual(image.format, "PNG")
         self.assertGreater(len(png), 1000)
-        self.assertEqual(image.width, 1080)
+        self.assertEqual(image.width, 1840)
 
     def test_provisional_daily_card_and_complete_csv_share_verified_topic(self):
         settings = TelegramSettings.from_mapping(environment())
@@ -164,8 +164,12 @@ class OldTimeframeTopicTests(unittest.TestCase):
             base64.b64decode(cards[1].payload["document_base64"]).decode("utf-8-sig")
         )))
         self.assertEqual(len(records), 52)  # header + 51 actual matches
-        self.assertEqual(records[0], ["Hisse", "TaramaKodu", "Yon", "KontrolSaatiTSI", "MumDurumu"])
+        self.assertEqual(records[0], [
+            "Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2",
+            "TP3", "KontrolSaatiTSI", "MumDurumu",
+        ])
         self.assertEqual(records[-1][2], "?")
+        self.assertEqual(records[-1][3:8], ["", "", "", "", ""])
         self.assertEqual(records[1][1], "A")
         self.assertEqual(records[1][2], "LONG")
         self.assertNotIn("macd_positive_cross", str(records))
