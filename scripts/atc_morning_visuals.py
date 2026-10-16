@@ -41,7 +41,7 @@ def render_morning_png(*, last_session, rows, page, pages, total_verified):
     draw.rectangle((22, 20, WIDTH - 22, 112), fill=NAVY)
     draw.text((54, 38), "ALPHA TREND CIPHER | GÜNLÜK DESTEK & DİRENÇ",
               font=_font(29, bold=True), fill="#FFFFFF")
-    draw.text((54, 143), f"15 Ekim değil: {last_session:%d.%m.%Y} tarihli TEYİTLİ KAPANIŞ",
+    draw.text((54, 143), f"{last_session:%d.%m.%Y} | ÖNCEKİ SEANS TEYİTLİ KAPANIŞI",
               font=_font(22, bold=True), fill=NAVY)
     draw.text((54, 183), f"630 hisse  |  Geçerli veri {total_verified}/630  |  Klasik Pivot (H/L/C)",
               font=_font(20), fill=MUTED)
