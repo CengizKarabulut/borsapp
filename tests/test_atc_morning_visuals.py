@@ -42,6 +42,22 @@ class AtcMorningVisualCardsTests(unittest.TestCase):
         )
         self.assertGreater(len(picture), 2000)
 
+    def test_visual_is_identical_regardless_of_provider_source_metadata(self):
+        """CSV keeps the vendor; the actual PNG must not reveal it."""
+        basic = ("ASELS", (96., 92., 100., 104., 108.),
+                 150000., "TEYITLI")
+        first = render_morning_png(
+            last_session=date(2026, 10, 15),
+            rows=[(*basic, "borsapy/raw")],
+            page=1, pages=32, total_verified=630,
+        )
+        second = render_morning_png(
+            last_session=date(2026, 10, 15),
+            rows=[(*basic, "yfinance/split_adjusted")],
+            page=1, pages=32, total_verified=630,
+        )
+        self.assertEqual(first, second)
+
     def test_mismatched_inventory_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "630"):
             build_visual_pages(

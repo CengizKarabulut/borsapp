@@ -2,6 +2,11 @@ name: ATC 630 morning pivot report from real vendor OHLCV
 
 on:
   workflow_dispatch:
+  # Requested one-time redelivery with NO vendor column on PNGs.
+  # Remove this push trigger after the Bot API acknowledges all 34 items.
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-ephemeral-morning.yml]
   schedule:
     # 08:35 Europe/Istanbul, weekdays; no Neon database.
     - cron: "35 5 * * 1-5"
