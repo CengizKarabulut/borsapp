@@ -115,6 +115,16 @@ class StrictIntersectionDigestTests(unittest.TestCase):
             second = self.write(folder, "1d", now, [], covered=600)
             ranked, *_ = from_verified_digests([first, second], now=now)
             self.assertEqual(ranked, [])
+            # An incomplete provider must not report yesterday's EOD bar as
+            # today's verified intersection, even if its age is <48 hours.
+            second = self.write(
+                folder, "1d", now - timedelta(days=1), [], covered=600,
+            )
+            with self.assertRaisesRegex(ValueError, "earlier trading session"):
+                from_verified_digests(
+                    [first, second], now=now,
+                    expected_timeframes=("15m", "1d"),
+                )
 
 
 if __name__ == "__main__":
