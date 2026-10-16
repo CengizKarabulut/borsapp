@@ -84,13 +84,13 @@ class PersistedStopAndTargetsTests(unittest.TestCase):
         evaluations = [
             ("id-A", "1h", "signal.macd_positive_cross", "1.0", "rule",
              NOW, "match", None, "evaluation-A", ("bullish",)),
-            ("id-T", "1h", "signal.macd_positive_cross", "1.0", "rule",
+            ("id-T", "1h", "technical.failed_breakout", "1.0", "rule",
              NOW, "match", None, "evaluation-T", ("bearish",)),
         ]
-        matches = (("ASELS", 1, "POZITIF"), ("THYAO", 1, "NEGATIF"))
+        matches = (("ASELS", 1, "POZITIF"), ("THYAO", 13, "NEGATIF"))
         one = ("id-A", "signal.macd_positive_cross", "1h", NOW, "evaluation-A",
                "bullish", {"trade_plan": saved_plan()}, "exact-snapshot")
-        other = ("id-T", "signal.macd_positive_cross", "1h", NOW, "evaluation-T",
+        other = ("id-T", "technical.failed_breakout", "1h", NOW, "evaluation-T",
                  "bearish", {"trade_plan": saved_plan("short")}, "exact-snapshot")
         plans = plan_from_stored_rows(
             [one, other], members=members, evaluations=evaluations,
