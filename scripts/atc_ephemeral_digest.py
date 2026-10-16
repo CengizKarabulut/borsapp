@@ -15,8 +15,8 @@ from zoneinfo import ZoneInfo
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
-from scripts.atc_export_dashboard import LATEST_SQL, SCANNER_ORDER
 from scripts.atc_ephemeral_universe import assert_local_ephemeral_url
+from scripts.atc_export_dashboard import LATEST_SQL, SCANNER_ORDER
 from scripts.atc_timeframe_visuals import select_verified_matches
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
