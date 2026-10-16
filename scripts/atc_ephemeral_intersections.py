@@ -6,7 +6,6 @@ cycle on an isolated runner. No access to Neon or provisional market OHLCV.
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 from datetime import datetime, timedelta
@@ -17,7 +16,7 @@ from market_intelligence.application.scan_intersections import cross_timeframe_i
 from market_intelligence.delivery.telegram.config import TelegramSettings
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.delivery.telegram.timeframe_topics import existing_intersection_topic_id
-from scripts.atc_confirmed_intersections import export_intersections_csv, make_envelopes
+from scripts.atc_confirmed_intersections import make_envelopes
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 EXPECTED = frozenset(("15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk"))
