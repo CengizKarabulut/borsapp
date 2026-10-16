@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from market_intelligence.core.enums import PriceBasis
@@ -106,7 +106,7 @@ class StopTpSameSnapshotTests(unittest.TestCase):
 
     def test_total_return_adjusted_snapshot_fails_closed(self):
         frame = sample_frame()
-        frame = SimpleNamespace(**{**frame.__dict__, "price_basis": PriceBasis.TOTAL_RETURN_ADJUSTED})
+        frame = replace(frame, price_basis=PriceBasis.TOTAL_RETURN_ADJUSTED)
         self.assertIsNone(reconstruct_pine_plan(
             frame, "signal.smi_macd_positive", "bullish",
         ))
