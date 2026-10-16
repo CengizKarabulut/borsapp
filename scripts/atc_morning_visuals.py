@@ -47,13 +47,15 @@ def render_morning_png(*, last_session, rows, page, pages, total_verified):
     draw.text((54, 183), f"630 hisse  |  Geçerli veri {total_verified}/630  |  Klasik Pivot (H/L/C)",
               font=_font(20), fill=MUTED)
     draw.text((54, 225), "HİSSE", font=_font(20, bold=True), fill=MUTED)
-    for x, name in ((325, "S2"), (510, "S1"), (687, "PİVOT"),
-                    (892, "R1"), (1075, "R2"), (1288, "KAYNAK")):
+    # Source names and price-adjustment basis are available ONLY in CSV.
+    # Use all image width for the five S2 / S1 / Pivot / R1 / R2 values.
+    for x, name in ((340, "S2"), (565, "S1"), (790, "PİVOT"),
+                    (1020, "R1"), (1240, "R2")):
         draw.text((x, 225), name, font=_font(19, bold=True), fill=MUTED)
     draw.line((54, 257, WIDTH-56, 257), fill=DIVIDER, width=2)
 
     for idx, entry in enumerate(rows):
-        symbol, levels, _turnover, status, *extra = entry
+        symbol, levels, _turnover, status, *_source_metadata = entry
         top = 265 + idx * ROW_HEIGHT
         if idx % 2 == 0:
             draw.rounded_rectangle((44, top, WIDTH - 44, top + ROW_HEIGHT - 1),
@@ -65,21 +67,17 @@ def render_morning_png(*, last_session, rows, page, pages, total_verified):
                       font=_font(18, bold=True), fill="#AC4D40")
             continue
         s1, s2, pivot, r1, r2 = levels
-        for x, number in zip((325, 510, 687, 892, 1075),
+        for x, number in zip((340, 565, 790, 1020, 1240),
                              (s2, s1, pivot, r1, r2), strict=True):
             display = f"{number:.4f}" if number < 2 else f"{number:.2f}"
-            draw.text((x, top + 12), display, font=_font(20, bold=x == 687),
-                      fill=ACCENT if x == 687 else NAVY)
-        source = extra[0] if extra else ""
-        short = source.split("/")[0].replace("tvdatafeed", "TV").replace(
-            "yfinance", "Yahoo").replace("borsapy", "Borsapy")
-        draw.text((1288, top + 14), short[:13], font=_font(16), fill=MUTED)
+            draw.text((x, top + 12), display, font=_font(20, bold=x == 790),
+                      fill=ACCENT if x == 790 else NAVY)
 
     draw.line((54, height-112, WIDTH-56, height-112), fill=DIVIDER, width=1)
     draw.text((54, height-94), f"SAYFA {page}/{pages}  |  {len(rows)} HİSSE",
               font=_font(21, bold=True), fill=NAVY)
     draw.text((54, height-60),
-              "Kapanış verilerinin fiyat bazları CSV'de. Pivotlar al-sat hedefi değildir. YTD.",
+              "Önceki seans H/L/C ile hesaplanan klasik pivotlar. Yatırım tavsiyesi değildir.",
               font=_font(17), fill=MUTED)
     buffer = io.BytesIO()
     img.save(buffer, format="PNG", optimize=True)
