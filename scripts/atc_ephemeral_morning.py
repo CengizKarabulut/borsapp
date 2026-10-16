@@ -22,8 +22,8 @@ from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistPr
 from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvider
 from market_intelligence.market_data.providers import FetchRequest
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
-from scripts.atc_telegram_briefings import last_closed_session, morning_messages, pivot_levels
 from scripts.atc_morning_visuals import build_visual_pages
+from scripts.atc_telegram_briefings import last_closed_session, morning_messages, pivot_levels
 from scripts.atc_universe_seed import load_pinned
 
 IST = ZoneInfo("Europe/Istanbul")
