@@ -1,0 +1,71 @@
+name: ATC hourly CANLI TEYITSIZ preview on isolated PostgreSQL
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 10:45–17:45 Europe/Istanbul, weekdays: actual live mutable daily OHLCV.
+    - cron: "45 7-14 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-hourly-whatif-preview
+  cancel-in-progress: true
+
+jobs:
+  real-live-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atc_ephemeral
+          POSTGRES_PASSWORD: ephemeral_runner_password
+          POSTGRES_DB: atc_scan
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U atc_ephemeral -d atc_scan"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atc_ephemeral:ephemeral_runner_password@localhost:5432/atc_scan
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DELIVERY_MODE: disabled
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+      TELEGRAM_TOPIC_DAILY: ${{ vars.TELEGRAM_TOPIC_DAILY || secrets.TELEGRAM_TOPIC_DAILY }}
+      ENABLE_TIMEFRAME_IMAGE_REPORTS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install real vendor runtime and original scanner catalog
+        run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Create a temporary local database and 630 BIST members
+        run: |
+          borsapp db-migrate
+          python -m scripts.atc_ephemeral_universe
+      - name: Build original confirmed previous-session 600-bar context
+        run: borsapp scan-due --universe ATC_630 --timeframe 1d --bars 600 --workers 6 --lookback-days 7
+      - name: Evaluate actual live OHLCV ONLY as unpersisted what-if daily candle
+        run: python -m scripts.atc_telegram_briefings preview --workers 6
+      - name: Deliver ONLY this-hour TEYITSIZ summary and PNG + full CSV
+        run: python -m scripts.atc_publish_targeted preview

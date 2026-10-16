@@ -1,0 +1,35 @@
+name: ATC 630 morning pivot report from real vendor OHLCV
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 08:35 Europe/Istanbul, weekdays; no Neon database.
+    - cron: "35 5 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atc-ephemeral-morning-report
+  cancel-in-progress: false
+
+jobs:
+  real-morning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install real BIST source and morning report runtime
+        run: python -m pip install --editable ".[runtime]"
+      - name: Publish 630 verified previous-session supports and resistances
+        run: python -m scripts.atc_ephemeral_morning --workers 6

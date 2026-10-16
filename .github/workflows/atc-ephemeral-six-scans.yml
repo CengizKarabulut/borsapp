@@ -2,8 +2,19 @@ name: ATC six timeframe real scan in FREE isolated PostgreSQL runner
 
 on:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Scan only newly closed BIST candle(s), or all eight manually
+        required: true
+        type: choice
+        default: due
+        options: [due, all]
+  schedule:
+    # UTC; Istanbul = UTC+3. Post-close buffer protects incomplete provider bars.
+    - cron: "7,22,37,52 7-14 * * 1-5"
+    - cron: "30 15 * * 1-5"
   push:
-    branches: [feat/atc-ephemeral-timeframe-scans-20261015]
+    branches: [main, feat/atc-automatic-ephemeral-eight-tfs-20261016]
     paths: [.github/workflows/atc-ephemeral-six-scans.yml]
 
 permissions:
@@ -14,15 +25,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  choose-candles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      timeframes: ${{ steps.pick.outputs.timeframes }}
+      is_eod: ${{ steps.pick.outputs.is_eod }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install only the BIST exchange calendar (NO database)
+        run: python -m pip install --editable . 'exchange-calendars>=4.13,<5'
+      - name: Determine real completed exchange candles and EOD/Friday weekly
+        id: pick
+        env:
+          INPUT_SCOPE: ${{ inputs.scope || 'due' }}
+        run: |
+          if [ "$INPUT_SCOPE" = all ]; then
+            python -m scripts.atc_ephemeral_schedule --all
+          else
+            python -m scripts.atc_ephemeral_schedule
+          fi
+
   real-scan-and-telegram:
+    needs: choose-candles
+    if: ${{ needs.choose-candles.outputs.timeframes != '[]' && needs.choose-candles.outputs.timeframes != '' && github.ref_name == 'main' }}
     strategy:
       fail-fast: false
-      max-parallel: 6
-      # On this recovery-branch push, retry ONLY failed timeframes: do not
-      # duplicate confirmed 30m/2h/4h Telegram messages from run 38751800120.
-      # Manual dispatch runs all six timeframes concurrently.
+      max-parallel: 3
       matrix:
-        timeframe: ${{ fromJSON(github.event_name == 'push' && '["15m","45m","1wk"]' || '["15m","30m","45m","2h","4h","1wk"]') }}
+        timeframe: ${{ fromJSON(needs.choose-candles.outputs.timeframes) }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     services:
@@ -82,12 +116,65 @@ jobs:
         run: python -m scripts.atc_ephemeral_universe
       - name: Fetch genuine completed candles and run original 18 scanners
         run: |
-          lookback=1
-          # On Thursdays the current weekly bar has not closed. Select the
-          # most recent REAL confirmed Friday candle, never fabricate one.
-          if [ "$ATC_SCAN_TIMEFRAME" = "1wk" ]; then lookback=7; fi
-          # Six parallel jobs x two workers: fewer concurrent provider
-          # requests than the previous two jobs x eight workers.
-          borsapp scan-due --universe ATC_630 --timeframe "$ATC_SCAN_TIMEFRAME" --bars 600 --workers 2 --lookback-days "$lookback"
+          # Completed candles only; on Fridays the weekly close is eligible.
+          # Manual all can check the most recent ACTUAL Friday weekly close.
+          borsapp scan-due --universe ATC_630 --timeframe "$ATC_SCAN_TIMEFRAME" --bars 600 --workers 2 --lookback-days 7
       - name: Send PNG cards and FULL CSV directly to its preexisting Telegram topic
         run: python -m scripts.atc_timeframe_visuals --timeframe "$ATC_SCAN_TIMEFRAME"
+      - name: Export only confirmed, fresh directional evidence for EOD Kesişim
+        if: ${{ needs.choose-candles.outputs.is_eod == 'true' }}
+        run: |
+          python -m scripts.atc_ephemeral_digest \
+            --timeframe "$ATC_SCAN_TIMEFRAME" \
+            --output "runtime_artifacts/verified/$ATC_SCAN_TIMEFRAME.json"
+      - name: Upload small verified digest (never raw 600-bar history)
+        if: ${{ needs.choose-candles.outputs.is_eod == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-verified-${{ matrix.timeframe }}
+          path: runtime_artifacts/verified/${{ matrix.timeframe }}.json
+          retention-days: 2
+          if-no-files-found: error
+
+  confirmed-kesisim:
+    needs: [choose-candles, real-scan-and-telegram]
+    if: ${{ always() && github.ref_name == 'main' && needs.choose-candles.outputs.is_eod == 'true' && needs.real-scan-and-telegram.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      DELIVERY_MODE: disabled
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TOPIC_INTERSECTIONS: ${{ vars.TELEGRAM_TOPIC_INTERSECTIONS || secrets.TELEGRAM_TOPIC_INTERSECTIONS }}
+      SELECTED_TIMEFRAMES: ${{ needs.choose-candles.outputs.timeframes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download only same-run scanner-validated JSON digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: atc-verified-*
+          path: runtime_artifacts/verified
+          merge-multiple: true
+      - name: Install Telegram renderer (no PostgreSQL connection)
+        run: python -m pip install --editable ".[runtime]"
+      - name: Compute strict intersection from all EOD timeframes, and publish PNG+CSV
+        run: |
+          selected="$(python -c 'import json,os;print(",".join(json.loads(os.environ["SELECTED_TIMEFRAMES"])))')"
+          python -m scripts.atc_ephemeral_intersections \
+            --directory runtime_artifacts/verified --expected "$selected"
+

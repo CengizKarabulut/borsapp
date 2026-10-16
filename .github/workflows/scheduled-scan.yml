@@ -25,12 +25,8 @@ on:
         required: true
         default: false
         type: boolean
-  schedule:
-    # Seven-minute post-close offset avoids GitHub's peak :00/:15 cron load.
-    # The 12-minute due window still picks only newly completed BIST candles.
-    - cron: "7,22,37,52 7-14 * * 1-5"
-    # 18:30 TRT after BIST closing auction; 18:00 TRT was too early.
-    - cron: "30 15 * * 1-5"
+  # Legacy cloud-database schedule disabled: Neon 1024 MB quota exhausted.
+  # Automatic real scanner jobs now use isolated runner PostgreSQL.
 
 permissions:
   contents: read

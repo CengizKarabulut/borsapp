@@ -9,11 +9,8 @@ on:
         required: true
         options: [morning, preview, eod]
         default: morning
-  schedule:
-    # All cron expressions are UTC. Istanbul = UTC+3 year round.
-    - cron: "35 5 * * 1-5"    # 08:35 TSİ, morning pivot report (all 630 in CSV)
-    - cron: "45 7-14 * * 1-5" # 10:45–17:45 TSİ, live provisional what-if scan
-    - cron: "15 16 * * 1-5"   # 19:15 TSİ, after confirmed EOD scan completes
+  # Legacy cloud-database schedule disabled: Neon 1024 MB quota exhausted.
+  # Automatic real scanner jobs now use isolated runner PostgreSQL.
 
 permissions:
   contents: read
