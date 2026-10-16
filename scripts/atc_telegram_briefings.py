@@ -30,12 +30,13 @@ from market_intelligence.persistence.postgres.outbox import PostgresOutboxReposi
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.persistence.postgres.snapshots import PostgresSnapshotStore
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scanning.display_codes import direction_display, scanner_code
 from market_intelligence.scanning.contracts import ScanContext
 from market_intelligence.scanning.pipeline import ScanPipeline
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from market_intelligence.settings import ApplicationSettings
 from scripts.atc_cloud_summary import prepare_daily_report
-from scripts.atc_export_dashboard import export_matrix
+from scripts.atc_export_dashboard import export_matrix, status_label
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 SCANNER_LABELS = (
@@ -257,27 +258,38 @@ def preview_for_member(member, *, settings, now, bindings, calendar_version):
 
 
 def summarize_preview(finished, *, now, expected=630):
+    """Minimal public code+direction layout; don't imply unknown means LONG."""
     matches = Counter()
     symbols = {}
     for symbol, scans in finished:
-        for number, _directions in scans:
-            matches[number] += 1
-            symbols.setdefault(number, []).append(symbol)
+        for number, directions in scans:
+            if not 1 <= number <= 18:
+                raise ValueError(f"Unknown scanner: {number}")
+            state = status_label("match", directions)
+            label = direction_display(state)
+            matches[(number, label)] += 1
+            symbols.setdefault((number, label), []).append(symbol)
     lines = [
         f"ATC | CANLI / TEYİTSİZ | {now:%d.%m.%Y %H:%M} TSİ",
-        f"Günlük mum şu anda kapansaydı: {len(finished)}/{expected} hisse değerlendirildi.",
-        "Bu sonuçlar mum oluşurken değişebilir. Kesin kapanış sinyali değildir.",
+        f"Değerlendirilen: {len(finished)}/{expected} · "
+        f"Eşleşme: {sum(matches.values())}",
+        "Günlük mum kapanışında sonuçlar değişebilir.",
     ]
     for number in range(1, 19):
-        if matches[number]:
-            symbols_now = sorted(set(symbols[number]))
-            preview_symbols = ", ".join("#" + s for s in symbols_now[:7])
-            lines.append(f"{number:02d} {SCANNER_LABELS[number-1]}: {matches[number]} ({preview_symbols})")
-    if not any(matches.values()):
-        lines.append("Bu saatte koşula uyan tarama bulunmadı.")
-    lines.append("Kesin sonuçlar kapanış sonrası yeniden hesaplanacak. Yatırım tavsiyesi değildir.")
+        for label in ("LONG", "SHORT", "NÖTR", "KARMA", "?"):
+            count = matches[number, label]
+            if not count:
+                continue
+            names = sorted(set(symbols[number, label]))
+            small = ", ".join("#" + item for item in names[:7])
+            lines.append(
+                f"{scanner_code(number)} · {label} · {count} · {small}"
+                + (" …" if len(names) > 7 else "")
+            )
+    if not matches:
+        lines.append("Eşleşme bulunmadı.")
+    lines.append("CANLI / TEYİTSİZ · YTD")
     return "\n".join(lines), sum(matches.values())
-
 
 def enqueue(connection, *, now, identity, publications):
     settings = TelegramSettings.from_mapping({**os.environ, "DELIVERY_MODE": "live"})
