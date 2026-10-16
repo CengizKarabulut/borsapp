@@ -2,8 +2,8 @@ name: ATC confirmed Kesisim multi-timeframe PNG and full CSV
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "30 16 * * 1-5"
+  # Legacy cloud-database schedule disabled: Neon 1024 MB quota exhausted.
+  # Automatic real scanner jobs now use isolated runner PostgreSQL.
   push:
     branches: [fix/atc-recovery-multitf-intersections-20261015]
     paths: [.github/workflows/atc-confirmed-intersections.yml]
