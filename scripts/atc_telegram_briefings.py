@@ -273,7 +273,7 @@ def summarize_preview(finished, *, now, expected=630):
         f"ATC | CANLI / TEYİTSİZ | {now:%d.%m.%Y %H:%M} TSİ",
         f"Değerlendirilen: {len(finished)}/{expected} · "
         f"Eşleşme: {sum(matches.values())}",
-        "Günlük mum kapanışında sonuçlar değişebilir.",
+        "Günlük mum şu anda kapansaydı: koşullar değişebilir; teyitli değildir.",
     ]
     for number in range(1, 19):
         for label in ("LONG", "SHORT", "NÖTR", "KARMA", "?"):
