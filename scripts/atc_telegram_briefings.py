@@ -30,8 +30,8 @@ from market_intelligence.persistence.postgres.outbox import PostgresOutboxReposi
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.persistence.postgres.snapshots import PostgresSnapshotStore
 from market_intelligence.scanning.catalog import load_scanner_catalog
-from market_intelligence.scanning.display_codes import direction_display, scanner_code
 from market_intelligence.scanning.contracts import ScanContext
+from market_intelligence.scanning.display_codes import direction_display, scanner_code
 from market_intelligence.scanning.pipeline import ScanPipeline
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from market_intelligence.settings import ApplicationSettings
