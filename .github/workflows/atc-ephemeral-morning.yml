@@ -2,6 +2,10 @@ name: ATC 630 morning pivot report from real vendor OHLCV
 
 on:
   workflow_dispatch:
+  # Requested immediate visual-only recovery test; remove after delivery.
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-ephemeral-morning.yml]
   schedule:
     # 08:35 Europe/Istanbul, weekdays; no Neon database.
     - cron: "35 5 * * 1-5"
