@@ -33,7 +33,7 @@ def select_timeframes(now: datetime, *, all_scans: bool = False, calendar=None):
         return ()
     _open, close = BistSessionSchedule().session_bounds(today)
     # Whole-of-day close digest; 45m candles end 17:30, not 18:00.
-    if close + timedelta(minutes=20) <= local <= close + timedelta(minutes=85):
+    if close + timedelta(minutes=20) <= local <= close + timedelta(hours=5):
         selections = (*INTRADAY, "1d")
         monday = today - timedelta(days=today.weekday())
         friday_window = calendar.sessions(monday, monday + timedelta(days=6))
