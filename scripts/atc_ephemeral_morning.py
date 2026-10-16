@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import base64
 import os
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -22,6 +23,7 @@ from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvid
 from market_intelligence.market_data.providers import FetchRequest
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_telegram_briefings import last_closed_session, morning_messages, pivot_levels
+from scripts.atc_morning_visuals import build_visual_pages
 from scripts.atc_universe_seed import load_pinned
 
 IST = ZoneInfo("Europe/Istanbul")
@@ -112,16 +114,47 @@ def publish_morning(*, now=None, workers=6):
     if chat != -1004439315048 or thread != 8:
         raise ValueError("Expected original ATC Reports topic")
     sender = HttpxTelegramTransport(os.environ["TELEGRAM_BOT_TOKEN"])
+    verified = sum(row[3] == "TEYITLI" for row in rows)
+    cards = build_visual_pages(
+        last_session=previous, rows=rows, total_verified=verified,
+    )
+    # Telegram Bot API sends to ONE original Reports topic. Every result is
+    # returned with a message_id and checked against the requested topic.
+    # Never claim a card was delivered until its real Bot API ack arrives.
     text_id = sender.send(chat_id=chat, message_thread_id=thread, payload={"text": message})
     print(f"Morning text: https://t.me/c/4439315048/8/{text_id}", flush=True)
+    for page, page_rows, png in cards:
+        caption = (
+            f"ATC 630 | {previous:%d.%m.%Y} TEYİTLİ KAPANIŞ | "
+            f"S2/S1/P/R1/R2 | Görsel {page}/{len(cards)}\\n"
+            + " ".join("#" + item[0] for item in page_rows)
+            + "\\nTam liste CSV'de; yatırım tavsiyesi değildir."
+        )
+        page_id = sender.send(chat_id=chat, message_thread_id=thread, payload={
+            "_method": "sendPhoto",
+            "photo_base64": base64.b64encode(png).decode("ascii"),
+            "filename": f"ATC_PIVOT_{previous}_20_HISSE_{page:02d}.png",
+            "caption": caption,
+        })
+        print(
+            f"Morning visual page={page}/{len(cards)} symbols={len(page_rows)}: "
+            f"https://t.me/c/4439315048/8/{page_id}", flush=True,
+        )
+        # Gentle delivery pacing; transport additionally honors Telegram 429
+        # Retry-After responses and validates actual message_thread_id.
+        time.sleep(1.3)
     file_id = sender.send(chat_id=chat, message_thread_id=thread, payload={
         "_method": "sendDocument",
         "document_base64": base64.b64encode(csv_bytes).decode("ascii"),
         "filename": f"ATC_630_PIVOT_{previous}.csv",
-        "caption": f"ATC 630 | {previous} confirmed daily OHLCV pivots | YTD",
+        "caption": (
+            f"ATC 630 | {previous} teyitli günlük OHLCV pivotları | "
+            f"32 görsel × en fazla 20 hisse | Tam CSV | YTD"
+        ),
     })
     print(f"Morning full CSV: https://t.me/c/4439315048/8/{file_id}", flush=True)
-
+    print(f"ATC morning visual DELIVERY SUCCESS: "
+          f"{len(cards)} PNG + 1 text + 1 CSV; {verified}/630 confirmed", flush=True)
 
 def main():
     parser = argparse.ArgumentParser()
