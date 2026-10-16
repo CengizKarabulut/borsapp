@@ -262,16 +262,20 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             timeframe=tf.value, bar_time=bar_time,
         )
         planned = sum(plans.get(key) is not None for key in matches)
-        directional = sum(state in ("POZITIF", "NEGATIF") for _symbol, _n, state in matches)
+        plan_eligible = sum(
+            (state == "POZITIF" and number <= 16)
+            or (state == "NEGATIF" and 10 <= number <= 16)
+            for _symbol, number, state in matches
+        )
         print(
-            f"ATC verified stored TP: {tf.value} {planned}/{directional} "
-            "directional matches have same-evaluation valid plan",
+            f"ATC verified stored TP: {tf.value} {planned}/{plan_eligible} "
+            "Pine-plan-eligible matches have same-evaluation valid plan",
             flush=True,
         )
-        if directional and not planned:
+        if plan_eligible and not planned:
             raise ValueError(
-                f"{tf.value}: no reliable stored stop/TP for {directional} directional matches; "
-                "refusing to present a purported Stop/TP-enabled report"
+                f"{tf.value}: no reliable stored stop/TP for {plan_eligible} "
+                "plan-eligible matches; refusing purported Stop/TP-enabled report"
             )
         rows = [(*key, plans.get(key)) for key in matches[:MAX_ROWS_PER_CARD * MAX_CARDS]]
         pages = max(1, (len(rows) + MAX_ROWS_PER_CARD - 1) // MAX_ROWS_PER_CARD)
