@@ -1,0 +1,27 @@
+name: ATC owner-requested one-shot resend of all 8 coded timeframe scans
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-one-shot-resend-coded-scans.yml]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-one-clean-eight-timeframe-run:
+    if: ${{ github.repository == 'CengizKarabulut/borsapp' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch existing REAL scanner with manual all-eight scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run atc-ephemeral-six-scans.yml --repo "$GH_REPO" --ref main -f scope=all
+          echo "Owner-requested all-eight scan dispatched via workflow_dispatch."
+          echo "No fixture, no synthetic data, no Neon cloud writes."
+          echo "The existing scan runner publishes PNG+CSV to its original topic only on verified >=90% coverage."
