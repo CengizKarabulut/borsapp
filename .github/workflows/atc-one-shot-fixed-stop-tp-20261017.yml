@@ -1,0 +1,26 @@
+name: ATC owner requested corrected exact-snapshot Stop TP rescan all eight
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-one-shot-fixed-stop-tp-20261017.yml]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch-corrected-all-eight:
+    if: ${{ github.repository == 'CengizKarabulut/borsapp' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch real 630-symbol 18-rule eight-frame Stop TP resend
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run atc-ephemeral-six-scans.yml --repo "$GH_REPO" --ref main -f scope=all
+          echo "Rescan requested, no snapshot fabrication or production Neon writes."
+          echo "v3 requires >=90% real Pine Stop/TP levels in whole and visible rows."
