@@ -1,0 +1,27 @@
+name: ATC owner requested one-shot resend 8 timeframe Stop TP reports
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-one-shot-stop-tp-resend.yml]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    if: ${{ github.repository == 'CengizKarabulut/borsapp' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Launch eight original 18-rule BIST scans with Pine Stop TP image columns
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run atc-ephemeral-six-scans.yml --repo "$GH_REPO" --ref main -f scope=all
+          echo "User requested new all-eight scan dispatched."
+          echo "Uses temporary local PostgreSQL, preserved original Telegram topics."
+          echo "Only same-evaluation real plans may fill Giriş/Stop/TP1/TP2/TP3."
