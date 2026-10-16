@@ -112,8 +112,14 @@ def plan_from_stored_rows(rows, *, members, evaluations, matches, timeframe, bar
         ticker = member_ids.get(str(inst))
         if scanner not in SCANNER_ORDER or not ticker:
             continue
-        key = ticker, SCANNER_ORDER.index(scanner) + 1, state
+        number = SCANNER_ORDER.index(scanner) + 1
+        key = ticker, number, state
         if key not in targets or not state:
+            continue
+        # The user's Pine model exposes standalone A-I bullish plans and
+        # generic 10-16 directional plans. Rules 17/18 do not own a valid
+        # standalone stop/target family and must never borrow an unrelated one.
+        if number >= 17 or (number <= 9 and state != "POZITIF"):
             continue
         saved = validate_reference_plan(
             metrics, direction=direction, timeframe=timeframe, close=bar_time,
