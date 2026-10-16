@@ -77,7 +77,7 @@ def render_intersections(title, ranked, slot, *, targets, coverage, global_view=
 
     from PIL import Image, ImageDraw, ImageFont
 
-    from market_intelligence.application.live_scans import LABELS
+    from market_intelligence.scanning.display_codes import scanner_code_from_id
 
     font_path = next(
         (
@@ -97,61 +97,29 @@ def render_intersections(title, ranked, slot, *, targets, coverage, global_view=
         return ImageFont.truetype(str(font_path), size)
 
     def names(scanners):
-        return " + ".join(LABELS.get(s, s) for s in scanners)
+        return ", ".join(sorted((scanner_code_from_id(s) for s in scanners),
+                                key=lambda item: (len(item), item)))
 
     def wrap(line):
         return textwrap.wrap(line, width=99, break_long_words=False, break_on_hyphens=False) or [""]
 
-    def price_line(item):
-        plan = item["plan"]
-        side = "long" if item["direction"] == "bullish" else "short"
-        v = next((v for v in plan.get("scenarios", []) if v["side"] == side), None)
-        if v is None:
-            return "Giriş / stop / TP: hesaplanamadı"
-        values = "   |   ".join(
-            f"{label} {v[key]:.2f}"
-            for key, label in (
-                ("entry", "Giriş*"),
-                ("stop", "Stop"),
-                ("tp1", "TP1"),
-                ("tp2", "TP2"),
-                ("tp3", "TP3"),
-            )
-        )
-        return values + f"   |   Risk %{v['risk_pct']:.2f}"
-
     cards = []
     for i, item in enumerate(ranked, 1):
-        side = "YUKARI" if item["direction"] == "bullish" else "AŞAĞI"
-        heading = f"{i:02}   {item['symbol']}   /   {side}   /   {item['count']} farklı tarama"
+        side = "LONG" if item["direction"] == "bullish" else "SHORT"
+        heading = f"{i:02}   {item['symbol']}   /   {side}   /   {item['count']} kod"
         lines = []
         if global_view:
             heading += f"   /   {item['timeframe_count']} zaman dilimi"
             for tf, detail in item["timeframes"].items():
-                lines += wrap(f"{tf} ({targets[tf]}): {names(detail['scanners'])}")
+                lines += wrap(f"{tf.upper()}  ·  {names(detail['scanners'])}")
                 if detail["opposing"]:
-                    lines += wrap(f"{tf} zıt bulgular: {names(detail['opposing'])}")
+                    lines += wrap(f"{tf.upper()} zıt: {names(detail['opposing'])}")
             if item["opposing_timeframes"]:
-                lines += wrap(
-                    "Zıt yönün baskın olduğu zaman dilimleri: "
-                    + ", ".join(item["opposing_timeframes"])
-                )
+                lines += wrap("Zıt zaman: " + ", ".join(item["opposing_timeframes"]))
         else:
             lines += wrap(names(item["scanners"]))
-            lines += wrap(price_line(item))
-            basis = (
-                "Bölünmeye düzeltilmiş"
-                if item["plan"].get("price_basis") == "split_adjusted"
-                else "Ham"
-            )
-            lines += wrap(
-                f"{basis} fiyat referansı • Plan kaynağı: {LABELS.get(item['plan_scanner'], item['plan_scanner'])}"
-            )
             if item["opposing"]:
-                lines += wrap(
-                    ("YÖN EŞİT / ÇELİŞKİ: " if item["direction_tie"] else "Zıt bulgular: ")
-                    + names(item["opposing"])
-                )
+                lines += wrap("Zıt: " + names(item["opposing"]))
         cards.append((heading, lines, side))
     if not cards:
         cards = [
@@ -197,7 +165,7 @@ def render_intersections(title, ranked, slot, *, targets, coverage, global_view=
         for heading, lines, side in items:
             cardheight = 64 + 31 * len(lines)
             d.rounded_rectangle((28, y - 8, 1412, y + cardheight), radius=12, fill="#132136")
-            draw(44, y + 5, heading, 25, "#42D6B3" if side == "YUKARI" else "#FFABB1")
+            draw(44, y + 5, heading, 25, "#42D6B3" if side == "LONG" else "#FFABB1")
             for j, line in enumerate(lines):
                 draw(44, y + 49 + j * 31, line, 22)
             y += cardheight + 16
