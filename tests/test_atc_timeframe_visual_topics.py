@@ -164,7 +164,11 @@ class OldTimeframeTopicTests(unittest.TestCase):
             base64.b64decode(cards[1].payload["document_base64"]).decode("utf-8-sig")
         )))
         self.assertEqual(len(records), 52)  # header + 51 actual matches
-        self.assertEqual(records[-1][3], "ESLESME_YON_BELIRSIZ")
+        self.assertEqual(records[0], ["Hisse", "TaramaKodu", "Yon", "KontrolSaatiTSI", "MumDurumu"])
+        self.assertEqual(records[-1][2], "?")
+        self.assertEqual(records[1][1], "A")
+        self.assertEqual(records[1][2], "LONG")
+        self.assertNotIn("macd_positive_cross", str(records))
         self.assertEqual(
             preview_visual_identity(slot, "photo")["format"], "photo",
         )

@@ -27,6 +27,7 @@ from market_intelligence.delivery.telegram.timeframe_topics import (
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scanning.display_codes import direction_display, scanner_code
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_export_dashboard import LATEST_SQL, SCANNER_ORDER, status_label
 from scripts.atc_publish_targeted import AtcOnlyOutbox
@@ -72,8 +73,8 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows: list[tuple[str,
     draw.text((52, 181), f"Değerlendirilen: {total_symbols}/630 hisse  ·  Eşleşme: {matched_count}",
               font=_font(21, bold=True), fill="#26374C")
     draw.text((52, 229), "HISSE", font=_font(19, bold=True), fill="#51687D")
-    draw.text((340, 229), "KOSUL", font=_font(19, bold=True), fill="#51687D")
-    draw.text((805, 229), "YON", font=_font(19, bold=True), fill="#51687D")
+    draw.text((340, 229), "KOD", font=_font(19, bold=True), fill="#51687D")
+    draw.text((805, 229), "YÖN", font=_font(19, bold=True), fill="#51687D")
     draw.line((52, 260, 1025, 260), fill="#D5DFE8", width=2)
     if not rows and matched_count == 0:
         draw.text((53, 290), "Teyitli kapanışta eşleşen koşul yok.",
@@ -85,10 +86,11 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows: list[tuple[str,
                                    radius=6, fill="#F5F8FB")
         draw.text((54, top + 10), "#" + symbol, font=_font(19, bold=True),
                   fill="#17304C")
-        label = SCANNER_ORDER[number - 1].split(".")[-1].replace("_", " ")
-        draw.text((340, top + 10), f"{number:02d}  {label[:32]}",
-                  font=_font(19), fill="#33485B")
-        draw.text((805, top + 10), state,
+        # Pine labels original 1-9 as A-I; rules 10-18 retain numbers.
+        # The chart never reveals indicator names, thresholds or formulae.
+        draw.text((340, top + 10), scanner_code(number),
+                  font=_font(21, bold=True), fill="#33485B")
+        draw.text((805, top + 10), direction_display(state),
                   font=_font(19, bold=True), fill=COLORS[state])
     shown = visible_count if visible_count is not None else matched_count
     footer = (f"Sayfa {page}/{pages} · {shown}/{matched_count} eşleşme görselde"
@@ -172,10 +174,10 @@ def preview_visual_envelopes(settings, topic_ids, *, now, slot, finished, expect
     )
     table = io.StringIO()
     writer = csv.writer(table)
-    writer.writerow(("Hisse", "TaramaNo", "Tarama", "Durum", "KontrolSaatiTSI", "MumDurumu"))
+    writer.writerow(("Hisse", "TaramaKodu", "Yon", "KontrolSaatiTSI", "MumDurumu"))
     for symbol, number, state in rows:
         writer.writerow((
-            symbol, number, SCANNER_ORDER[number - 1], state,
+            symbol, scanner_code(number), direction_display(state),
             now.astimezone(ISTANBUL).isoformat(), "CANLI_TEYITSIZ",
         ))
     csv_bytes = ("\ufeff" + table.getvalue()).encode("utf-8")
@@ -270,10 +272,10 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         # Every verified match goes in a complete CSV in the same topic.
         complete_table = io.StringIO()
         writer = csv.writer(complete_table)
-        writer.writerow(("Hisse", "TaramaNo", "Tarama", "Durum", "TeyitliMumTSI"))
+        writer.writerow(("Hisse", "TaramaKodu", "Yon", "TeyitliMumTSI"))
         for symbol, number, state in matches:
             writer.writerow((
-                symbol, number, SCANNER_ORDER[number - 1], state,
+                symbol, scanner_code(number), direction_display(state),
                 bar_time.astimezone(ISTANBUL).isoformat(),
             ))
         complete_bytes = ("\ufeff" + complete_table.getvalue()).encode("utf-8")

@@ -107,8 +107,10 @@ class LiveScanTests(unittest.TestCase):
         self.assertIn('ASELS', text)
         self.assertIn('3 bekleyen/erişilemeyen', text)
         self.assertIn('2 hesaplanamadı', text)
-        self.assertIn('MA seviye yakınlığı', text)
-        self.assertIn('Karar paneli', text)
+        self.assertIn('18: 0 eşleşme', text)
+        self.assertIn('17: 0 eşleşme', text)
+        self.assertNotIn('MA seviye yakınlığı', text)
+        self.assertNotIn('Karar paneli', text)
         self.assertLess(len(text), 4096)
 
 

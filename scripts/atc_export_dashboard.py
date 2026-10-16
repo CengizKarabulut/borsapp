@@ -15,17 +15,9 @@ from zoneinfo import ZoneInfo
 
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scanning.display_codes import SCANNER_ORDER
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 
-SCANNER_ORDER = (
-    'signal.macd_positive_cross', 'signal.smi_macd_positive',
-    'signal.smi_macd_positive_volume_confirmed', 'signal.ema_trend_volume',
-    'signal.rsi_macd_volume', 'signal.sma_macd_volume', 'signal.smi_macd_full',
-    'signal.smi_macd_early', 'signal.rsi_momentum_volume', 'technical.volume_spike',
-    'technical.squeeze_volume', 'technical.extreme_rsi', 'technical.failed_breakout',
-    'technical.decision_zone', 'technical.trend_continuation', 'technical.exhaustion',
-    'decision.panel_v645', 'ma.near_zone',
-)
 TIMEFRAMES = ('5m', '15m', '1h', '4h', '1d', '1wk')
 COLUMNS = ('Hisse', 'ZamanDilimi', 'TaramaNo', 'MotorKimligi', 'Durum',
            'MumKapanisiUTC', 'MotorSurumu', 'KuralHash', 'HataKodu', 'VeriKaynagi')

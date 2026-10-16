@@ -30,6 +30,7 @@ from market_intelligence.delivery.telegram.timeframe_topics import (
 from market_intelligence.persistence.postgres.outbox import PostgresOutboxRepository
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scanning.display_codes import scanner_code_from_id
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_export_dashboard import LATEST_SQL, SCANNER_ORDER
 from scripts.atc_publish_targeted import AtcOnlyOutbox
@@ -83,7 +84,7 @@ def export_intersections_csv(ranked, closings, *, generated):
     writer = csv.writer(output)
     writer.writerow((
         "Hisse", "Yon", "ZamanDilimiSayisi", "TaramaSayisi", "ZamanDilimleri",
-        "TaramaAdlari", "ZitYonZamanDilimleri", "KapanislarTSI", "RaporSaatiTSI",
+        "TaramaKodlari", "ZitYonZamanDilimleri", "KapanislarTSI", "RaporSaatiTSI",
     ))
     close_labels = {
         tf: value.astimezone(ISTANBUL).isoformat()
@@ -92,9 +93,10 @@ def export_intersections_csv(ranked, closings, *, generated):
     for item in ranked:
         frames = sorted(item["timeframes"])
         writer.writerow((
-            item["symbol"], "POZITIF" if item["direction"] == "bullish" else "NEGATIF",
+            item["symbol"], "LONG" if item["direction"] == "bullish" else "SHORT",
             item["timeframe_count"], item["count"], ",".join(frames),
-            ",".join(item["scanners"]), ",".join(item["opposing_timeframes"]),
+            ",".join(scanner_code_from_id(name) for name in item["scanners"]),
+            ",".join(item["opposing_timeframes"]),
             "; ".join(f"{tf}={close_labels[tf]}" for tf in frames),
             generated.astimezone(ISTANBUL).isoformat(),
         ))

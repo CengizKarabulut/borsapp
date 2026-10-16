@@ -5,6 +5,7 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from market_intelligence.core.timeframes import Timeframe
+from market_intelligence.scanning.display_codes import scanner_code_from_id
 
 LABELS = {
     "technical.volume_spike": "Hacim patlaması",
@@ -92,7 +93,9 @@ def format_summary(timeframe, target, slot, expected, bindings, rows):
         identifier = binding.scanner.id
         seen, matches, unknown, symbols = by_scanner.get(identifier, (0, 0, 0, []))
         missing = max(0, expected - seen)
-        line = f"{LABELS.get(identifier, identifier)}: {matches} eşleşme"
+        # This legacy aggregate has NO per-scan directional evidence.
+        # Do not guess LONG/SHORT from a scan name alone.
+        line = f"{scanner_code_from_id(identifier)}: {matches} eşleşme"
         if symbols:
             line += " [" + ", ".join(symbols) + (", …" if matches > len(symbols) else "") + "]"
         line += f" · {seen}/{expected} işlendi"
