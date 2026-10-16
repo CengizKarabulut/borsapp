@@ -23,8 +23,8 @@ from scripts.atc_universe_seed import load_pinned
 IST = ZoneInfo("Europe/Istanbul")
 
 
-def read_last_close(symbol, *, day, now):
-    frame = BorsapyProvider().fetch(FetchRequest(
+def read_last_close(symbol, *, day, now, provider=None):
+    frame = (provider or BorsapyProvider()).fetch(FetchRequest(
         provider_symbol=symbol, timeframe=Timeframe.D1, bars=8, as_of=now,
     ))
     candles = [
