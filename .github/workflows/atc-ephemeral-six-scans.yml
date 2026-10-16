@@ -121,3 +121,60 @@ jobs:
           borsapp scan-due --universe ATC_630 --timeframe "$ATC_SCAN_TIMEFRAME" --bars 600 --workers 2 --lookback-days 7
       - name: Send PNG cards and FULL CSV directly to its preexisting Telegram topic
         run: python -m scripts.atc_timeframe_visuals --timeframe "$ATC_SCAN_TIMEFRAME"
+      - name: Export only confirmed, fresh directional evidence for EOD Kesişim
+        if: ${{ needs.choose-candles.outputs.is_eod == 'true' }}
+        run: |
+          python -m scripts.atc_ephemeral_digest \
+            --timeframe "$ATC_SCAN_TIMEFRAME" \
+            --output "runtime_artifacts/verified/$ATC_SCAN_TIMEFRAME.json"
+      - name: Upload small verified digest (never raw 600-bar history)
+        if: ${{ needs.choose-candles.outputs.is_eod == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-verified-${{ matrix.timeframe }}
+          path: runtime_artifacts/verified/${{ matrix.timeframe }}.json
+          retention-days: 2
+          if-no-files-found: error
+
+  confirmed-kesisim:
+    needs: [choose-candles, real-scan-and-telegram]
+    if: ${{ always() && github.ref_name == 'main' && needs.choose-candles.outputs.is_eod == 'true' && needs.real-scan-and-telegram.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      DELIVERY_MODE: disabled
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TOPIC_INTERSECTIONS: ${{ vars.TELEGRAM_TOPIC_INTERSECTIONS || secrets.TELEGRAM_TOPIC_INTERSECTIONS }}
+      SELECTED_TIMEFRAMES: ${{ needs.choose-candles.outputs.timeframes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download only same-run scanner-validated JSON digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: atc-verified-*
+          path: runtime_artifacts/verified
+          merge-multiple: true
+      - name: Install Telegram renderer (no PostgreSQL connection)
+        run: python -m pip install --editable ".[runtime]"
+      - name: Compute strict intersection from all EOD timeframes, and publish PNG+CSV
+        run: |
+          selected="$(python -c 'import json,os;print(",".join(json.loads(os.environ["SELECTED_TIMEFRAMES"])))')"
+          python -m scripts.atc_ephemeral_intersections \
+            --directory runtime_artifacts/verified --expected "$selected"
+
