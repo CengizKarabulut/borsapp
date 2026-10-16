@@ -9,6 +9,7 @@ import io
 import math
 
 from PIL import Image, ImageDraw
+
 from scripts.atc_timeframe_visuals import _font
 
 PER_CARD = 20
