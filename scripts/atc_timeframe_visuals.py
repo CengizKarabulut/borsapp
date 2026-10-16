@@ -272,12 +272,24 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             "Pine-plan-eligible matches have same-evaluation valid plan",
             flush=True,
         )
-        if plan_eligible and not planned:
+        if plan_eligible and planned * 10 < plan_eligible * 9:
             raise ValueError(
-                f"{tf.value}: no reliable stored stop/TP for {plan_eligible} "
-                "plan-eligible matches; refusing purported Stop/TP-enabled report"
+                f"{tf.value}: Stop/TP plans only {planned}/{plan_eligible} "
+                "Pine-eligible matches; must resolve >=90% before Telegram delivery"
             )
-        rows = [(*key, plans.get(key)) for key in matches[:MAX_ROWS_PER_CARD * MAX_CARDS]]
+        visible = matches[:MAX_ROWS_PER_CARD * MAX_CARDS]
+        visible_eligible = [
+            key for key in visible
+            if ((key[2] == "POZITIF" and key[1] <= 16)
+                or (key[2] == "NEGATIF" and 10 <= key[1] <= 16))
+        ]
+        visible_valid = sum(plans.get(key) is not None for key in visible_eligible)
+        if visible_eligible and visible_valid * 10 < len(visible_eligible) * 9:
+            raise ValueError(
+                f"{tf.value}: visible Stop/TP only {visible_valid}/"
+                f"{len(visible_eligible)}; never send mostly-empty PNGs again"
+            )
+        rows = [(*key, plans.get(key)) for key in visible]
         pages = max(1, (len(rows) + MAX_ROWS_PER_CARD - 1) // MAX_ROWS_PER_CARD)
         envelopes = []
         for i in range(pages):
@@ -290,7 +302,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             envelopes.append(route_timeframe_image(
                 settings, topic_ids, tf,
                 identity={
-                    "source": "atc-timeframe-visual-stop-tp-v2",
+                    "source": "atc-timeframe-visual-stop-tp-samesnapshot-v3",
                     "timeframe": tf.value,
                     "bar_close": bar_time.isoformat(), "page": i + 1,
                 },
