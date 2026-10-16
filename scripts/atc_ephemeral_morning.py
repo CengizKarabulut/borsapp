@@ -126,9 +126,9 @@ def publish_morning(*, now=None, workers=6):
     for page, page_rows, png in cards:
         caption = (
             f"ATC 630 | {previous:%d.%m.%Y} TEYİTLİ KAPANIŞ | "
-            f"S2/S1/P/R1/R2 | Görsel {page}/{len(cards)}\\n"
+            f"S2/S1/P/R1/R2 | Görsel {page}/{len(cards)}\n"
             + " ".join("#" + item[0] for item in page_rows)
-            + "\\nTam liste CSV'de; yatırım tavsiyesi değildir."
+            + "\nTam liste CSV'de; yatırım tavsiyesi değildir."
         )
         page_id = sender.send(chat_id=chat, message_thread_id=thread, payload={
             "_method": "sendPhoto",
