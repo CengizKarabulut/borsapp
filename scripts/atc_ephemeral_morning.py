@@ -11,6 +11,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from threading import local
 from zoneinfo import ZoneInfo
 
 from market_intelligence.core.timeframes import Timeframe
@@ -24,6 +25,18 @@ from scripts.atc_telegram_briefings import last_closed_session, morning_messages
 from scripts.atc_universe_seed import load_pinned
 
 IST = ZoneInfo("Europe/Istanbul")
+_VENDORS = local()
+
+
+def vendor_chain():
+    """Keep each no-login TV client within its own scan worker thread."""
+    if not hasattr(_VENDORS, "chain"):
+        _VENDORS.chain = (
+            BorsapyProvider(),
+            YFinanceBistProvider(timestamp_timezone="Europe/Istanbul"),
+            TvDatafeedBistProvider(),
+        )
+    return _VENDORS.chain
 
 
 def read_last_close(symbol, *, day, now, provider=None, include_source=False):
@@ -33,11 +46,9 @@ def read_last_close(symbol, *, day, now, provider=None, include_source=False):
     from different vendors or replace yesterday with today's mutable bar.
     """
     providers = (
-        (provider,) if provider is not None else (
-            BorsapyProvider(),
-            YFinanceBistProvider(timestamp_timezone="Europe/Istanbul"),
-            TvDatafeedBistProvider(),
-        )
+        tuple(provider) if isinstance(provider, (tuple, list))
+        else (provider,) if provider is not None
+        else vendor_chain()
     )
     errors = []
     for vendor in providers:
