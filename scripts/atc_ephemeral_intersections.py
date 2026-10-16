@@ -46,6 +46,10 @@ def from_verified_digests(paths, *, now, expected_timeframes=()):
         max_age = timedelta(days=8 if tf == "1wk" else 2)
         if now - close > max_age:
             raise ValueError(f"Stale confirmed scanner digest for {tf}")
+        if (expected_timeframes
+                and close.astimezone(ISTANBUL).date()
+                != now.astimezone(ISTANBUL).date()):
+            raise ValueError(f"EOD {tf} candle is from an earlier trading session")
         details = []
         seen = set()
         for hit in entry["entries"]:
