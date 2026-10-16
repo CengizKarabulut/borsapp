@@ -2,11 +2,7 @@ name: ATC 630 daily confirmed scan
 
 on:
   workflow_dispatch:
-  # One-time live-data pilot when the workflow definition is installed/updated.
-  # Other main-branch commits do not trigger expensive market-wide scans.
-  push:
-    branches: [main]
-    paths: [.github/workflows/atc-630-daily.yml]
+  # Manual Neon repair/diagnostic only; automated EOD now uses ephemeral runner.
   # Legacy cloud-database schedule disabled: Neon 1024 MB quota exhausted.
   # Automatic real scanner jobs now use isolated runner PostgreSQL.
 
