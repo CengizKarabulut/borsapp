@@ -12,10 +12,10 @@ from math import isfinite
 from typing import NamedTuple
 
 from market_intelligence.core.enums import PriceBasis
+from market_intelligence.core.timeframes import parse_timeframe
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
 from market_intelligence.scanning.display_codes import SCANNER_ORDER
 from market_intelligence.scanning.trade_plan import build_pine_a_i_plan, build_trade_plan
-from market_intelligence.core.timeframes import parse_timeframe
 
 
 class PlanLevels(NamedTuple):
