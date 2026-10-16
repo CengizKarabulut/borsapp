@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install only the BIST exchange calendar (NO database)
-        run: python -m pip install 'exchange-calendars>=4.13,<5'
+        run: python -m pip install --editable . 'exchange-calendars>=4.13,<5'
       - name: Determine real completed exchange candles and EOD/Friday weekly
         id: pick
         env:
