@@ -7,42 +7,76 @@ from __future__ import annotations
 import argparse
 import base64
 import os
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from threading import local
 from zoneinfo import ZoneInfo
 
 from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.market_data.adapters.borsapy import BorsapyProvider
+from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistProvider
+from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvider
 from market_intelligence.market_data.providers import FetchRequest
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_telegram_briefings import last_closed_session, morning_messages, pivot_levels
 from scripts.atc_universe_seed import load_pinned
 
 IST = ZoneInfo("Europe/Istanbul")
+_VENDORS = local()
 
 
-def read_last_close(symbol, *, day, now, provider=None):
-    frame = (provider or BorsapyProvider()).fetch(FetchRequest(
-        provider_symbol=symbol, timeframe=Timeframe.D1, bars=8, as_of=now,
-    ))
-    candles = [
-        bar for bar in frame.bars
-        if (bar.timestamp.replace(tzinfo=IST) if bar.timestamp.tzinfo is None
-            else bar.timestamp.astimezone(IST)).date() == day
-    ]
-    if len(candles) != 1:
-        return (symbol, None, None, "VERI_YOK")
-    bar = candles[0]
-    try:
-        levels = pivot_levels(bar.high, bar.low, bar.close)
-        if bar.volume < 0:
-            raise ValueError("negative volume")
-    except ValueError:
-        return (symbol, None, None, "VERI_HATASI")
-    return (symbol, levels, bar.close * bar.volume, "TEYITLI")
+def vendor_chain():
+    """Keep each no-login TV client within its own scan worker thread."""
+    if not hasattr(_VENDORS, "chain"):
+        _VENDORS.chain = (
+            BorsapyProvider(),
+            YFinanceBistProvider(timestamp_timezone="Europe/Istanbul"),
+            TvDatafeedBistProvider(),
+        )
+    return _VENDORS.chain
 
+
+def read_last_close(symbol, *, day, now, provider=None, include_source=False):
+    """Use only the previous confirmed daily candle, with genuine vendor fallback.
+
+    Each OHLC tuple stays within ONE provider. Never splice high/low/close
+    from different vendors or replace yesterday with today's mutable bar.
+    """
+    providers = (
+        tuple(provider) if isinstance(provider, (tuple, list))
+        else (provider,) if provider is not None
+        else vendor_chain()
+    )
+    errors = []
+    for vendor in providers:
+        source = getattr(vendor, "name", vendor.__class__.__name__)
+        try:
+            frame = vendor.fetch(FetchRequest(
+                provider_symbol=symbol, timeframe=Timeframe.D1,
+                bars=8, as_of=now,
+            ))
+            candles = [
+                bar for bar in frame.bars
+                if (bar.timestamp.replace(tzinfo=IST) if bar.timestamp.tzinfo is None
+                    else bar.timestamp.astimezone(IST)).date() == day
+            ]
+            if len(candles) != 1:
+                errors.append(f"{source}:MISSING_CONFIRMED_BAR")
+                continue
+            bar = candles[0]
+            levels = pivot_levels(bar.high, bar.low, bar.close)
+            if bar.volume < 0:
+                raise ValueError("negative volume")
+            basis = str(getattr(frame, "price_basis", "unspecified"))
+            result = (symbol, levels, bar.close * bar.volume, "TEYITLI")
+            return (*result, f"{source}/{basis}") if include_source else result
+        except Exception as exc:
+            errors.append(f"{source}:{type(exc).__name__}")
+    unavailable = (symbol, None, None, "VERI_YOK")
+    return (*unavailable, ";".join(errors)) if include_source else unavailable
 
 def gather_morning(*, now, symbols, workers=6):
     current = now.astimezone(IST).date()
@@ -53,12 +87,18 @@ def gather_morning(*, now, symbols, workers=6):
 
     def check(symbol):
         try:
-            return read_last_close(symbol, day=previous, now=now)
-        except Exception:
-            return symbol, None, None, "VERI_YOK"
+            return read_last_close(
+                symbol, day=previous, now=now, include_source=True,
+            )
+        except Exception as exc:
+            return symbol, None, None, "VERI_YOK", type(exc).__name__
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         rows = list(executor.map(check, symbols))
+    counts = Counter(row[4].split("/")[0] for row in rows if row[3] == "TEYITLI")
+    errors = Counter(row[4].split(";")[-1] for row in rows if row[3] != "TEYITLI")
+    print(f"ATC morning confirmed {sum(r[3] == 'TEYITLI' for r in rows)}/"
+          f"{len(rows)} sources={dict(counts)} missing={dict(errors)}", flush=True)
     return previous, rows
 
 

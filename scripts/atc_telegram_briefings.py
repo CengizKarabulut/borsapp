@@ -94,7 +94,7 @@ def build_morning_rows(connection, *, now):
 
 
 def morning_messages(last_session, rows):
-    valid = [(symbol, levels, turnover) for symbol, levels, turnover, status in rows if status == "TEYITLI"]
+    valid = [(symbol, levels, turnover) for symbol, levels, turnover, status, *extra in rows if status == "TEYITLI"]
     if len(valid) < 0.90 * len(rows):
         raise ValueError(f"Previous confirmed close coverage insufficient: {len(valid)}/{len(rows)}")
     ranking = sorted(valid, key=lambda r: r[2] or 0, reverse=True)[:20]
@@ -103,19 +103,20 @@ def morning_messages(last_session, rows):
         title, f"630 hisse · teyitli {len(valid)} · veri eksik {len(rows)-len(valid)}",
         "Klasik pivot yöntemi: D1 önceki seans H/L/C; tahmini al-sat seviyesi değildir.",
         "Hacim ağırlığı değil, önceki gün kapanış × pay hacmine göre ilk 20:",
+        "Kaynak/fiyat bazları hisse bazında CSV'de belirtilmiştir; düzeltme bazları farklı olabilir.",
     ]
     for symbol, (s1, s2, p, r1, r2), _ in ranking:
         lines.append(f"#{symbol}  S2 {s2:.2f} | S1 {s1:.2f} | P {p:.2f} | R1 {r1:.2f} | R2 {r2:.2f}")
     lines.append("Tüm 630 sembolün değerleri ekteki CSV dosyasında. Bilgilendirme amaçlıdır.")
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(("Hisse", "KapanisTarihi", "S2", "S1", "Pivot", "R1", "R2", "Durum"))
-    for symbol, levels, _, status in sorted(rows):
+    writer.writerow(("Hisse", "KapanisTarihi", "S2", "S1", "Pivot", "R1", "R2", "Durum", "KaynakFiyatBazi"))
+    for symbol, levels, _, status, *extra in sorted(rows):
         prices = ("", "", "", "", "") if levels is None else (
             f"{levels[1]:.4f}", f"{levels[0]:.4f}", f"{levels[2]:.4f}",
             f"{levels[3]:.4f}", f"{levels[4]:.4f}",
         )
-        writer.writerow((symbol, last_session.isoformat(), *prices, status))
+        writer.writerow((symbol, last_session.isoformat(), *prices, status, extra[0] if extra else ""))
     return "\n".join(lines), ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
