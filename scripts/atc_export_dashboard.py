@@ -14,8 +14,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
-from market_intelligence.scanning.display_codes import SCANNER_ORDER
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scanning.display_codes import SCANNER_ORDER
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 
 TIMEFRAMES = ('5m', '15m', '1h', '4h', '1d', '1wk')
