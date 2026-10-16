@@ -54,7 +54,7 @@ def gather_morning(*, now, symbols, workers=6):
     def check(symbol):
         try:
             return read_last_close(symbol, day=previous, now=now)
-        except (RuntimeError, ValueError, KeyError, TypeError):
+        except Exception:
             return symbol, None, None, "VERI_YOK"
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
