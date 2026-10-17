@@ -1,4 +1,5 @@
 name: ATC six timeframe real scan in FREE isolated PostgreSQL runner
+# Owner-authorized one-time re-evaluation with validated independent OHLC vendors.
 
 on:
   workflow_dispatch:
