@@ -81,7 +81,7 @@ def diagnose(bars, scanner, direction):
             "risk_pct": 100 * risk / entry, "stop": stop,
             "tp1": tps[0], "tp2": tps[1], "tp3": tps[2],
             "invalid_fields": [name for name, val in zip(
-                ("stop", "tp1", "tp2", "tp3"), (stop, *tps)) if val <= 0 or not isfinite(val)],
+                ("stop", "tp1", "tp2", "tp3"), (stop, *tps), strict=True) if val <= 0 or not isfinite(val)],
             **extra}
 
 
