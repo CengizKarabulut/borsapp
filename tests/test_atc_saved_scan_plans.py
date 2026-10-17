@@ -2,19 +2,23 @@ from __future__ import annotations
 
 import io
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from PIL import Image
 
+from market_intelligence.scanning.trade_plan import build_pine_a_i_plan, build_trade_plan
 from scripts.atc_saved_scan_plans import (
     PlanLevels,
     fmt_level,
+    model_rejected_display_levels,
     plan_from_stored_rows,
     validate_reference_plan,
 )
 from scripts.atc_timeframe_visuals import render_card_png
+from tests.test_trade_plan import frame
 
 IST = ZoneInfo("Europe/Istanbul")
 NOW = datetime(2026, 10, 16, 15, tzinfo=IST)
@@ -127,7 +131,47 @@ class PersistedStopAndTargetsTests(unittest.TestCase):
         self.assertEqual(parsed.size[0], 1840)
         self.assertGreater(len(image), 8000)
         self.assertEqual(fmt_level(14.125, csv=True), "14.125")
-        self.assertEqual(fmt_level(None), "—")
+        self.assertEqual(fmt_level(None), "-")
+        self.assertEqual(fmt_level(None, csv=True), "-")
+        for invalid in (0, -1, -0.001, float("nan"), float("inf")):
+            with self.subTest(invalid=invalid):
+                self.assertEqual(fmt_level(invalid), "-")
+                self.assertEqual(fmt_level(invalid, csv=True), "-")
+
+    def test_generic_short_invalid_targets_display_only_positive_fields(self):
+        f = frame()
+        bars = tuple(replace(b, open=30, high=44, low=29, close=30) for b in f.bars)
+        f = replace(f, bars=bars)
+        original = build_trade_plan(f, "bearish")
+        self.assertEqual(original["status"], "unavailable")
+        self.assertEqual(original["reason"], "nonpositive_level")
+        self.assertEqual(original["scenarios"], [])
+        partial = model_rejected_display_levels(original, frame=f, direction="bearish")
+        self.assertIsNotNone(partial)
+        self.assertEqual(partial.entry, 30)
+        self.assertGreater(partial.stop, partial.entry)
+        self.assertGreater(partial.tp1, 0)
+        self.assertIsNone(partial.tp2)
+        self.assertIsNone(partial.tp3)
+        self.assertEqual([fmt_level(x) for x in partial[0:5]][-2:], ["-", "-"])
+        self.assertIsNone(model_rejected_display_levels(
+            original, frame=replace(f, snapshot_id="other"), direction="bearish",
+        ))
+
+    def test_pine_long_invalid_stop_shows_positive_targets(self):
+        f = frame()
+        bars = [replace(b, open=10, high=11, low=9, close=10) for b in f.bars]
+        bars[-1] = replace(bars[-1], high=1200)
+        f = replace(f, bars=tuple(bars))
+        original = build_pine_a_i_plan(f, "signal.smi_macd_positive", "bullish")
+        self.assertEqual(original["reason"], "invalid_stop_or_target")
+        partial = model_rejected_display_levels(original, frame=f, direction="bullish")
+        self.assertIsNotNone(partial)
+        self.assertEqual(partial.entry, 10)
+        self.assertIsNone(partial.stop)
+        self.assertGreater(partial.tp1, 10)
+        self.assertGreater(partial.tp2, partial.tp1)
+        self.assertGreater(partial.tp3, partial.tp2)
 
 
 if __name__ == "__main__":
