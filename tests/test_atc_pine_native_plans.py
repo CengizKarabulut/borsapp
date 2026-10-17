@@ -38,6 +38,24 @@ class PineSpecializedPlanTests(unittest.TestCase):
         self.assertAlmostEqual(pb["tp2"], 104.2)
         self.assertAlmostEqual(pb["tp3"], 106.72)
 
+    def test_original_pine_atr_minimum_is_not_silently_changed(self):
+        # Pine f_plan itself can make Stop nonpositive when ATR minimum
+        # exceeds entry. Keep the ORIGINAL model and show unavailable;
+        # the presentation layer renders that stop as '-' without a floor.
+        source = frame()
+        bars = tuple(
+            replace(bar, open=8.0, high=24.0, low=7.8, close=8.0)
+            for bar in source.bars
+        )
+        plan = build_pine_a_i_plan(
+            replace(source, bars=bars), "signal.smi_macd_early", "bullish",
+        )
+        self.assertEqual(plan["version"], "pine-a-i-plan-v1")
+        self.assertEqual(plan["status"], "unavailable")
+        self.assertEqual(plan["reason"], "invalid_stop_or_target")
+        self.assertAlmostEqual(plan["display_levels"]["stop"], 8.0 - 0.75 * 16.2)
+        self.assertEqual(plan["scenarios"], [])
+
     def test_short_partial_and_adjustment_do_not_invent_pine_long(self):
         name = "signal.ema_trend_volume"
         self.assertEqual(
