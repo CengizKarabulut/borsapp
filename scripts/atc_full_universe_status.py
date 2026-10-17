@@ -99,10 +99,14 @@ def universe_status_csv(members, evaluations, bindings, timeframe, bar_time):
                 # exception details or provider secrets are copied into CSV.
                 code = ev[7] if ev is not None else None
                 reasons.append(str(code)[:96] if code else label)
-        if problems:
-            row_status = "EKSIK_VEYA_HATALI"
+        # A stock can have confirmed matches AND unknown scanner results.
+        # Do not hide that match in an undifferentiated "error" bucket.
+        if hits and problems:
+            row_status = "ESLESME_VAR_VE_EKSIK"
         elif hits:
             row_status = "ESLESME_VAR"
+        elif problems:
+            row_status = "EKSIK_VEYA_HATALI"
         else:
             row_status = "KOSUL_YOK"
         writer.writerow((
@@ -111,6 +115,9 @@ def universe_status_csv(members, evaluations, bindings, timeframe, bar_time):
             *statuses, *reasons,
         ))
         totals[row_status] += 1
+        totals["matched_members"] += int(bool(hits))
+        totals["matched_with_unresolved"] += int(bool(hits) and bool(problems))
+        totals["unresolved_without_match"] += int(bool(problems) and not hits)
         totals["members"] += 1
         totals["unresolved_evaluations"] += problems
         totals["confirmed_evaluations"] += good

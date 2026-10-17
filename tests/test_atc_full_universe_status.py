@@ -102,6 +102,31 @@ class FullUniverseAuditTests(unittest.TestCase):
         self.assertEqual(counts["unresolved_evaluations"], 627)
         self.assertEqual(counts["match"], 2)
 
+    def test_confirmed_match_and_other_rule_error_both_remain_visible(self):
+        second = SimpleNamespace(
+            scanner=SimpleNamespace(id=SCANNER_ORDER[1], version="v1"),
+            ruleset_hash="valid", shadow_timeframes=frozenset({Timeframe.D1}),
+        )
+        evaluations = [
+            eval_row(0, "match", ("bearish",)),
+            ("i-0", "1d", SCANNER_ORDER[1], "v1", "valid",
+             BAR, "unknown", "missing_features", "e0b", ()),
+            ("i-1", "1d", SCANNER_ORDER[0], "v1", "valid",
+             BAR, "unknown", "scanner_input_unavailable", "e1a", ()),
+        ]
+        data, counts = universe_status_csv(
+            [member(0), member(1)], evaluations, [binding(), second], "1d", BAR,
+        )
+        rows = parsed(data)
+        self.assertEqual(rows[0]["HisseDurumu"], "ESLESME_VAR_VE_EKSIK")
+        self.assertEqual(rows[0]["EslesmeSayisi"], "1")
+        self.assertEqual(rows[0]["A"], "SHORT")
+        self.assertEqual(rows[0]["B_Neden"], "missing_features")
+        self.assertEqual(rows[1]["HisseDurumu"], "EKSIK_VEYA_HATALI")
+        self.assertEqual(counts["matched_members"], 1)
+        self.assertEqual(counts["matched_with_unresolved"], 1)
+        self.assertEqual(counts["unresolved_without_match"], 1)
+
     def test_no_match_is_explicit_not_empty_or_missing(self):
         members = [member(i) for i in range(630)]
         ev = [eval_row(i, "no_match") for i in range(630)]
