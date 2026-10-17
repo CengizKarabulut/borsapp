@@ -2,6 +2,9 @@ name: ATC real OHLC Stop TP diagnostics
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-real-risk-diagnostics.yml]
 
 permissions:
   contents: read
@@ -28,12 +31,35 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # The public credentials below belong ONLY to the throwaway Actions
+      # PostgreSQL service; Neon DATABASE_URL secret is never used in this job.
       DATABASE_URL: postgresql://atc_ephemeral:ephemeral_runner_password@localhost:5432/atc_scan
       APP_ENV: production
       APP_TIMEZONE: Europe/Istanbul
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: disabled
       ATC_SCAN_TIMEFRAME: ${{ matrix.timeframe }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+      TELEGRAM_TOPIC_COMMAND: ${{ vars.TELEGRAM_TOPIC_COMMAND }}
+      TELEGRAM_TOPIC_SCANS: ${{ vars.TELEGRAM_TOPIC_SCANS }}
+      TELEGRAM_TOPIC_ANALYSIS: ${{ vars.TELEGRAM_TOPIC_ANALYSIS }}
+      TELEGRAM_TOPIC_CHARTS: ${{ vars.TELEGRAM_TOPIC_CHARTS }}
+      TELEGRAM_TOPIC_NEWS: ${{ vars.TELEGRAM_TOPIC_NEWS }}
+      TELEGRAM_TOPIC_CALENDAR: ${{ vars.TELEGRAM_TOPIC_CALENDAR }}
+      TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+      TELEGRAM_TOPIC_SYSTEM: ${{ vars.TELEGRAM_TOPIC_SYSTEM }}
+      TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+      TELEGRAM_TOPIC_15M: ${{ vars.TELEGRAM_TOPIC_15M || secrets.TELEGRAM_TOPIC_15M }}
+      TELEGRAM_TOPIC_30M: ${{ vars.TELEGRAM_TOPIC_30M || secrets.TELEGRAM_TOPIC_30M }}
+      TELEGRAM_TOPIC_45M: ${{ vars.TELEGRAM_TOPIC_45M || secrets.TELEGRAM_TOPIC_45M }}
+      TELEGRAM_TOPIC_120M: ${{ vars.TELEGRAM_TOPIC_120M || secrets.TELEGRAM_TOPIC_120M }}
+      TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
+      TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
+      TELEGRAM_TOPIC_240M: ${{ vars.TELEGRAM_TOPIC_240M || secrets.TELEGRAM_TOPIC_240M }}
+      TELEGRAM_TOPIC_1WK: ${{ vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1WK }}
+      TELEGRAM_TOPIC_HAFTALIK: ${{ vars.TELEGRAM_TOPIC_HAFTALIK || secrets.TELEGRAM_TOPIC_HAFTALIK }}
     steps:
       - uses: actions/checkout@v4
         with:
