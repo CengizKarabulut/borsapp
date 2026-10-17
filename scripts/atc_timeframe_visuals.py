@@ -48,18 +48,30 @@ def pine_plan_required(match) -> bool:
     )
 
 
-def require_complete_publication(*, timeframe: str, covered: int, matches, plans) -> dict:
-    """No incomplete symbol coverage or required Stop/TP can enter Telegram."""
+def require_complete_publication(
+    *, timeframe: str, covered: int, matches, plans, model_failures=None,
+) -> dict:
+    """Demand real data; distinguish impossible original Pine R/R from missing data."""
     if covered != 630:
         raise ValueError(
             f"{timeframe}: strict completed-candle coverage {covered}/630; "
             "withholding PNG/CSV and waiting for genuine source data"
         )
     required = [match for match in matches if pine_plan_required(match)]
-    missing = [match for match in required if plans.get(match) is None]
+    failures = model_failures or {}
+    accepted_constraints = {"nonpositive_level", "invalid_stop_or_target"}
+    nonactionable = [
+        match for match in required
+        if plans.get(match) is None and failures.get(match) in accepted_constraints
+    ]
+    missing = [
+        match for match in required
+        if plans.get(match) is None and match not in nonactionable
+    ]
     print(
         f"ATC complete-report audit {timeframe}: coverage={covered}/630, "
-        f"Pine plans={len(required) - len(missing)}/{len(required)}, "
+        f"Pine plans={len(required) - len(missing) - len(nonactionable)}/{len(required)}, "
+        f"non-actionable math={len(nonactionable)}, data missing={len(missing)}, "
         f"full-image-rows={len(matches)}",
         flush=True,
     )
@@ -73,7 +85,11 @@ def require_complete_publication(*, timeframe: str, covered: int, matches, plans
             f"Telegram report WITHHELD until exact-source levels validated. "
             f"Unresolved: {names}"
         )
-    return {"verified_plans": len(required), "nonplan_matches": len(matches) - len(required)}
+    return {
+        "verified_plans": len(required) - len(nonactionable),
+        "model_rejected": len(nonactionable),
+        "nonplan_matches": len(matches) - len(required),
+    }
 
 
 def full_card_pages(match_count: int) -> int:
@@ -125,13 +141,16 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
         draw.text((53, 290), "Teyitli kapanışta eşleşen koşul yok.",
                   font=_font(23, bold=True), fill="#52697F")
     for index, row in enumerate(rows):
+        model_failure = None
         if len(row) == 3:
             symbol, number, state = row
             plan = None
         elif len(row) == 4:
             symbol, number, state, plan = row
+        elif len(row) == 5:
+            symbol, number, state, plan, model_failure = row
         else:
-            raise ValueError("Scanner display row must have 3 or 4 fields")
+            raise ValueError("Scanner display row must have 3, 4 or 5 fields")
         top = 267 + index * 46
         if index % 2 == 0:
             draw.rounded_rectangle((43, top, width - 43, top + 44),
@@ -148,8 +167,14 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
             if plan is not None else (None,) * 5
         )
         for x, value in zip((555, 770, 995, 1210, 1435), numbers, strict=True):
-            draw.text((x, top + 10), fmt_level(value),
-                      font=_font(18, bold=x == 770), fill="#33485B")
+            # A negative theoretical TP is NOT a real price. Flag original
+            # formula incompatibility; never conceal it as a valid level.
+            display = (
+                "MODEL DIŞI" if model_failure and x == 555 else fmt_level(value)
+            )
+            draw.text((x, top + 10), display,
+                      font=_font(18, bold=x == 770),
+                      fill="#B83636" if model_failure else "#33485B")
     shown = visible_count if visible_count is not None else matched_count
     footer = (f"Sayfa {page}/{pages} · {shown}/{matched_count} eşleşme görselde"
               if shown != matched_count else f"Sayfa {page}/{pages} · {kind} tarama")
@@ -157,7 +182,7 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
     disclaimer = (
         "Giriş/Stop/TP referanstır, emir değildir; geçici mumda değişebilir. YTD."
         if provisional else
-        "Pine'da bağımsız planı olmayan kod: — · Stop/TP referanstır, yatırım tavsiyesi değildir."
+        "MODEL DIŞI: orijinal risk formülü fiyat sınırını aştı · —: ayrı plan yok · YTD."
     )
     draw.text((52, height - 45), disclaimer, font=_font(16), fill="#60748A")
     output = io.BytesIO()
@@ -299,14 +324,15 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         )
         if not matches:
             print(f"Visual scanner {tf.value}: confirmed 0 matches; publishing verified empty result card", flush=True)
-        plans = load_saved_trade_plans(
+        plans, model_failures = load_saved_trade_plans(
             db, members=members, evaluations=ev, matches=matches,
-            timeframe=tf.value, bar_time=bar_time,
+            timeframe=tf.value, bar_time=bar_time, include_model_failures=True,
         )
         audit = require_complete_publication(
             timeframe=tf.value, covered=covered, matches=matches, plans=plans,
+            model_failures=model_failures,
         )
-        rows = [(*key, plans.get(key)) for key in matches]
+        rows = [(*key, plans.get(key), model_failures.get(key)) for key in matches]
         pages = full_card_pages(len(rows))
         envelopes = []
         for i in range(pages):
@@ -319,7 +345,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             envelopes.append(route_timeframe_image(
                 settings, topic_ids, tf,
                 identity={
-                    "source": "atc-timeframe-visual-complete-samesnapshot-v4",
+                    "source": "atc-timeframe-visual-risk-audited-v5",
                     "timeframe": tf.value,
                     "bar_close": bar_time.isoformat(), "page": i + 1,
                 },
@@ -332,7 +358,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                         f"{bar_time.astimezone(ISTANBUL):%d.%m.%Y %H:%M} TSİ | "
                         f"Teyitli {covered}/630 | {len(matches)} koşul eşleşmesi | "
                         f"Sayfa {i + 1}/{pages} · "
-                        f"görselde {len(rows)}/{len(matches)} · tam liste CSV'de · YTD"
+                        f"görselde {len(rows)}/{len(matches)} · "
+                        f"model dışı {audit['model_rejected']} · tam liste CSV'de · YTD"
                     ),
                 },
             ))
@@ -340,7 +367,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         # Every verified match is also kept in the full CSV in the same topic.
         complete_table = io.StringIO()
         writer = csv.writer(complete_table)
-        writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3", "FiyatBazi", "TeyitliMumTSI", "PlanDurumu"))
+        writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3", "FiyatBazi", "TeyitliMumTSI", "PlanDurumu", "PlanNedeni"))
         for symbol, number, state in matches:
             plan = plans.get((symbol, number, state))
             levels = (plan.entry, plan.stop, plan.tp1, plan.tp2, plan.tp3) if plan else (None,) * 5
@@ -349,13 +376,19 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 *(fmt_level(v, csv=True) for v in levels),
                 plan.price_basis if plan else "",
                 bar_time.astimezone(ISTANBUL).isoformat(),
-                "TEYITLI" if pine_plan_required((symbol, number, state)) else "UYGULANMAZ",
+                (
+                    "RISK_MODELI_UYGULANAMAZ"
+                    if (symbol, number, state) in model_failures
+                    else "TEYITLI" if pine_plan_required((symbol, number, state))
+                    else "AYRI_PLAN_YOK"
+                ),
+                model_failures.get((symbol, number, state), ""),
             ))
         complete_bytes = ("\ufeff" + complete_table.getvalue()).encode("utf-8")
         envelopes.append(route_timeframe_image(
             settings, topic_ids, tf,
             identity={
-                "source": "atc-timeframe-visual-complete-v4",
+                "source": "atc-timeframe-visual-risk-audited-v5",
                 "timeframe": tf.value,
                 "bar_close": bar_time.isoformat(), "format": "csv",
             },
@@ -393,6 +426,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             )
     summary = {"timeframe": tf.value, "covered": covered, "matches": len(matches),
                "valid_plans": audit["verified_plans"],
+               "model_rejected": audit["model_rejected"],
                "nonplan_matches": audit["nonplan_matches"],
                "new_queued": inserted, "pages": pages, "sent_new": result.sent}
     print(f"ATC visual result: {summary}", flush=True)
