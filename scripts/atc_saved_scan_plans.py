@@ -269,6 +269,10 @@ def load_saved_trade_plans(db, *, members, evaluations, matches, timeframe, bar_
             key = symbol, number, state
             if key not in match_set or saved.get(key) is not None:
                 continue
+            # 17/18 and A-I SHORT do not own standalone reference plans in
+            # the owner's Pine code. These are N/A, NOT missing plan data.
+            if number > 16 or (number <= 9 and state != "POZITIF"):
+                continue
             # Cache by complete data snapshot identity; scanner-specific plans
             # can reuse bars for the same exact saved series.
             identity_key = (str(snapshot_id), str(instrument), source, basis, revision)
@@ -288,6 +292,18 @@ def load_saved_trade_plans(db, *, members, evaluations, matches, timeframe, bar_
                 stats["reconstructed_exact_snapshot"] += 1
             else:
                 stats["unsupported_or_invalid_plan"] += 1
+                original_plan = (
+                    build_pine_a_i_plan(frame, scanner, direction)
+                    if number <= 9 else build_trade_plan(frame, direction)
+                )
+                reason = original_plan.get("reason", "unknown")
+                if original_plan.get("status") == "reference":
+                    reason = "reference_plan_failed_strict_validation"
+                print(
+                    f"ATC missing REQUIRED Stop/TP {tf}: "
+                    f"{symbol} code={number} side={state} reason={reason}",
+                    flush=True,
+                )
     stats["persisted_valid"] = sum(v is not None for v in saved.values()) - stats["reconstructed_exact_snapshot"]
     stats["match_rows"] = len(matches)
     stats["snapshots_read"] = len(cache)
