@@ -369,7 +369,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                         f"Koşul hesabı {universe_audit['confirmed_evaluations']}/"
                         f"{universe_audit['expected_evaluations']} | "
                         f"Hesaplanamayan {universe_audit['unresolved_evaluations']} | "
-                        f"{len(matches)} eşleşme | Sayfa {i + 1}/{pages} · "
+                        f"{len(matches)} koşul / {universe_audit['matched_members']} hisse | "
+                        f"Sayfa {i + 1}/{pages} · "
                         f"630 hisse durumları ayrı CSV'de · YTD"
                     ),
                 },
@@ -411,7 +412,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 "filename": f"ATC_{tf.value}_TEYITLI_{bar_time:%Y%m%d_%H%M}.csv",
                 "caption": (
                     f"ATC {tf.value.upper()} | {len(matches)} doğrulanmış KOŞUL eşleşmesi "
-                    f"(630 farklı hisse değildir). "
+                    f"/ {universe_audit['matched_members']} farklı hisse. "
                     f"Toplam değerlendirmede {universe_audit['unresolved_evaluations']} "
                     "hesaplanamayan kayıt var; 630 hissenin tek tek durumu ayrı CSV'de. YTD."
                 ),
@@ -430,7 +431,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 "filename": f"ATC_{tf.value}_630_HISSE_TUM_DURUMLAR_{bar_time:%Y%m%d_%H%M}.csv",
                 "caption": (
                     f"ATC {tf.value.upper()} · 630 HISSE TAM DENETIM · "
-                    f"{len(matches)} gerçek koşul eşleşmesi · "
+                    f"{len(matches)} koşul eşleşmesi / "
+                    f"{universe_audit['matched_members']} farklı hisse · "
                     f"{universe_audit['unresolved_evaluations']} hesaplanamayan/eksik "
                     "tarama · A-I ve 10-18 durumları tek tek CSV'de · YTD"
                 ),
@@ -460,6 +462,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             )
     summary = {"timeframe": tf.value, "covered": covered, "matches": len(matches),
                "full_universe_rows": universe_audit["members"],
+               "unique_matched_symbols": universe_audit["matched_members"],
+               "matched_symbols_with_other_unknown_rules": universe_audit["matched_with_unresolved"],
                "unresolved_scanner_evaluations": universe_audit["unresolved_evaluations"],
                "valid_plans": audit["verified_plans"],
                "model_rejected": audit["model_rejected"],
