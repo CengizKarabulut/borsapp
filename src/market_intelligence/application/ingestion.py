@@ -53,6 +53,7 @@ class IngestionRequest:
     bars: int
     as_of: datetime
     series_revision: int
+    require_target_bar: bool = False
 
 
 class IngestionService:
@@ -273,7 +274,9 @@ class IngestionService:
             multiplier = 5
         if request.timeframe is not Timeframe.D1:
             merged = self._cached_target_frame(request, base=base, multiplier=multiplier)
-            if merged is not None:
+            if merged is not None and (
+                not request.require_target_bar or merged.through_bar_time == request.as_of
+            ):
                 try:
                     self.store.save(merged)
                     return merged
@@ -283,14 +286,33 @@ class IngestionService:
                     pass
         raw = self._cached_daily_fetch(request)
         if raw is None:
-            raw = self.provider.fetch(
-                FetchRequest(
-                    provider_symbol=request.provider_symbol,
-                    timeframe=base,
-                    bars=request.bars * multiplier + (10 if request.timeframe is Timeframe.W1 else 0),
-                    as_of=request.as_of,
-                )
+            fetch_request = FetchRequest(
+                provider_symbol=request.provider_symbol,
+                timeframe=base,
+                bars=request.bars * multiplier + (10 if request.timeframe is Timeframe.W1 else 0),
+                as_of=request.as_of,
             )
+            validated = getattr(self.provider, "fetch_validated", None)
+            if request.require_target_bar and callable(validated):
+                def validate_source(frame: ProviderFrame) -> None:
+                    candidate = self.canonicalizer.build(
+                        instrument_id=request.instrument_id,
+                        symbol_at_snapshot=request.symbol,
+                        market=request.market,
+                        provider_frame=frame,
+                        target_timeframe=request.timeframe,
+                        series_revision=request.series_revision,
+                    )
+                    if candidate.through_bar_time != request.as_of:
+                        raise ValueError(
+                            f"source={frame.provider}: latest completed "
+                            f"{candidate.through_bar_time.isoformat()} != "
+                            f"{request.as_of.isoformat()}"
+                        )
+
+                raw = validated(fetch_request, validate_source)
+            else:
+                raw = self.provider.fetch(fetch_request)
         series_revision = max(
             request.series_revision,
             self.store.latest_series_revision(
@@ -311,6 +333,8 @@ class IngestionService:
             )
             if canonical.through_bar_time > request.as_of:
                 raise ValueError("Canonical snapshot gelecekte kapanan bar içeremez")
+            if request.require_target_bar and canonical.through_bar_time != request.as_of:
+                raise ValueError("Gerçek kapanmış hedef mum doğrulanamadı")
             try:
                 self.store.save(canonical)
             except SeriesRevisionConflict:
