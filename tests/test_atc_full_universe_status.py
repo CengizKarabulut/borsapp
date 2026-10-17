@@ -92,7 +92,7 @@ class FullUniverseAuditTests(unittest.TestCase):
         self.assertEqual(statuses["SYM004"], "SURUM_UYUSMAZLIGI")
         self.assertEqual(statuses["SYM005"], "ESKI_MUM")
         self.assertEqual(statuses["SYM006"], "VERI_YOK")
-        self.assertEqual(statuses["SYM000"]["A"] if False else rows[0]["10"], "DESTEKLENMIYOR")
+        self.assertEqual(rows[0]["10"], "DESTEKLENMIYOR")
         self.assertEqual(counts["members"], 630)
         self.assertEqual(counts["expected_evaluations"], 630)
         self.assertEqual(counts["confirmed_evaluations"], 3)
