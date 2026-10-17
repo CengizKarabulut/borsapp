@@ -233,7 +233,7 @@ def load_saved_trade_plans(
     plan-per-(ticker,scanner-code,direction), never inferred prices.
     """
     if not matches:
-        return {}
+        return ({}, {}) if include_model_failures else {}
     ids = list({
         str(e[8]) for e in evaluations
         if e[1] == timeframe and e[5] == bar_time and e[6] == "match"
