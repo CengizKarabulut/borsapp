@@ -96,10 +96,10 @@ def _binding(
     *,
     calendar_version: str,
 ) -> ScannerBinding:
-    # The latest uploaded Pine f_native_legacy_snapshot() is the authoritative
+    # The 17 Oct uploaded dual-direction f_native_legacy_snapshot() is the authoritative
     # A-I alarm packet. Legacy chart-display signal scanners remain available
     # for comparison, but are NOT executed when this engine is selected.
-    if section.get("engine") == "atc_native_20261014":
+    if section.get("engine") == "atc_native_20261017":
         if scanner.id not in ATC_NATIVE_SIGNAL_IDS:
             raise ValueError(f"{scanner.id}: ATC native engine only supports 1-9")
         if section.get("atc_source_sha256") != ATC_SCRIPT_SHA256:
