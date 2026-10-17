@@ -38,7 +38,47 @@ COLORS = {"POZITIF": "#177A4F", "NEGATIF": "#B83636",
           "NOTR": "#A56C21", "KARMA": "#6366A3"}
 MATCH_STATES = frozenset(COLORS)
 MAX_ROWS_PER_CARD = 20
-MAX_CARDS = 10
+
+
+def pine_plan_required(match) -> bool:
+    """Only owner-Pine supported directions own a standalone Stop/TP plan."""
+    _symbol, number, state = match
+    return (state == "POZITIF" and number <= 16) or (
+        state == "NEGATIF" and 10 <= number <= 16
+    )
+
+
+def require_complete_publication(*, timeframe: str, covered: int, matches, plans) -> dict:
+    """No incomplete symbol coverage or required Stop/TP can enter Telegram."""
+    if covered != 630:
+        raise ValueError(
+            f"{timeframe}: strict completed-candle coverage {covered}/630; "
+            "withholding PNG/CSV and waiting for genuine source data"
+        )
+    required = [match for match in matches if pine_plan_required(match)]
+    missing = [match for match in required if plans.get(match) is None]
+    print(
+        f"ATC complete-report audit {timeframe}: coverage={covered}/630, "
+        f"Pine plans={len(required) - len(missing)}/{len(required)}, "
+        f"full-image-rows={len(matches)}",
+        flush=True,
+    )
+    if missing:
+        names = ", ".join(
+            f"{symbol}:{scanner_code(number)}:{direction_display(state)}"
+            for symbol, number, state in missing[:80]
+        )
+        raise ValueError(
+            f"{timeframe}: {len(missing)} Pine-required Stop/TP plans missing; "
+            f"Telegram report WITHHELD until exact-source levels validated. "
+            f"Unresolved: {names}"
+        )
+    return {"verified_plans": len(required), "nonplan_matches": len(matches) - len(required)}
+
+
+def full_card_pages(match_count: int) -> int:
+    """Never silently discard valid matches from 20-row PNG pages."""
+    return max(1, (match_count + MAX_ROWS_PER_CARD - 1) // MAX_ROWS_PER_CARD)
 
 
 def _font(size, *, bold=False):
@@ -117,7 +157,7 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
     disclaimer = (
         "Giriş/Stop/TP referanstır, emir değildir; geçici mumda değişebilir. YTD."
         if provisional else
-        "Planı olmayan sinyal: — · Stop/TP referans seviyeleridir, yatırım tavsiyesi değildir."
+        "Pine'da bağımsız planı olmayan kod: — · Stop/TP referanstır, yatırım tavsiyesi değildir."
     )
     draw.text((52, height - 45), disclaimer, font=_font(16), fill="#60748A")
     output = io.BytesIO()
@@ -141,7 +181,9 @@ def select_verified_matches(members, evaluations, bindings, timeframe, *, now):
         raise ValueError(f"{tf.value}: latest completed bar is stale")
     todays = [ev for ev in latest if ev[5] == close]
     covered = {str(ev[0]) for ev in todays}
-    if len(covered) < int(len(members) * .9):
+    if len(covered) < int(len(members) * .9) or (
+        len(members) == 630 and len(covered) != 630
+    ):
         raise ValueError(
             f"{tf.value}: confirmed bar coverage too low: {len(covered)}/{len(members)}"
         )
@@ -261,36 +303,11 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             db, members=members, evaluations=ev, matches=matches,
             timeframe=tf.value, bar_time=bar_time,
         )
-        planned = sum(plans.get(key) is not None for key in matches)
-        plan_eligible = sum(
-            (state == "POZITIF" and number <= 16)
-            or (state == "NEGATIF" and 10 <= number <= 16)
-            for _symbol, number, state in matches
+        audit = require_complete_publication(
+            timeframe=tf.value, covered=covered, matches=matches, plans=plans,
         )
-        print(
-            f"ATC verified stored TP: {tf.value} {planned}/{plan_eligible} "
-            "Pine-plan-eligible matches have same-evaluation valid plan",
-            flush=True,
-        )
-        if plan_eligible and planned * 10 < plan_eligible * 9:
-            raise ValueError(
-                f"{tf.value}: Stop/TP plans only {planned}/{plan_eligible} "
-                "Pine-eligible matches; must resolve >=90% before Telegram delivery"
-            )
-        visible = matches[:MAX_ROWS_PER_CARD * MAX_CARDS]
-        visible_eligible = [
-            key for key in visible
-            if ((key[2] == "POZITIF" and key[1] <= 16)
-                or (key[2] == "NEGATIF" and 10 <= key[1] <= 16))
-        ]
-        visible_valid = sum(plans.get(key) is not None for key in visible_eligible)
-        if visible_eligible and visible_valid * 10 < len(visible_eligible) * 9:
-            raise ValueError(
-                f"{tf.value}: visible Stop/TP only {visible_valid}/"
-                f"{len(visible_eligible)}; never send mostly-empty PNGs again"
-            )
-        rows = [(*key, plans.get(key)) for key in visible]
-        pages = max(1, (len(rows) + MAX_ROWS_PER_CARD - 1) // MAX_ROWS_PER_CARD)
+        rows = [(*key, plans.get(key)) for key in matches]
+        pages = full_card_pages(len(rows))
         envelopes = []
         for i in range(pages):
             page_rows = rows[i * MAX_ROWS_PER_CARD:(i + 1) * MAX_ROWS_PER_CARD]
@@ -302,7 +319,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             envelopes.append(route_timeframe_image(
                 settings, topic_ids, tf,
                 identity={
-                    "source": "atc-timeframe-visual-stop-tp-samesnapshot-v3",
+                    "source": "atc-timeframe-visual-complete-samesnapshot-v4",
                     "timeframe": tf.value,
                     "bar_close": bar_time.isoformat(), "page": i + 1,
                 },
@@ -319,11 +336,11 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                     ),
                 },
             ))
-        # Maximum images limits Telegram flood, not data completeness.
-        # Every verified match goes in a complete CSV in the same topic.
+        # One 20-row PNG per page, without truncating any confirmed matches.
+        # Every verified match is also kept in the full CSV in the same topic.
         complete_table = io.StringIO()
         writer = csv.writer(complete_table)
-        writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3", "FiyatBazi", "TeyitliMumTSI"))
+        writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3", "FiyatBazi", "TeyitliMumTSI", "PlanDurumu"))
         for symbol, number, state in matches:
             plan = plans.get((symbol, number, state))
             levels = (plan.entry, plan.stop, plan.tp1, plan.tp2, plan.tp3) if plan else (None,) * 5
@@ -332,12 +349,13 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 *(fmt_level(v, csv=True) for v in levels),
                 plan.price_basis if plan else "",
                 bar_time.astimezone(ISTANBUL).isoformat(),
+                "TEYITLI" if pine_plan_required((symbol, number, state)) else "UYGULANMAZ",
             ))
         complete_bytes = ("\ufeff" + complete_table.getvalue()).encode("utf-8")
         envelopes.append(route_timeframe_image(
             settings, topic_ids, tf,
             identity={
-                "source": "atc-timeframe-visual-stop-tp-v2",
+                "source": "atc-timeframe-visual-complete-v4",
                 "timeframe": tf.value,
                 "bar_close": bar_time.isoformat(), "format": "csv",
             },
@@ -374,6 +392,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 f"sent={result.sent}, failed={result.failed}, states={list(states.values())}"
             )
     summary = {"timeframe": tf.value, "covered": covered, "matches": len(matches),
+               "valid_plans": audit["verified_plans"],
+               "nonplan_matches": audit["nonplan_matches"],
                "new_queued": inserted, "pages": pages, "sent_new": result.sent}
     print(f"ATC visual result: {summary}", flush=True)
     return summary
