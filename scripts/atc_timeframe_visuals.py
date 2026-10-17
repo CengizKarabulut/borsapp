@@ -62,7 +62,7 @@ def require_complete_publication(
     accepted_constraints = {"nonpositive_level", "invalid_stop_or_target"}
     nonactionable = [
         match for match in required
-        if plans.get(match) is None and failures.get(match) in accepted_constraints
+        if failures.get(match) in accepted_constraints
     ]
     missing = [
         match for match in required
@@ -169,12 +169,10 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
         for x, value in zip((555, 770, 995, 1210, 1435), numbers, strict=True):
             # A negative theoretical TP is NOT a real price. Flag original
             # formula incompatibility; never conceal it as a valid level.
-            display = (
-                "MODEL DIŞI" if model_failure and x == 555 else fmt_level(value)
-            )
+            display = fmt_level(value)
             draw.text((x, top + 10), display,
                       font=_font(18, bold=x == 770),
-                      fill="#B83636" if model_failure else "#33485B")
+                      fill="#B83636" if model_failure and display == "-" else "#33485B")
     shown = visible_count if visible_count is not None else matched_count
     footer = (f"Sayfa {page}/{pages} · {shown}/{matched_count} eşleşme görselde"
               if shown != matched_count else f"Sayfa {page}/{pages} · {kind} tarama")
@@ -182,7 +180,7 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
     disclaimer = (
         "Giriş/Stop/TP referanstır, emir değildir; geçici mumda değişebilir. YTD."
         if provisional else
-        "MODEL DIŞI: orijinal risk formülü fiyat sınırını aştı · —: ayrı plan yok · YTD."
+        "— yerine -: geçersiz veya ayrı planı olmayan fiyat · risk modeli uyarıları CSV'de · YTD."
     )
     draw.text((52, height - 45), disclaimer, font=_font(16), fill="#60748A")
     output = io.BytesIO()
