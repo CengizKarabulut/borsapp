@@ -222,7 +222,10 @@ def _exact_frame_from_saved_bars(cursor, identity):
     )
 
 
-def load_saved_trade_plans(db, *, members, evaluations, matches, timeframe, bar_time):
+def load_saved_trade_plans(
+    db, *, members, evaluations, matches, timeframe, bar_time,
+    include_model_failures=False,
+):
     """Load verified stored finding plans; repair absent plans from EXACT OHLCV.
 
     Every reconstructed level is independently derived from that same
@@ -252,6 +255,7 @@ def load_saved_trade_plans(db, *, members, evaluations, matches, timeframe, bar_
     }
     stats = Counter()
     cache = {}
+    model_failures = {}
     for identity in identities:
         (eid, instrument, scanner, snapshot_id, source, basis, revision,
          start, end, count, tf, close) = identity
@@ -304,11 +308,19 @@ def load_saved_trade_plans(db, *, members, evaluations, matches, timeframe, bar_
                     f"{symbol} code={number} side={state} reason={reason}",
                     flush=True,
                 )
+                # This is a fully computed but NON-ACTIONABLE original model,
+                # not absent OHLC. A 3R SHORT below zero, or LONG with a
+                # negative original stop, cannot become a legal price order.
+                # Flag it explicitly without altering Pine risk or inventing TP.
+                if (direction == "bearish" and reason == "nonpositive_level"
+                        or direction == "bullish" and reason == "invalid_stop_or_target"):
+                    model_failures[key] = reason
     stats["persisted_valid"] = sum(v is not None for v in saved.values()) - stats["reconstructed_exact_snapshot"]
     stats["match_rows"] = len(matches)
     stats["snapshots_read"] = len(cache)
+    stats["model_math_rejected"] = len(model_failures)
     print(f"ATC same-snapshot STOP/TP provenance {timeframe}: {dict(stats)}", flush=True)
-    return saved
+    return (saved, model_failures) if include_model_failures else saved
 
 def fmt_level(value, *, csv=False) -> str:
     if value is None:

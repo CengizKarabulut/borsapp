@@ -46,7 +46,10 @@ class CompletePublicationTests(unittest.TestCase):
             timeframe="1d", covered=630, matches=matches,
             plans={matches[0]: LONG, matches[1]: SHORT},
         )
-        self.assertEqual(outcome, {"verified_plans": 2, "nonplan_matches": 2})
+        self.assertEqual(
+            outcome,
+            {"verified_plans": 2, "model_rejected": 0, "nonplan_matches": 2},
+        )
 
     def test_pine_scope_keeps_native_nonplan_rules_unfabricated(self):
         self.assertTrue(pine_plan_required(("AAA", 1, "POZITIF")))
