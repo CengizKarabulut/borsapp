@@ -3,6 +3,7 @@
 These gates prevent A-I per-code risk plans being silently substituted by
 the generic 7-bar plan. Static inspection is NOT TradingView compilation.
 """
+
 from __future__ import annotations
 
 import re
