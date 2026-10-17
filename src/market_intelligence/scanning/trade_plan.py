@@ -131,7 +131,7 @@ def build_pine_a_i_plan(frame, scanner_id, direction):
     if scanner_id not in PINE_A_I:
         raise ValueError("Not a Pine A-I scanner")
     base = {
-        "version": "pine-a-i-plan-v2",
+        "version": "pine-a-i-plan-v1",
         "snapshot_id": frame.snapshot_id,
         "source": frame.source,
         "price_basis": frame.price_basis.value,
@@ -186,25 +186,11 @@ def build_pine_a_i_plan(frame, scanner_id, direction):
         raw_stop = (
             (min(below) if mode == 2 else max(below)) if below else fallback
         )
-    # Pine f_plan v2: an ATR minimum cannot create a negative share price.
-    # If the minimum-risk stop would cross zero, retain a genuine positive
-    # structural stop instead of inventing a price floor or a new ATR multiple.
     risk = max(entry - raw_stop, 0.0)
-    atr_floor_bypassed = False
-    minimum = atr * min_atr
-    maximum = atr * max_atr
-    if risk < minimum:
-        if entry - minimum > 0:
-            risk = minimum
-        elif 0 < raw_stop < entry:
-            risk = entry - raw_stop
-            atr_floor_bypassed = True
-        else:
-            # No positive structural stop exists; keep original failed
-            # arithmetic unavailable, never fabricate a viable trade.
-            risk = minimum
-    elif risk > maximum:
-        risk = maximum
+    if risk < atr * min_atr:
+        risk = atr * min_atr
+    elif risk > atr * max_atr:
+        risk = atr * max_atr
     stop = entry - risk
     targets = [entry + risk * ratio for ratio in (r1, r2, r3)]
     if not all(isfinite(v) and v > 0 for v in (entry, stop, *targets)):
@@ -222,8 +208,7 @@ def build_pine_a_i_plan(frame, scanner_id, direction):
             "risk_pct": 100.0 * risk / entry,
             "reward_risk": [r1, r2, r3],
             "atr14": atr, "wide_stop": risk / atr > 3.0,
-            "atr_floor_bypassed_to_preserve_structural_stop": atr_floor_bypassed,
-            "stop_basis": "pine_f_plan_v2",
+            "stop_basis": "pine_f_plan_v1",
         }],
     }
 
