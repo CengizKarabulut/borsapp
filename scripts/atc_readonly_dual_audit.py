@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.scanning.catalog import load_scanner_catalog
+from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_ephemeral_universe import assert_local_ephemeral_url
 from scripts.atc_export_dashboard import LATEST_SQL
 from scripts.atc_full_universe_status import universe_status_csv
@@ -48,7 +48,7 @@ def main():
     if covered != 630 or counts["members"] != 630 or counts.get("match", 0) != len(matches):
         raise RuntimeError("Real scanner evidence is not exactly 630/630")
     sides = Counter()
-    for symbol, number, state in matches:
+    for _symbol, number, state in matches:
         if 1 <= number <= 9:
             sides[state] += 1
     report = {
