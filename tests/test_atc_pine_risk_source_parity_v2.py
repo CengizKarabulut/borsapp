@@ -10,7 +10,6 @@ import unittest
 
 from market_intelligence.scanning.trade_plan import PINE_A_I
 
-
 SOURCE = (
     pathlib.Path(__file__).resolve().parents[1]
     / "docs/reference/ATC_630_63_GRUP_TARAMA_StopTP_v2_20261017.pine"
