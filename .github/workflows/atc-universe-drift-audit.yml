@@ -1,0 +1,31 @@
+name: ATC read-only current XUTUM versus pinned 630 audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/atc-universe-drift-audit.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  compare-universe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install real BIST universe vendor adapter
+        run: python -m pip install --editable ".[atcdata]"
+      - name: Compare pinned ATC 630 with live XUTUM component snapshot
+        run: python -m scripts.atc_universe_drift_report --out runtime_artifacts/universe_audit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atc-current-vendor-universe-comparison
+          path: runtime_artifacts/universe_audit
+          if-no-files-found: warn
+          retention-days: 14
