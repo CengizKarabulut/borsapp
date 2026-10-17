@@ -22,8 +22,13 @@ def build_trade_plan(frame, direction):
         "executable_order": False,
     }
 
-    def unavailable(reason):
-        return {**meta, "status": "unavailable", "reason": reason, "scenarios": []}
+    def unavailable(reason, display_levels=None):
+        result = {**meta, "status": "unavailable", "reason": reason, "scenarios": []}
+        # Preserve raw formula outputs only for non-actionable display diagnostics.
+        # This never turns an invalid plan into an executable reference scenario.
+        if display_levels is not None:
+            result["display_levels"] = display_levels
+        return result
 
     if frame.is_partial:
         return unavailable("partial_bar")
@@ -54,6 +59,7 @@ def build_trade_plan(frame, direction):
     if sides is None:
         return unavailable("unknown_direction")
     scenarios = []
+    invalid_display_levels = []
     for side in sides:
         sign = 1 if side == "long" else -1
         structural = (
@@ -66,6 +72,10 @@ def build_trade_plan(frame, direction):
         stop = entry - sign * risk
         targets = [entry + sign * risk * r for r in (1, 2, 3)]
         if min(stop, *targets) <= 0 or not all(isfinite(x) for x in (stop, *targets, risk)):
+            invalid_display_levels.append({
+                "side": side, "entry": entry, "stop": stop,
+                "tp1": targets[0], "tp2": targets[1], "tp3": targets[2],
+            })
             continue
         scenarios.append(
             {
@@ -84,7 +94,9 @@ def build_trade_plan(frame, direction):
             }
         )
     if not scenarios:
-        return unavailable("nonpositive_level")
+        # Only a unique directional scenario is safe to show field by field.
+        partial = invalid_display_levels[0] if len(invalid_display_levels) == 1 else None
+        return unavailable("nonpositive_level", display_levels=partial)
     return {
         **meta,
         "status": "conditional" if len(sides) > 1 else "reference",
@@ -131,8 +143,11 @@ def build_pine_a_i_plan(frame, scanner_id, direction):
         "executable_order": False,
     }
 
-    def unavailable(why):
-        return {**base, "status": "unavailable", "reason": why, "scenarios": []}
+    def unavailable(why, display_levels=None):
+        result = {**base, "status": "unavailable", "reason": why, "scenarios": []}
+        if display_levels is not None:
+            result["display_levels"] = display_levels
+        return result
 
     if frame.is_partial:
         return unavailable("partial_bar")
@@ -179,7 +194,10 @@ def build_pine_a_i_plan(frame, scanner_id, direction):
     stop = entry - risk
     targets = [entry + risk * ratio for ratio in (r1, r2, r3)]
     if not all(isfinite(v) and v > 0 for v in (entry, stop, *targets)):
-        return unavailable("invalid_stop_or_target")
+        return unavailable("invalid_stop_or_target", display_levels={
+            "side": "long", "entry": entry, "stop": stop,
+            "tp1": targets[0], "tp2": targets[1], "tp3": targets[2],
+        })
     return {
         **base,
         "status": "reference", "reason": "pine_a_i_bullish_reference",
