@@ -1,8 +1,8 @@
-"""Exact bounded 1–9 alarm-packet arithmetic from the user's Pine v6 source.
+"""Bounded A-I dual-direction alarm packet from owner's 2026-10-17 Pine.
 
-Reference: docs/reference/ATC_TV200_18_TARAMA_20261012.pine,
-f_native_legacy_snapshot. Do not replace its seeded recurrences with ta.* defaults.
-Pine's n=min(requestedBars, bar_index+1), default requestedBars=600.
+Uses the original f_native_legacy_snapshot formulas and first-match bullish
+priority. ATR/EMA/SMI/RSI seeds are unchanged; do not replace with ta.* defaults.
+The original Pine source is retained byte-for-byte as a separate reference.
 """
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from market_intelligence.market_data.bars import CanonicalFrame
 
 ATC_NATIVE_PACKET = FeatureSpec(
     feature_id="atc.pine.native_packet_1_9",
-    implementation="atc_20261014_exact_seeded_bounded_v2",
-    version="2.0.0",
+    implementation="atc_20261017_dual_direction_bounded_v3",
+    version="3.0.0",
     parameters={"requested_bars": 600, "source": "f_native_legacy_snapshot"},
     warmup=WarmupSpec(bars=2, seed="first_close_and_first_delta"),
 )
@@ -27,6 +27,7 @@ class NativePacketSnapshot:
     long_plan: tuple[float, ...]
     short_plan: tuple[float, ...]
     bars: int
+    directions: tuple[int, ...] = ()
 
 
 def _ema(values: list[float], period: int) -> list[float]:
@@ -173,7 +174,7 @@ def calculate_native_packet(frame: CanonicalFrame, *, requested_bars: int = 600)
     l7, l7_prev = (rsi7[-1], rsi7[-2]) if legacy7_ready else (0.0, 0.0)
     r14cross = (l14_prev <= 50 < l14) or (l14 > 50 and l14 > l14_prev)
     r7cross = (l7_prev <= 50 < l7) or (l7 > 50 and l7 > l7_prev)
-    flags = (
+    bullish_flags = (
         known[0] and r14 > 30 and macd[-1] > 0 and macd_trigger,
         known[1] and n >= 200 and positive_core,
         known[2] and positive_core and price > sma.get(200, float("inf")) and high20,
@@ -184,6 +185,52 @@ def calculate_native_packet(frame: CanonicalFrame, *, requested_bars: int = 600)
         known[7] and negative_core and not (price > sma.get(200, float("inf")) and high20),
         known[8] and n >= 30 and l7 > 60 and r7cross and high10,
     )
+    # Match the NEW unmodified Pine source: bullish flags take priority
+    # when both directional conditions could be true on the same bar.
+    macd_down = (
+        (macd[-2] >= signal[-2] and macd[-1] < signal[-1])
+        or (macd[-1] < signal[-1] and macd[-1] < macd[-2])
+    )
+    smi_down = smi_ready and (
+        (smi[-2] >= smi_signal[-2] and smi[-1] < smi_signal[-1])
+        or (smi[-1] < smi_signal[-1] and smi[-1] < smi[-2])
+    )
+    bear_core = smi_down and smi[-1] < 0 and histogram[-1] < 0 and histogram[-1] < histogram[-2]
+    bear_recovery = smi_down and smi[-1] > 0 and histogram[-1] > 0 and histogram[-1] < histogram[-2]
+    down_ema = False
+    if trend:
+        down_ema = (
+            price < e21[-1] and price < e55[-1] and price < e200[-1]
+            and (
+                (e8[-2] >= e13[-2] and e8[-1] < e13[-1])
+                or (e8[-1] < e13[-1] and e8[-1] < e8[-2])
+            )
+            and (
+                (e5[-2] >= e8[-2] and e5[-1] < e8[-1])
+                or (e5[-1] < e8[-1] and e5[-1] < e5[-2])
+            )
+            and (
+                (e5[-2] >= e13[-2] and e5[-1] < e13[-1])
+                or (e5[-1] < e13[-1] and e5[-1] < e5[-2])
+            )
+        )
+    bear_flags = (
+        known[0] and r14 < 70 and macd[-1] < 0 and macd_down,
+        known[1] and n >= 200 and bear_core,
+        known[2] and bear_core and price < sma.get(200, float("-inf")) and high20,
+        known[3] and down_ema and high20,
+        known[4] and ((l14_prev >= 50 > l14) or (l14 < 50 and l14 < l14_prev))
+        and l14 > 30 and macd_down and high20,
+        known[5] and all(price < sma[p] for p in sma)
+        and macd[-1] < 0 and macd_down and high20 if trend else False,
+        known[6] and bear_recovery and price < sma.get(200, float("-inf")) and high20,
+        known[7] and bear_recovery and not (price < sma.get(200, float("-inf")) and high20),
+        known[8] and n >= 30 and l7 < 40
+        and ((l7_prev >= 50 > l7) or (l7 < 50 and l7 < l7_prev)) and high10,
+    )
+    directions = tuple(1 if bull else -1 if bear else 0
+                       for bull, bear in zip(bullish_flags, bear_flags, strict=True))
+    flags = tuple(direction != 0 for direction in directions)
     long_plan: tuple[float, ...] = ()
     short_plan: tuple[float, ...] = ()
     if n >= 15 and wseed and atr > 0:
@@ -198,7 +245,7 @@ def calculate_native_packet(frame: CanonicalFrame, *, requested_bars: int = 600)
             long_plan = candidates[0]
         if min(candidates[1]) > 0:
             short_plan = candidates[1]
-    return NativePacketSnapshot(tuple(known), tuple(bool(x) for x in flags), long_plan, short_plan, n)
+    return NativePacketSnapshot(tuple(known), tuple(flags), long_plan, short_plan, n, directions)
 
 
 class AtcNativePacketProvider:
