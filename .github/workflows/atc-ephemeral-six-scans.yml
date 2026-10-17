@@ -85,6 +85,9 @@ jobs:
       BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
       DELIVERY_MODE: disabled
       ATC_SCAN_TIMEFRAME: ${{ matrix.timeframe }}
+      # Same-closed-OHLC historical MA research: validated on 630-stock 1d/1wk.
+      # Avoid the old production-only missing_features for rule 18.
+      ATC_MA_RESEARCH_ON_DEMAND: "1"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       TELEGRAM_ALLOWED_USERS: ${{ vars.TELEGRAM_ALLOWED_USERS }}
