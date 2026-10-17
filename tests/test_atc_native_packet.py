@@ -68,14 +68,23 @@ class AtcPineNativeSignalTests(unittest.TestCase):
     def test_exact_user_source_was_preserved_byte_for_byte_in_crlf_form(self):
         source = ROOT / "docs/reference/ATC_TV200_18_TARAMA_20261012.pine"
         canonical = (source.read_text(encoding="utf-8").rstrip("\n") + "\n").replace("\n", "\r\n")
-        self.assertEqual(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), ATC_SCRIPT_SHA256)
+        # Original Oct-12 reference remains unchanged, even though the
+        # 17 Oct uploaded Pine is now the dual-direction reference.
+        self.assertEqual(
+            hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            "b2a2fab8e28a369bcd88f66c5f94fd95f1580488e603f3940aa26f3c550776e1",
+        )
+        self.assertEqual(
+            ATC_SCRIPT_SHA256,
+            "95bd5849cd9935369fc4928215aeb07f3b2738e526a0bbb435b348cd8a0dae20",
+        )
 
     def test_all_nine_rules_use_one_shared_native_packet_feature(self):
         self.assertEqual(len(ATC_NATIVE_SIGNAL_IDS), 9)
         for i, scanner_id in enumerate(ATC_NATIVE_SIGNAL_IDS, 1):
             scanner = AtcNativeSignalScanner(scanner_id)
             self.assertEqual(scanner.rule_number, i)
-            self.assertEqual(scanner.version, "2.0.0")
+            self.assertEqual(scanner.version, "3.0.0")
             self.assertEqual(scanner.required_features, (ATC_NATIVE_PACKET,))
             self.assertFalse(scanner.accepts_partial_bars)
 
@@ -104,6 +113,47 @@ class AtcPineNativeSignalTests(unittest.TestCase):
         run = pipeline().run(cycle_id="pilot", frame=source, scanner=scan, context=context(source))
         self.assertIn(run.scan.evaluation.status, (EvaluationStatus.MATCH, EvaluationStatus.NO_MATCH))
         self.assertEqual(run.features.unavailable, ())
+
+    def test_oct17_native_a_to_i_bearish_signals_are_not_silently_lost(self):
+        # Strongly accelerating bearish close sequence triggers source
+        # rule A on the native MACD/RSI down side.
+        prices = [100.0] * 230 + [
+            100.0 - (i + 1) ** 1.17 * 0.55 for i in range(20)
+        ]
+        source = price_frame(prices)
+        snapshot = calculate_native_packet(source)
+        self.assertTrue(snapshot.known[0])
+        self.assertEqual(len(snapshot.directions), 9)
+        self.assertTrue(snapshot.flags[0])
+        self.assertEqual(snapshot.directions[0], -1)
+        scanner = AtcNativeSignalScanner(ATC_NATIVE_SIGNAL_IDS[0])
+        output = pipeline().run(
+            cycle_id="dual-dir", frame=source, scanner=scanner,
+            context=context(source),
+        )
+        self.assertEqual(output.scan.evaluation.status, EvaluationStatus.MATCH)
+        self.assertEqual(
+            output.scan.findings[0].direction.value, "bearish",
+        )
+        self.assertEqual(
+            output.scan.findings[0].metrics["trade_plan"]["source_sha256"],
+            ATC_SCRIPT_SHA256,
+        )
+
+    def test_upside_and_downside_flags_always_have_exact_direction(self):
+        up = price_frame([100.0] * 230 + [
+            100.0 + (i + 1) ** 1.17 * 0.55 for i in range(20)
+        ])
+        down = price_frame([100.0] * 230 + [
+            100.0 - (i + 1) ** 1.17 * 0.55 for i in range(20)
+        ])
+        for source in (up, down):
+            native = calculate_native_packet(source)
+            self.assertEqual(
+                native.flags, tuple(value != 0 for value in native.directions),
+            )
+            self.assertEqual(len(native.directions), 9)
+            self.assertTrue(all(value in (-1, 0, 1) for value in native.directions))
 
     def test_invalid_price_and_partial_bar_are_unknown(self):
         source = frame()
