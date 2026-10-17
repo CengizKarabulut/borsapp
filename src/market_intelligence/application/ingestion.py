@@ -283,14 +283,29 @@ class IngestionService:
                     pass
         raw = self._cached_daily_fetch(request)
         if raw is None:
-            raw = self.provider.fetch(
-                FetchRequest(
-                    provider_symbol=request.provider_symbol,
-                    timeframe=base,
-                    bars=request.bars * multiplier + (10 if request.timeframe is Timeframe.W1 else 0),
-                    as_of=request.as_of,
-                )
+            fetch_request = FetchRequest(
+                provider_symbol=request.provider_symbol,
+                timeframe=base,
+                bars=request.bars * multiplier + (10 if request.timeframe is Timeframe.W1 else 0),
+                as_of=request.as_of,
             )
+            validated_fetch = getattr(self.provider, "fetch_validated", None)
+            if callable(validated_fetch):
+                def validate_target(frame: ProviderFrame) -> None:
+                    confirmed = self.canonicalizer.build(
+                        instrument_id=request.instrument_id,
+                        symbol_at_snapshot=request.symbol,
+                        market=request.market,
+                        provider_frame=frame,
+                        target_timeframe=request.timeframe,
+                        series_revision=request.series_revision,
+                    )
+                    if confirmed.through_bar_time != request.as_of:
+                        raise ValueError("Vendor does not contain exact completed target candle")
+
+                raw = validated_fetch(fetch_request, validate_target)
+            else:
+                raw = self.provider.fetch(fetch_request)
         series_revision = max(
             request.series_revision,
             self.store.latest_series_revision(

@@ -52,6 +52,34 @@ class FallbackMarketDataProvider:
                 return self._fetch(provider, request)
         raise RuntimeError(f"Source not configured: {source}")
 
+    def fetch_validated(self, request: FetchRequest, validate) -> ProviderFrame:
+        """Choose a REAL source that passes the caller's finished-bar rules.
+
+        Long history is not useful if its OHLCV is inconsistent or the
+        requested completed candle is absent. Try every independent vendor
+        before admitting the symbol is unavailable; never merge price bases.
+        """
+        failures: list[str] = []
+        best: ProviderFrame | None = None
+        for provider in self.providers:
+            try:
+                frame = self._fetch(provider, request)
+                validate(frame)
+                if not self.prefer_complete_history:
+                    return frame
+                if best is None or len(frame.bars) > len(best.bars):
+                    best = frame
+                if len(frame.bars) >= request.bars:
+                    return frame
+            except Exception as exc:
+                failures.append(f"{provider.name}:{type(exc).__name__}")
+        if best is not None:
+            return best
+        raise RuntimeError(
+            "No provider supplied an authentic, valid target candle: "
+            + ", ".join(failures)
+        )
+
     def fetch(self, request: FetchRequest) -> ProviderFrame:
         errors: list[str] = []
         best = None
