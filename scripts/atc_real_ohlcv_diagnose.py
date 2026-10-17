@@ -8,7 +8,6 @@ histories are investigated here, with source and price basis kept separate.
 from __future__ import annotations
 
 import json
-import math
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -48,7 +47,6 @@ PROVIDERS = (BorsapyProvider(), YFinanceBistProvider(), TvDatafeedBistProvider()
 def numeric_diagnosis(bars, code):
     """Recalculate *unchanged* original stop/targets from one actual vendor."""
     current = bars[-1]
-    values = [b.close for b in bars]
     atr = None
     if code <= 9:
         # Pine A-I f_ewm_alpha ta.tr(true) seeds from first bar's true range.
