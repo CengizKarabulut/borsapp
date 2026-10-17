@@ -4,17 +4,15 @@ These gates prevent A-I per-code risk plans being silently substituted by
 the generic 7-bar plan. Static inspection is NOT TradingView compilation.
 """
 
-from __future__ import annotations
-
+import pathlib
 import re
 import unittest
-from pathlib import Path
 
 from market_intelligence.scanning.trade_plan import PINE_A_I
 
 
 SOURCE = (
-    Path(__file__).resolve().parents[1]
+    pathlib.Path(__file__).resolve().parents[1]
     / "docs/reference/ATC_630_63_GRUP_TARAMA_StopTP_v2_20261017.pine"
 )
 
