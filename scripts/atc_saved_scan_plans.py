@@ -163,10 +163,20 @@ def plan_from_stored_rows(rows, *, members, evaluations, matches, timeframe, bar
         # standalone stop/target family and must never borrow an unrelated one.
         if number >= 17 or (number <= 9 and state != "POZITIF"):
             continue
-        saved = validate_reference_plan(
-            metrics, direction=direction, timeframe=timeframe, close=bar_time,
-            snapshot_id=str(snapshot_id),
-        )
+        source_plan = metrics.get("trade_plan") if isinstance(metrics, dict) else None
+        # Stored v1 A-I plans used the old ATR-floor behavior. Do NOT publish
+        # stale v1 numbers as if they were Pine f_plan v2. The report loader
+        # reconstructs v2 exclusively from that evaluation's exact OHLC frame.
+        if number <= 9 and (
+            not isinstance(source_plan, dict)
+            or source_plan.get("version") != "pine-a-i-plan-v2"
+        ):
+            saved = None
+        else:
+            saved = validate_reference_plan(
+                metrics, direction=direction, timeframe=timeframe, close=bar_time,
+                snapshot_id=str(snapshot_id),
+            )
         collected.setdefault(key, []).append(saved)
     result = {}
     for key in matches:
