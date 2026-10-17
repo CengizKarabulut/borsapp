@@ -1,0 +1,28 @@
+name: ATC Oct17 631 watchlist source-delta provider probe
+on:
+  push:
+    branches: [fix/atc-20261017-native-dual-direction-audit]
+    paths: [.github/workflows/atc-631-provider-probe.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Check original Pine-only symbols against three real daily providers
+        run: python -m scripts.atc_probe_pine_631_delta
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atc-pine-631-provider-coverage
+          path: runtime_artifacts/pine_631_provider_probe/
+          if-no-files-found: warn
+          retention-days: 14
