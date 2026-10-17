@@ -15,13 +15,16 @@ from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_ephemeral_universe import assert_local_ephemeral_url
 from scripts.atc_export_dashboard import LATEST_SQL
 from scripts.atc_full_universe_status import universe_status_csv
-from scripts.atc_timeframe_visuals import select_verified_matches
+from scripts.atc_saved_scan_plans import load_saved_trade_plans
+from scripts.atc_timeframe_visuals import require_complete_publication, select_verified_matches
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeframe", required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--verify-plans", action="store_true",
+                        help="Validate every directional same-snapshot Stop/TP before any Telegram publish")
     args = parser.parse_args()
     url = os.environ["DATABASE_URL"]
     assert_local_ephemeral_url(url)
@@ -51,12 +54,26 @@ def main():
     for _symbol, number, state in matches:
         if 1 <= number <= 9:
             sides[state] += 1
+    plan_audit = None
+    if args.verify_plans:
+        with psycopg.connect(url, autocommit=True) as db:
+            plans, failures = load_saved_trade_plans(
+                db, members=members, evaluations=evaluations, matches=matches,
+                timeframe=args.timeframe, bar_time=close,
+                include_model_failures=True,
+            )
+        plan_audit = require_complete_publication(
+            timeframe=args.timeframe, covered=covered, matches=matches,
+            plans=plans, model_failures=failures,
+        )
     report = {
         "timeframe": args.timeframe, "confirmed_bar": close.isoformat(),
         "covered": covered, "matches": len(matches),
         "A_I_directions": dict(sides), **counts,
         "read_only": True, "telegram_sent": False,
         "pine_modified": False,
+        "risk_gate_checked": bool(args.verify_plans),
+        "risk_gate": plan_audit,
     }
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "ATC_630_TUM_KOSULLAR.csv").write_bytes(data)
