@@ -55,16 +55,19 @@ def universe_status_csv(members, evaluations, bindings, timeframe, bar_time):
         "Hisse", "ZamanDilimi", "TeyitliMumTSI", "EslesmeSayisi",
         "EslesenKodlar", "DesteklenenTarama", "DogruDegerlendirilen",
         "EksikVeyaHatali", "HisseDurumu", *codes,
+        *(f"{code}_Neden" for code in codes),
     ))
     totals = Counter()
     for instrument, ticker in sorted(ids.items(), key=lambda item: item[1]):
         statuses = []
+        reasons = []
         hits = []
         good = 0
         problems = 0
         for index, scanner in enumerate(SCANNER_ORDER, 1):
             if scanner not in supported:
                 statuses.append("DESTEKLENMIYOR")
+                reasons.append("ZAMAN_DILIMI_DESTEKLENMIYOR")
                 continue
             ev = latest.get((instrument, scanner))
             if ev is None:
@@ -89,6 +92,13 @@ def universe_status_csv(members, evaluations, bindings, timeframe, bar_time):
                 problems += 1
                 statuses.append(label)
                 totals[label] += 1
+            if label in DIRECTIONAL or label == "KOSUL_YOK":
+                reasons.append("")
+            else:
+                # e[7] is the persisted scanner error code. No free-form
+                # exception details or provider secrets are copied into CSV.
+                code = ev[7] if ev is not None else None
+                reasons.append(str(code)[:96] if code else label)
         if problems:
             row_status = "EKSIK_VEYA_HATALI"
         elif hits:
@@ -98,7 +108,7 @@ def universe_status_csv(members, evaluations, bindings, timeframe, bar_time):
         writer.writerow((
             ticker, timeframe, bar_time.isoformat(), len(hits),
             " | ".join(hits), len(supported), good, problems, row_status,
-            *statuses,
+            *statuses, *reasons,
         ))
         totals[row_status] += 1
         totals["members"] += 1
