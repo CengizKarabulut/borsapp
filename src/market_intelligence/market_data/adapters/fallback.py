@@ -45,6 +45,26 @@ class FallbackMarketDataProvider:
             )
         return frame
 
+    def fetch_validated(self, request: FetchRequest, validator) -> ProviderFrame:
+        """Accept the first genuinely valid completed target frame.
+
+        The validator must check the target timeframe, session calendar,
+        OHLCV and exact requested close before persisting any data.
+        A long but stale/corrupt history is not better than a shorter,
+        correct snapshot from another source. Never combine vendors.
+        """
+        failures = []
+        for provider in self.providers:
+            try:
+                frame = self._fetch(provider, request)
+                validator(frame)
+                return frame
+            except Exception as exc:
+                failures.append(f"{provider.name}:{type(exc).__name__}({str(exc)[:100]})")
+        raise RuntimeError(
+            "No provider has a valid completed target candle: " + "; ".join(failures)
+        )
+
     def fetch_from_source(self, source: str, request: FetchRequest) -> ProviderFrame:
         """Refresh a persisted canonical history from its OWN source only."""
         for provider in self.providers:
