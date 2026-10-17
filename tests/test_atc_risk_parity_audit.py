@@ -4,8 +4,8 @@ These are mathematical invariants, not proof of live-feed Pine parity.
 """
 import unittest
 
-from scripts.atc_risk_parity_audit import diagnose
 from market_intelligence.scanning.trade_plan import PINE_A_I
+from scripts.atc_risk_parity_audit import diagnose
 
 
 def bars(count=80, price=30.0, low=29.0, high=31.0):
