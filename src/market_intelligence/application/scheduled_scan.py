@@ -50,6 +50,8 @@ class ScheduledScanRequest:
     latest_only: bool = False
     maximum_run_time: timedelta | None = None
     start_offset: int = 0
+    retry_failed_rounds: int = 0
+    require_complete: bool = False
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,7 @@ class ScheduledScanService:
         map_work=map,
         clock=None,
         progress=None,
+        before_retry=None,
     ) -> None:
         self.repository = repository
         self.ingestion = ingestion
@@ -89,6 +92,7 @@ class ScheduledScanService:
         self.map_work = map_work
         self.clock = clock
         self.progress = progress
+        self.before_retry = before_retry
 
     def run(
         self,
@@ -118,6 +122,8 @@ class ScheduledScanService:
         total_success = 0
         total_failed = 0
         total_attempted = 0
+        if request.retry_failed_rounds < 0 or request.retry_failed_rounds > 6:
+            raise ValueError("retry_failed_rounds must be between 0 and 6")
         for bar_time in due_bars:
             # ATC_630 is a present-day *pinned watchlist*, not a historical
             # exchange membership. A run at 02:00 TRT on October 15 checks
@@ -194,14 +200,47 @@ class ScheduledScanService:
                         error_detail=str(exc) or type(exc).__name__,
                     )
 
-            for failure in self.map_work(process, instruments):
-                if failure is None:
-                    successful += 1
-                else:
-                    failures.append(failure)
-                if self.progress is not None:
-                    self.progress(cycle_id, successful, len(failures))
+            pending = instruments
+            for retry_round in range(request.retry_failed_rounds + 1):
+                if retry_round:
+                    if deadline is not None and (
+                        (self.clock() if self.clock else datetime.now(UTC)) >= deadline
+                    ):
+                        break
+                    if self.before_retry is not None:
+                        self.before_retry(tuple(failures), retry_round)
+                    failed_ids = {failure.instrument_id for failure in failures}
+                    pending = tuple(
+                        instrument for instrument in instruments
+                        if instrument.instrument_id in failed_ids
+                    )
+                    print(
+                        f"ATC retry {request.timeframe.value} round {retry_round}: "
+                        f"only {len(pending)} failed symbols; previous successes retained",
+                        flush=True,
+                    )
+                current_failures = []
+                for failure in self.map_work(process, pending):
+                    if failure is None:
+                        successful += 1
+                    else:
+                        current_failures.append(failure)
+                    if self.progress is not None:
+                        self.progress(cycle_id, successful, len(current_failures))
+                failures = current_failures
+                if not failures:
+                    break
             failed = len(failures)
+            if failures and request.universe_id.upper() == "ATC_630":
+                print(
+                    f"ATC unresolved {request.timeframe.value} ({failed}): "
+                    + "; ".join(
+                        f"{failure.symbol}={failure.error_code}:"
+                        f"{failure.error_detail[:90]}"
+                        for failure in failures[:40]
+                    ),
+                    flush=True,
+                )
             self.repository.finish_cycle(
                 cycle_id=cycle_id,
                 successful=successful,
@@ -215,7 +254,11 @@ class ScheduledScanService:
             total_attempted += successful + sum(
                 f.error_code != "ScanBudgetExhausted" for f in failures
             )
-            if successful and not any(f.error_code == "ScanBudgetExhausted" for f in failures):
+            if (
+                successful
+                and not any(f.error_code == "ScanBudgetExhausted" for f in failures)
+                and (not request.require_complete or not failures)
+            ):
                 self.repository.update_watermarks(
                     market=request.market,
                     universe_id=request.universe_id,
