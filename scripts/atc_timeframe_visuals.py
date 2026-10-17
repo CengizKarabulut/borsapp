@@ -30,12 +30,14 @@ from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scanning.display_codes import direction_display, scanner_code
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_export_dashboard import LATEST_SQL, SCANNER_ORDER, status_label
+from scripts.atc_full_universe_status import universe_status_csv
 from scripts.atc_publish_targeted import AtcOnlyOutbox
 from scripts.atc_saved_scan_plans import fmt_level, load_saved_trade_plans
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 COLORS = {"POZITIF": "#177A4F", "NEGATIF": "#B83636",
-          "NOTR": "#A56C21", "KARMA": "#6366A3"}
+          "NOTR": "#A56C21", "KARMA": "#6366A3",
+          "ESLESME_YON_BELIRSIZ": "#52697F"}
 MATCH_STATES = frozenset(COLORS)
 MAX_ROWS_PER_CARD = 20
 
@@ -322,6 +324,15 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         )
         if not matches:
             print(f"Visual scanner {tf.value}: confirmed 0 matches; publishing verified empty result card", flush=True)
+        universe_csv, universe_audit = universe_status_csv(
+            members, ev, bindings, tf.value, bar_time,
+        )
+        if universe_audit["members"] != 630 or universe_audit.get("match", 0) != len(matches):
+            raise RuntimeError(
+                f"{tf.value}: mismatched actual scanner matches: "
+                f"images={len(matches)} universe_csv={universe_audit.get('match', 0)}"
+            )
+        print(f"ATC complete universe evidence {tf.value}: {universe_audit}", flush=True)
         plans, model_failures = load_saved_trade_plans(
             db, members=members, evaluations=ev, matches=matches,
             timeframe=tf.value, bar_time=bar_time, include_model_failures=True,
@@ -356,7 +367,7 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                         f"{bar_time.astimezone(ISTANBUL):%d.%m.%Y %H:%M} TSİ | "
                         f"Teyitli {covered}/630 | {len(matches)} koşul eşleşmesi | "
                         f"Sayfa {i + 1}/{pages} · "
-                        f"görselde {len(rows)}/{len(matches)} · "
+                        f"görselde {len(rows)}/{len(matches)} · 630 hisse durum CSV ayrıca · "
                         f"model dışı {audit['model_rejected']} · tam liste CSV'de · YTD"
                     ),
                 },
@@ -378,6 +389,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                     "RISK_MODELI_UYGULANAMAZ"
                     if (symbol, number, state) in model_failures
                     else "TEYITLI" if pine_plan_required((symbol, number, state))
+                    else "YON_BELIRSIZ" if state == "ESLESME_YON_BELIRSIZ"
+                    else "NOTR_PLAN_YOK" if state == "NOTR"
                     else "AYRI_PLAN_YOK"
                 ),
                 model_failures.get((symbol, number, state), ""),
@@ -397,6 +410,25 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 "caption": (
                     f"ATC {tf.value.upper()} | TEYİTLİ | {len(matches)} eşleşmenin "
                     "eksiksiz listesi · Stop/TP geçmiş verilere dayalı referanstır · YTD."
+                ),
+            },
+        ))
+        envelopes.append(route_timeframe_image(
+            settings, topic_ids, tf,
+            identity={
+                "source": "atc-630-universe-evaluation-v1",
+                "timeframe": tf.value,
+                "bar_close": bar_time.isoformat(), "format": "universe-csv",
+            },
+            payload={
+                "_method": "sendDocument",
+                "document_base64": base64.b64encode(universe_csv).decode("ascii"),
+                "filename": f"ATC_{tf.value}_630_HISSE_TUM_DURUMLAR_{bar_time:%Y%m%d_%H%M}.csv",
+                "caption": (
+                    f"ATC {tf.value.upper()} · 630 HISSE TAM DENETIM · "
+                    f"{len(matches)} gerçek koşul eşleşmesi · "
+                    f"{universe_audit['unresolved_evaluations']} hesaplanamayan/eksik "
+                    "tarama · A-I ve 10-18 durumları tek tek CSV'de · YTD"
                 ),
             },
         ))
@@ -423,6 +455,8 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 f"sent={result.sent}, failed={result.failed}, states={list(states.values())}"
             )
     summary = {"timeframe": tf.value, "covered": covered, "matches": len(matches),
+               "full_universe_rows": universe_audit["members"],
+               "unresolved_scanner_evaluations": universe_audit["unresolved_evaluations"],
                "valid_plans": audit["verified_plans"],
                "model_rejected": audit["model_rejected"],
                "nonplan_matches": audit["nonplan_matches"],
