@@ -1,5 +1,6 @@
 name: ATC six timeframe real scan in FREE isolated PostgreSQL runner
 # Owner-authorized one-time re-evaluation with validated independent OHLC vendors.
+# Strict v4 recovery: complete 630/630, 100% original Pine plan values and all PNG pages.
 
 on:
   workflow_dispatch:
