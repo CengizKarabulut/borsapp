@@ -1,0 +1,60 @@
+name: ATC real OHLC Stop TP diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        timeframe: [1d, 1wk]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atc_ephemeral
+          POSTGRES_PASSWORD: ephemeral_runner_password
+          POSTGRES_DB: atc_scan
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U atc_ephemeral -d atc_scan"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atc_ephemeral:ephemeral_runner_password@localhost:5432/atc_scan
+      APP_ENV: production
+      APP_TIMEZONE: Europe/Istanbul
+      BORSAPP_REPOSITORY_ROOT: ${{ github.workspace }}
+      DELIVERY_MODE: disabled
+      ATC_SCAN_TIMEFRAME: ${{ matrix.timeframe }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: atc-stop-tp-pine-parity-audit-20261017
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime and actual market data adapters
+        run: python -m pip install --editable ".[runtime,atcdata]"
+      - name: Migrate isolated database
+        run: borsapp db-migrate
+      - name: Seed exact 630 BIST symbols
+        run: python -m scripts.atc_ephemeral_universe
+      - name: Scan 630 completed real symbols with retry
+        run: borsapp scan-due --universe ATC_630 --timeframe "$ATC_SCAN_TIMEFRAME" --bars 600 --workers 2 --lookback-days 7 --retry-failed 4 --require-complete
+      - name: Export actual rejected-plan candles and arithmetic
+        run: python -m scripts.atc_export_risk_diagnostics --timeframe "$ATC_SCAN_TIMEFRAME" --out "risk-evidence/$ATC_SCAN_TIMEFRAME"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: risk-evidence-${{ matrix.timeframe }}
+          path: risk-evidence/
+          if-no-files-found: warn
+          retention-days: 14
