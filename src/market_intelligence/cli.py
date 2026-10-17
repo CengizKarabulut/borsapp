@@ -1167,6 +1167,7 @@ def _scan_due(
                     provider_symbol=instrument.provider_symbol, market=instrument.market,
                     timeframe=request.timeframe, bars=request.bars,
                     as_of=bar_time, series_revision=request.series_revision,
+                    require_target_bar=require_complete,
                 ))
                 if frame.through_bar_time != bar_time:
                     raise ValueError("Sağlayıcı hedef kapanmış mumu henüz sunmuyor")
