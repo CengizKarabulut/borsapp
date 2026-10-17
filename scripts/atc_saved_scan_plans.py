@@ -19,12 +19,49 @@ from market_intelligence.scanning.trade_plan import build_pine_a_i_plan, build_t
 
 
 class PlanLevels(NamedTuple):
-    entry: float
-    stop: float
-    tp1: float
-    tp2: float
-    tp3: float
+    entry: float | None
+    stop: float | None
+    tp1: float | None
+    tp2: float | None
+    tp3: float | None
     price_basis: str
+
+
+def _positive_display_level(value):
+    """Never present zero, negative, NaN or infinite values as stock prices."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if isfinite(number) and number > 0 else None
+
+
+def model_rejected_display_levels(plan, *, frame, direction):
+    """Retain only mathematically positive fields of a rejected ORIGINAL plan.
+
+    This object is DISPLAY-ONLY. The source plan stays 'unavailable', and
+    the rejection reason must remain visible in the report metadata.
+    """
+    if plan.get("status") != "unavailable" or plan.get("reason") not in {
+        "nonpositive_level", "invalid_stop_or_target",
+    }:
+        return None
+    if (plan.get("snapshot_id") != frame.snapshot_id
+            or plan.get("timeframe") != frame.timeframe.value
+            or plan.get("bar_time") != frame.through_bar_time.isoformat()
+            or plan.get("price_basis") != frame.price_basis.value):
+        return None
+    raw = plan.get("display_levels")
+    if not isinstance(raw, dict):
+        return None
+    if raw.get("side") != ("long" if direction == "bullish" else "short"):
+        return None
+    vals = tuple(_positive_display_level(raw.get(name)) for name in (
+        "entry", "stop", "tp1", "tp2", "tp3",
+    ))
+    # If the entry itself is invalid, no reliable reference price is shown.
+    if vals[0] is None or all(value is not None for value in vals):
+        return None
+    return PlanLevels(*vals, frame.price_basis.value)
 
 
 EVALUATION_PLANS_SQL = """
@@ -233,7 +270,7 @@ def load_saved_trade_plans(
     plan-per-(ticker,scanner-code,direction), never inferred prices.
     """
     if not matches:
-        return {}
+        return ({}, {}) if include_model_failures else {}
     ids = list({
         str(e[8]) for e in evaluations
         if e[1] == timeframe and e[5] == bar_time and e[6] == "match"
@@ -315,7 +352,17 @@ def load_saved_trade_plans(
                 if (direction == "bearish" and reason == "nonpositive_level"
                         or direction == "bullish" and reason == "invalid_stop_or_target"):
                     model_failures[key] = reason
-    stats["persisted_valid"] = sum(v is not None for v in saved.values()) - stats["reconstructed_exact_snapshot"]
+                    # Show positive entry/stop/targets, but never present an
+                    # impossible price or mark the overall plan as actionable.
+                    partial = model_rejected_display_levels(
+                        original_plan, frame=frame, direction=direction,
+                    )
+                    if partial is not None:
+                        saved[key] = partial
+    stats["persisted_valid"] = sum(
+        value is not None for key, value in saved.items()
+        if key not in model_failures
+    ) - stats["reconstructed_exact_snapshot"]
     stats["match_rows"] = len(matches)
     stats["snapshots_read"] = len(cache)
     stats["model_math_rejected"] = len(model_failures)
@@ -323,6 +370,11 @@ def load_saved_trade_plans(
     return (saved, model_failures) if include_model_failures else saved
 
 def fmt_level(value, *, csv=False) -> str:
-    if value is None:
-        return "" if csv else "—"
-    return f"{value:.8f}".rstrip("0").rstrip(".") if csv else f"{value:.4f}".rstrip("0").rstrip(".")
+    """Report price only when positive and finite; use ASCII '-' otherwise."""
+    valid = _positive_display_level(value)
+    if valid is None:
+        return "-"
+    formatted = f"{valid:.8f}" if csv else f"{valid:.4f}"
+    result = formatted.rstrip("0").rstrip(".")
+    # Tiny positive prices must not accidentally render as numeric zero.
+    return result if result != "0" else f"{valid:.8g}"

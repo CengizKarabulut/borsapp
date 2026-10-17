@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image
 
+from scripts.atc_saved_scan_plans import PlanLevels
 from scripts.atc_timeframe_visuals import (
     render_card_png,
     require_complete_publication,
@@ -27,6 +28,18 @@ class ActualPriceBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(report, {
             "verified_plans": 0, "model_rejected": 2, "nonplan_matches": 0,
+        })
+
+    def test_partial_display_preserves_nonactionable_model_count(self):
+        short = ("BINHO", 15, "NEGATIF")
+        partial = PlanLevels(30, 47, 13, None, None, "raw")
+        report = require_complete_publication(
+            timeframe="1d", covered=630, matches=[short],
+            plans={short: partial},
+            model_failures={short: "nonpositive_level"},
+        )
+        self.assertEqual(report, {
+            "verified_plans": 0, "model_rejected": 1, "nonplan_matches": 0,
         })
 
     def test_bad_vendor_data_or_unknown_reason_still_blocks_delivery(self):
