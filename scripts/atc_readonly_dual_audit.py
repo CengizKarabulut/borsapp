@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from market_intelligence.calendars.xist import ExchangeCalendarsXist
+from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from market_intelligence.persistence.postgres.runtime import PostgresRuntimeRepository
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from scripts.atc_ephemeral_universe import assert_local_ephemeral_url
