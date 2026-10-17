@@ -73,6 +73,19 @@ class ProviderRetryCooldowns:
             until = self._active.get(self._key(provider, symbol, timeframe))
             return until is not None and until > datetime.now(UTC)
 
+    def allow_targeted_retry(self, symbols: tuple[str, ...], timeframe: str) -> None:
+        """Bypass only this runner's cached skips for an explicit recovery pass.
+
+        The database cooldown record remains auditable. This does not make
+        another vendor's candle valid or relax any data quality check.
+        """
+        eligible = {symbol.upper().strip() for symbol in symbols}
+        with self._lock:
+            self._load()
+            for key in tuple(self._active):
+                if key[1] in eligible and key[2] == timeframe:
+                    self._active.pop(key, None)
+
     def failed(self, provider: str, symbol: str, timeframe: str, error: str) -> None:
         if not self.database_url:
             return
