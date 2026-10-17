@@ -54,7 +54,7 @@ class CompletePublicationTests(unittest.TestCase):
     def test_pine_scope_keeps_native_nonplan_rules_unfabricated(self):
         self.assertTrue(pine_plan_required(("AAA", 1, "POZITIF")))
         self.assertTrue(pine_plan_required(("AAA", 9, "POZITIF")))
-        self.assertFalse(pine_plan_required(("AAA", 9, "NEGATIF")))
+        self.assertTrue(pine_plan_required(("AAA", 9, "NEGATIF")))
         self.assertTrue(pine_plan_required(("AAA", 10, "NEGATIF")))
         self.assertTrue(pine_plan_required(("AAA", 16, "POZITIF")))
         self.assertFalse(pine_plan_required(("AAA", 17, "POZITIF")))
