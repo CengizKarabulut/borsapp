@@ -15,7 +15,8 @@ from market_intelligence.core.enums import PriceBasis
 from market_intelligence.core.timeframes import parse_timeframe
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
 from market_intelligence.scanning.display_codes import SCANNER_ORDER
-from market_intelligence.scanning.trade_plan import build_pine_a_i_plan, build_trade_plan
+from market_intelligence.scanning.signal.atc_native_packet import ATC_SCRIPT_SHA256
+from market_intelligence.scanning.trade_plan import build_trade_plan
 
 
 class PlanLevels(NamedTuple):
@@ -158,15 +159,25 @@ def plan_from_stored_rows(rows, *, members, evaluations, matches, timeframe, bar
         key = ticker, number, state
         if key not in targets or not state:
             continue
-        # The user's Pine model exposes standalone A-I bullish plans and
-        # generic 10-16 directional plans. Rules 17/18 do not own a valid
-        # standalone stop/target family and must never borrow an unrelated one.
-        if number >= 17 or (number <= 9 and state != "POZITIF"):
+        # The latest Pine native packet supports A-I LONG *and* SHORT,
+        # both using the original generic 7-bar ATR plan. Neither 17 nor 18
+        # has a stand-alone plan; never borrow prices from another rule.
+        if number >= 17:
             continue
-        saved = validate_reference_plan(
-            metrics, direction=direction, timeframe=timeframe, close=bar_time,
-            snapshot_id=str(snapshot_id),
-        )
+        native = metrics.get("trade_plan") if isinstance(metrics, dict) else None
+        # Fail closed on stale Oct-14 A-I plans even if their numeric fields
+        # look plausible: reconstruct only the original evaluation snapshot.
+        if number <= 9 and (
+            not isinstance(native, dict)
+            or native.get("source_sha256") != ATC_SCRIPT_SHA256
+            or native.get("version") != "atc-native-dual-direction-v3"
+        ):
+            saved = None
+        else:
+            saved = validate_reference_plan(
+                metrics, direction=direction, timeframe=timeframe, close=bar_time,
+                snapshot_id=str(snapshot_id),
+            )
         collected.setdefault(key, []).append(saved)
     result = {}
     for key in matches:
@@ -203,20 +214,15 @@ ORDER BY close_time ASC
 def reconstruct_pine_plan(frame: CanonicalFrame, scanner_id: str, direction: str):
     """Use only original confirmed OHLCV frame, never an unrelated market quote.
 
-    A-I use the owner's f_plan; 10-16 use the original Python/Pine generic
-    swing7+ATR directional formula. 17/18 and non-directional return None.
+    A-I and 10-16 both use the native alarm packet's swing7+ATR
+    directional price family. This does NOT rewrite the distinct chart-overlay
+    f_plan() source. 17/18 and non-directional return None.
     """
     if frame.is_partial or direction not in ("bullish", "bearish"):
         return None
     if scanner_id not in SCANNER_ORDER[:16]:
         return None
-    number = SCANNER_ORDER.index(scanner_id) + 1
-    if number <= 9:
-        if direction != "bullish":
-            return None
-        raw = build_pine_a_i_plan(frame, scanner_id, direction)
-    else:
-        raw = build_trade_plan(frame, direction)
+    raw = build_trade_plan(frame, direction)
     return validate_reference_plan(
         {"trade_plan": raw}, direction=direction,
         timeframe=frame.timeframe.value, close=frame.through_bar_time,
@@ -310,9 +316,8 @@ def load_saved_trade_plans(
             key = symbol, number, state
             if key not in match_set or saved.get(key) is not None:
                 continue
-            # 17/18 and A-I SHORT do not own standalone reference plans in
-            # the owner's Pine code. These are N/A, NOT missing plan data.
-            if number > 16 or (number <= 9 and state != "POZITIF"):
+            # 17/18 don't have independent risk plans; A-I SHORT is now valid.
+            if number > 16:
                 continue
             # Cache by complete data snapshot identity; scanner-specific plans
             # can reuse bars for the same exact saved series.
@@ -333,10 +338,7 @@ def load_saved_trade_plans(
                 stats["reconstructed_exact_snapshot"] += 1
             else:
                 stats["unsupported_or_invalid_plan"] += 1
-                original_plan = (
-                    build_pine_a_i_plan(frame, scanner, direction)
-                    if number <= 9 else build_trade_plan(frame, direction)
-                )
+                original_plan = build_trade_plan(frame, direction)
                 reason = original_plan.get("reason", "unknown")
                 if original_plan.get("status") == "reference":
                     reason = "reference_plan_failed_strict_validation"
