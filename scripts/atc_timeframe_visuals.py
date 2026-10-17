@@ -327,10 +327,10 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
         universe_csv, universe_audit = universe_status_csv(
             members, ev, bindings, tf.value, bar_time,
         )
-        if universe_audit["members"] != 630 or universe_audit["match"] != len(matches):
+        if universe_audit["members"] != 630 or universe_audit.get("match", 0) != len(matches):
             raise RuntimeError(
                 f"{tf.value}: mismatched actual scanner matches: "
-                f"images={len(matches)} universe_csv={universe_audit['match']}"
+                f"images={len(matches)} universe_csv={universe_audit.get('match', 0)}"
             )
         print(f"ATC complete universe evidence {tf.value}: {universe_audit}", flush=True)
         plans, model_failures = load_saved_trade_plans(
