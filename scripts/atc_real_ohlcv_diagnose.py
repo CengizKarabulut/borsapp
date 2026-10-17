@@ -19,7 +19,9 @@ from market_intelligence.market_data.adapters.yfinance import YFinanceBistProvid
 from market_intelligence.market_data.canonicalizer import Canonicalizer
 from market_intelligence.market_data.providers import FetchRequest
 from market_intelligence.scanning.trade_plan import (
-    PINE_A_I, build_pine_a_i_plan, build_trade_plan,
+    PINE_A_I,
+    build_pine_a_i_plan,
+    build_trade_plan,
 )
 
 AS_OF = datetime(2026, 10, 16, 18, tzinfo=ZoneInfo("Europe/Istanbul"))
@@ -86,7 +88,7 @@ def numeric_diagnosis(bars, code):
         # Generic structural-atr-v1, SHORT: stop = swing7 high + ATR buffer.
         true_ranges = [
             max(b.high - b.low, abs(b.high - a.close), abs(b.low - a.close))
-            for a, b in zip(bars, bars[1:])
+            for a, b in zip(bars, bars[1:], strict=False)
         ]
         atr = sum(true_ranges[:14]) / 14
         for tr in true_ranges[14:]:
