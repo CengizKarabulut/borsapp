@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install real BIST universe vendor adapter
-        run: python -m pip install --editable ".[atcdata]"
+        run: python -m pip install --editable ".[runtime,atcdata]"
       - name: Compare pinned ATC 630 with live XUTUM component snapshot
         run: python -m scripts.atc_universe_drift_report --out runtime_artifacts/universe_audit
       - uses: actions/upload-artifact@v4
