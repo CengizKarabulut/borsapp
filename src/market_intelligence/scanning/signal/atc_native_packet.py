@@ -1,7 +1,7 @@
-"""Scanner adapters for user's unmodified f_native_legacy_snapshot 1–9 flags.
+"""Bidirectional A-I scanners based on owner's untouched 17 Oct Pine packet.
 
-The arithmetic is shared in features/atc_native.py; all nine scans read the
-SAME 600-candle bounded native packet, not the old chart overlay conditions.
+Each rule uses the identical bounded source frame and original seeded formulas;
+a bearish flag must never be silently reported as a bullish match.
 """
 from __future__ import annotations
 
@@ -12,10 +12,12 @@ from market_intelligence.core.timeframes import Timeframe
 from market_intelligence.features.atc_native import ATC_NATIVE_PACKET, NativePacketSnapshot
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.scanning.contracts import Finding, ScanContext, ScannerUnavailable
+from market_intelligence.scanning.trade_plan import build_trade_plan
 
-ATC_SCRIPT_SOURCE = "docs/reference/ATC_TV200_18_TARAMA_20261012.pine"
-# SHA256 of the exact user-uploaded source bytes (CRLF line endings).
-ATC_SCRIPT_SHA256 = "b2a2fab8e28a369bcd88f66c5f94fd95f1580488e603f3940aa26f3c550776e1"
+# SHA256 of the unchanged user-supplied Oct 17 original file bytes.
+# The TradingView Pine script itself is NOT modified or overwritten.
+ATC_SCRIPT_SOURCE = "user-upload:Yapıştırılan metin(20261017-210837).txt"
+ATC_SCRIPT_SHA256 = "95bd5849cd9935369fc4928215aeb07f3b2738e526a0bbb435b348cd8a0dae20"
 ATC_NATIVE_SIGNAL_IDS = (
     "signal.macd_positive_cross",
     "signal.smi_macd_positive",
@@ -38,7 +40,7 @@ class AtcNativeConfig:
 
 class AtcNativeSignalScanner:
     family = "signal"
-    version = "2.0.0"
+    version = "3.0.0"
     result_kind = ResultKind.EVENT
     supported_timeframes = set(Timeframe)
     required_features = (ATC_NATIVE_PACKET,)
@@ -68,24 +70,20 @@ class AtcNativeSignalScanner:
         packet = self._packet(context)
         if not packet.flags[self.rule_number - 1]:
             return ()
+        value = packet.directions[self.rule_number - 1]
+        if value not in (-1, 1):
+            raise ScannerUnavailable("Pine A-I flagged without valid LONG/SHORT evidence")
+        direction = Direction.BULLISH if value == 1 else Direction.BEARISH
+        # Same 7-candle structural ATR plan as the ACTUAL manual Pine packet,
+        # rather than the independent chart-overlay f_plan() at lines 173-224.
+        # The source's reference stops and targets are intentionally unmodified.
+        original = build_trade_plan(frame, direction.value)
         plan = {
-            "version": "atc-pine-native-20261014",
+            **original,
+            "version": "atc-native-dual-direction-v3",
             "source": ATC_SCRIPT_SOURCE,
             "source_sha256": ATC_SCRIPT_SHA256,
-            "status": "unavailable",
-            "entry_basis": "confirmed_close_reference",
-            "executable_order": False,
-            "scenarios": [],
         }
-        if packet.long_plan:
-            stop, tp1, tp2, tp3 = packet.long_plan
-            plan.update(
-                status="reference",
-                scenarios=[{
-                    "side": "long", "entry": frame.bars[-1].close,
-                    "stop": stop, "tp1": tp1, "tp2": tp2, "tp3": tp3,
-                }],
-            )
         return (
             Finding(
                 finding_key=f"atc-native-{self.rule_number:02d}",
@@ -97,10 +95,10 @@ class AtcNativeSignalScanner:
                 ruleset_hash=context.ruleset_hash,
                 kind=self.result_kind,
                 bar_time=context.bar_close_time,
-                direction=Direction.BULLISH,
+                direction=direction,
                 metrics={
                     "atc_rule_number": self.rule_number,
-                    "source": "20261014_pine_native_packet",
+                    "source": "20261017_pine_native_packet",
                     "source_sha256": ATC_SCRIPT_SHA256,
                     "frame_bars": packet.bars,
                     "trade_plan": plan,

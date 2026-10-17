@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image
 
+from market_intelligence.scanning.signal.atc_native_packet import ATC_SCRIPT_SHA256
 from market_intelligence.scanning.trade_plan import build_pine_a_i_plan, build_trade_plan
 from scripts.atc_saved_scan_plans import (
     PlanLevels,
@@ -31,6 +32,8 @@ def saved_plan(direction="long", *, snapshot="exact-snapshot"):
     else:
         prices = [104.0, 96.0, 92.0, 88.0]
     return {
+        "version": "atc-native-dual-direction-v3",
+        "source_sha256": ATC_SCRIPT_SHA256,
         "status": "reference",
         "snapshot_id": snapshot,
         "timeframe": "1h",
@@ -115,6 +118,20 @@ class PersistedStopAndTargetsTests(unittest.TestCase):
             timeframe="1h", bar_time=NOW,
         )
         self.assertIsNone(disagree[matches[0]])
+
+    def test_old_native_pine_source_versions_never_pass_as_new_a_i_plans(self):
+        members = (SimpleNamespace(instrument_id="id-A", symbol="ASELS"),)
+        evaluation = ("id-A", "1h", "signal.macd_positive_cross", "3.0.0",
+                      "hash", NOW, "match", None, "evaluation-A", ("bullish",))
+        wrong = {**saved_plan(), "source_sha256": "obsolete"}
+        row = ("id-A", "signal.macd_positive_cross", "1h", NOW,
+               "evaluation-A", "bullish", {"trade_plan": wrong}, "exact-snapshot")
+        key = ("ASELS", 1, "POZITIF")
+        result = plan_from_stored_rows(
+            [row], members=members, evaluations=[evaluation], matches=[key],
+            timeframe="1h", bar_time=NOW,
+        )
+        self.assertIsNone(result[key])
 
     def test_png_shows_empty_fields_for_unconfirmed_rows(self):
         items = [

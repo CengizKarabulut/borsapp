@@ -45,9 +45,9 @@ MAX_ROWS_PER_CARD = 20
 def pine_plan_required(match) -> bool:
     """Only owner-Pine supported directions own a standalone Stop/TP plan."""
     _symbol, number, state = match
-    return (state == "POZITIF" and number <= 16) or (
-        state == "NEGATIF" and 10 <= number <= 16
-    )
+    # 17 Oct native Pine defines both directions for A-I and 10-16.
+    # Rules 17/18 have no standalone source risk family.
+    return state in {"POZITIF", "NEGATIF"} and 1 <= number <= 16
 
 
 def require_complete_publication(
@@ -365,10 +365,12 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                     "caption": (
                         f"ATC {tf.value.upper()} | "
                         f"{bar_time.astimezone(ISTANBUL):%d.%m.%Y %H:%M} TSİ | "
-                        f"Teyitli {covered}/630 | {len(matches)} koşul eşleşmesi | "
-                        f"Sayfa {i + 1}/{pages} · "
-                        f"görselde {len(rows)}/{len(matches)} · 630 hisse durum CSV ayrıca · "
-                        f"model dışı {audit['model_rejected']} · tam liste CSV'de · YTD"
+                        f"Hisse veri {covered}/630 | "
+                        f"Koşul hesabı {universe_audit['confirmed_evaluations']}/"
+                        f"{universe_audit['expected_evaluations']} | "
+                        f"Hesaplanamayan {universe_audit['unresolved_evaluations']} | "
+                        f"{len(matches)} eşleşme | Sayfa {i + 1}/{pages} · "
+                        f"630 hisse durumları ayrı CSV'de · YTD"
                     ),
                 },
             ))
@@ -408,8 +410,10 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
                 "document_base64": base64.b64encode(complete_bytes).decode("ascii"),
                 "filename": f"ATC_{tf.value}_TEYITLI_{bar_time:%Y%m%d_%H%M}.csv",
                 "caption": (
-                    f"ATC {tf.value.upper()} | TEYİTLİ | {len(matches)} eşleşmenin "
-                    "eksiksiz listesi · Stop/TP geçmiş verilere dayalı referanstır · YTD."
+                    f"ATC {tf.value.upper()} | {len(matches)} doğrulanmış KOŞUL eşleşmesi "
+                    f"(630 farklı hisse değildir). "
+                    f"Toplam değerlendirmede {universe_audit['unresolved_evaluations']} "
+                    "hesaplanamayan kayıt var; 630 hissenin tek tek durumu ayrı CSV'de. YTD."
                 ),
             },
         ))

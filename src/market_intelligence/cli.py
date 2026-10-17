@@ -838,6 +838,11 @@ def _sync_universe(
 
 def _feature_engine(connection) -> FeatureEngine:
     registry = FeatureRegistry()
+    ma_qualifications = PostgresMaQualificationSource(connection)
+    if os.environ.get("ATC_MA_RESEARCH_ON_DEMAND", "0") == "1":
+        # Optional, exact-frame historical research; never invent prices.
+        from market_intelligence.research.ma_inline import ExactFrameMaQualificationSource
+        ma_qualifications = ExactFrameMaQualificationSource(ma_qualifications)
     for provider in (
         AtcNativePacketProvider(),
         RelativeVolume20Provider(),
@@ -853,7 +858,7 @@ def _feature_engine(connection) -> FeatureEngine:
         DecisionPanelV645Provider(),
         TechnicalMarketContextProvider(),
         ResearchTechnicalSnapshotProvider(),
-        QualifiedMaResearchProvider(PostgresMaQualificationSource(connection)),
+        QualifiedMaResearchProvider(ma_qualifications),
     ):
         registry.register(provider)
     return FeatureEngine(registry)
