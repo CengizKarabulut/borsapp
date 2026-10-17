@@ -21,7 +21,11 @@ from market_intelligence.application.command_jobs import (
     CommandJobRunner,
 )
 from market_intelligence.application.equity_reports import EquityReportService
-from market_intelligence.application.ingestion import BASE_TIMEFRAME, IngestionRequest, IngestionService
+from market_intelligence.application.ingestion import (
+    BASE_TIMEFRAME,
+    IngestionRequest,
+    IngestionService,
+)
 from market_intelligence.application.news_ingestion import NewsIngestionService
 from market_intelligence.application.scan_frame import ScanFrameCoordinator
 from market_intelligence.application.scheduled_scan import (
