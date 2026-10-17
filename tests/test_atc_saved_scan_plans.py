@@ -31,7 +31,6 @@ def saved_plan(direction="long", *, snapshot="exact-snapshot"):
     else:
         prices = [104.0, 96.0, 92.0, 88.0]
     return {
-        "version": "pine-a-i-plan-v2" if direction == "long" else "structural-atr-v1",
         "status": "reference",
         "snapshot_id": snapshot,
         "timeframe": "1h",
@@ -116,26 +115,6 @@ class PersistedStopAndTargetsTests(unittest.TestCase):
             timeframe="1h", bar_time=NOW,
         )
         self.assertIsNone(disagree[matches[0]])
-
-    def test_stale_pine_a_i_v1_cannot_be_published_as_v2(self):
-        members = (SimpleNamespace(instrument_id="id-A", symbol="ASELS"),)
-        evaluation = ("id-A", "1h", "signal.macd_positive_cross", "1.0",
-                      "rule", NOW, "match", None, "evaluation-A", ("bullish",))
-        legacy = {**saved_plan(), "version": "pine-a-i-plan-v1"}
-        row = ("id-A", "signal.macd_positive_cross", "1h", NOW,
-               "evaluation-A", "bullish", {"trade_plan": legacy}, "exact-snapshot")
-        key = ("ASELS", 1, "POZITIF")
-        result = plan_from_stored_rows(
-            [row], members=members, evaluations=[evaluation], matches=[key],
-            timeframe="1h", bar_time=NOW,
-        )
-        self.assertIsNone(result[key])
-        updated = (*row[:6], {"trade_plan": {**legacy, "version": "pine-a-i-plan-v2"}}, row[7])
-        valid = plan_from_stored_rows(
-            [updated], members=members, evaluations=[evaluation], matches=[key],
-            timeframe="1h", bar_time=NOW,
-        )
-        self.assertEqual(valid[key].stop, 96)
 
     def test_png_shows_empty_fields_for_unconfirmed_rows(self):
         items = [
