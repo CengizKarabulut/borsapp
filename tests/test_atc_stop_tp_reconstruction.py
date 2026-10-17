@@ -46,17 +46,17 @@ class FakeCursor:
 
 
 class StopTpSameSnapshotTests(unittest.TestCase):
-    def test_b_long_stored_snapshot_levels_are_not_blank(self):
+    def test_b_long_snapshot_uses_actual_native_alarm_risk_not_chart_overlay(self):
         frame = sample_frame()
         plan = reconstruct_pine_plan(
             frame, "signal.smi_macd_positive", "bullish",
         )
         self.assertIsNotNone(plan)
         self.assertEqual(plan.entry, 100.0)
-        self.assertAlmostEqual(plan.stop, 97.2)
-        self.assertAlmostEqual(plan.tp1, 102.24)
-        self.assertAlmostEqual(plan.tp2, 104.2)
-        self.assertAlmostEqual(plan.tp3, 106.72)
+        self.assertAlmostEqual(plan.stop, 97.0)
+        self.assertAlmostEqual(plan.tp1, 103.0)
+        self.assertAlmostEqual(plan.tp2, 106.0)
+        self.assertAlmostEqual(plan.tp3, 109.0)
 
     def test_generic_thirteen_short_targets_decrease(self):
         frame = sample_frame()
@@ -66,13 +66,16 @@ class StopTpSameSnapshotTests(unittest.TestCase):
         self.assertIsNotNone(plan)
         self.assertTrue(plan.tp3 < plan.tp2 < plan.tp1 < plan.entry < plan.stop)
 
-    def test_17_18_and_a_i_short_are_never_guessed(self):
+    def test_17_18_no_plan_but_a_i_short_uses_native_source(self):
         frame = sample_frame()
         for rule in ("decision.panel_v645", "ma.near_zone"):
             self.assertIsNone(reconstruct_pine_plan(frame, rule, "bullish"))
-        self.assertIsNone(reconstruct_pine_plan(
+        short = reconstruct_pine_plan(
             frame, "signal.smi_macd_positive", "bearish",
-        ))
+        )
+        self.assertIsNotNone(short)
+        self.assertAlmostEqual(short.stop, 103.0)
+        self.assertTrue(short.tp3 < short.tp2 < short.tp1 < short.entry)
         self.assertIsNone(reconstruct_pine_plan(
             frame, "signal.smi_macd_positive", "neutral",
         ))
