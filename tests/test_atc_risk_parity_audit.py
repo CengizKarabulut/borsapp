@@ -38,7 +38,7 @@ class RiskParityAuditTests(unittest.TestCase):
 
     def test_pine_ai_long_stop_below_zero_is_reported(self):
         data = bars(price=10, low=9, high=11)
-        data[0]["high"] = 1200  # historic unadjusted discontinuity
+        data[-1]["high"] = 1200  # anomalous final-bar range inflates ATR
         result = diagnose(data, "signal.smi_macd_positive", "bullish")
         self.assertEqual(result["status"], "invalid_price")
         self.assertIn("stop", result["invalid_fields"])
