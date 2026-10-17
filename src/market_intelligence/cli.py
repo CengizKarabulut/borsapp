@@ -21,7 +21,7 @@ from market_intelligence.application.command_jobs import (
     CommandJobRunner,
 )
 from market_intelligence.application.equity_reports import EquityReportService
-from market_intelligence.application.ingestion import IngestionRequest, IngestionService
+from market_intelligence.application.ingestion import BASE_TIMEFRAME, IngestionRequest, IngestionService
 from market_intelligence.application.news_ingestion import NewsIngestionService
 from market_intelligence.application.scan_frame import ScanFrameCoordinator
 from market_intelligence.application.scheduled_scan import (
@@ -307,6 +307,8 @@ def _parser() -> argparse.ArgumentParser:
     due.add_argument("--scanners", type=Path, default=Path("config/scanners.toml"))
     due.add_argument("--notify", action="store_true")
     due.add_argument("--workers", type=int, default=1, help="Concurrent symbols, 1–12; each uses an independent PostgreSQL connection")
+    due.add_argument("--retry-failed", type=int, default=0, help="Additional targeted rounds for only failed symbols, 0–6")
+    due.add_argument("--require-complete", action="store_true", help="Fail if any pinned ATC_630 member lacks real closed-bar evaluations")
 
     worker = subparsers.add_parser(
         "scan-worker",
@@ -1113,7 +1115,11 @@ def _scan_due(
     executor=None,
     lane_state=None,
     parallel_workers: int = 1,
+    retry_failed_rounds: int = 0,
+    require_complete: bool = False,
 ) -> int:
+    if retry_failed_rounds < 0 or retry_failed_rounds > 6:
+        raise ValueError("--retry-failed 0 ile 6 arasında olmalıdır")
     if parallel_workers < 1 or parallel_workers > 12:
         raise ValueError("--workers 1 ile 12 arasında olmalıdır")
     if bars < 40 or bars > 5000:
@@ -1176,6 +1182,17 @@ def _scan_due(
                 print(f"Scan progress {timeframe.value}: {successful} ok, {failed} failed", flush=True)
 
         bindings = load_scanner_catalog(scanners_path, calendar_version=calendar.version)
+
+        def before_retry(failures, retry_round):
+            # Only explicit failed-symbol retries override this short-lived
+            # runner's vendor cooldowns; stored candles are never fabricated.
+            if universe.upper() == "ATC_630":
+                cooldowns_for(settings.runtime.database_url).allow_targeted_retry(
+                    tuple(f.symbol for f in failures),
+                    BASE_TIMEFRAME[timeframe].value,
+                )
+            time.sleep(min(2 ** retry_round * 2, 12))
+
         result = ScheduledScanService(
             repository=runtime,
             ingestion=ingestion,
@@ -1188,6 +1205,7 @@ def _scan_due(
             ) if executor else map,
             clock=(lambda: datetime.now(settings.runtime.timezone)) if live else None,
             progress=progress if live or executor is not None else None,
+            before_retry=before_retry if retry_failed_rounds else None,
             planner=ScheduledBarPlanner(
                 calendar,
                 maximum_lookback_days=lookback_days,
@@ -1202,6 +1220,8 @@ def _scan_due(
                 latest_only=live,
                 maximum_run_time=timedelta(minutes=12) if live else None,
                 start_offset=(lane_state or {}).get("offset", 0),
+                retry_failed_rounds=retry_failed_rounds,
+                require_complete=require_complete,
             ),
             bindings,
         )
@@ -1212,8 +1232,20 @@ def _scan_due(
         f"completed={result.completed_bars}, success={result.successful_instruments}, "
         f"failed={result.failed_instruments}", flush=True
     )
+    if require_complete:
+        if universe.upper() != "ATC_630":
+            raise ValueError("--require-complete is reserved for ATC_630")
+        expected = 630 * len(result.due_bars)
+        if not expected or result.successful_instruments != expected or result.failed_instruments:
+            print(
+                f"ATC STRICT COVERAGE FAILED {timeframe.value}: "
+                f"{result.successful_instruments}/{expected or 630} "
+                "authentic completed evaluations; nothing may be published.",
+                flush=True,
+            )
+            return 1
     # Instrument-level provider failures are persisted on the cycle and must not
-    # abort the remaining timeframe jobs.
+    # abort the remaining timeframe jobs unless strict coverage was requested.
     return 1 if result.total_failure else 0
 
 
@@ -2061,6 +2093,8 @@ def main(argv: list[str] | None = None) -> int:
                     lookback_days=args.lookback_days,
                     scanners_path=args.scanners,
                     notify=args.notify,
+                    retry_failed_rounds=args.retry_failed,
+                    require_complete=args.require_complete,
                 )
             if not 2 <= args.workers <= 12:
                 raise ValueError("--workers 1 ile 12 arasında olmalıdır")
@@ -2075,6 +2109,8 @@ def main(argv: list[str] | None = None) -> int:
                     notify=args.notify,
                     executor=pool,
                     parallel_workers=args.workers,
+                    retry_failed_rounds=args.retry_failed,
+                    require_complete=args.require_complete,
                 )
         if args.command == "scan-worker":
             return _scan_worker(
