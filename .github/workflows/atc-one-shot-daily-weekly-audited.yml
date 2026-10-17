@@ -1,4 +1,5 @@
 name: ATC recovered daily weekly verified Telegram dispatch
+# 2026-10-17: one-time owner-requested verification of newly restored unknown-direction matches and complete 630-symbol CSV.
 
 on:
   push:
