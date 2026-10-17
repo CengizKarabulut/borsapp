@@ -41,7 +41,8 @@ jobs:
       - name: Determine real completed exchange candles and EOD/Friday weekly
         id: pick
         env:
-          INPUT_SCOPE: ${{ inputs.scope || 'due' }}
+          # The owner's explicit rescan request can be dispatched by the merge commit.
+          INPUT_SCOPE: ${{ inputs.scope || (github.event_name == 'push' && contains(github.event.head_commit.message, '[ATC_RESCAN_ALL]') && 'all') || 'due' }}
         run: |
           if [ "$INPUT_SCOPE" = all ]; then
             python -m scripts.atc_ephemeral_schedule --all
@@ -118,7 +119,9 @@ jobs:
         run: |
           # Completed candles only; on Fridays the weekly close is eligible.
           # Manual all can check the most recent ACTUAL Friday weekly close.
-          borsapp scan-due --universe ATC_630 --timeframe "$ATC_SCAN_TIMEFRAME" --bars 600 --workers 2 --lookback-days 7
+          # Never publish partial scans. Retry only failed instruments while
+          # preserving exact successful candles/evaluations in this runner.
+          borsapp scan-due --universe ATC_630 --timeframe "$ATC_SCAN_TIMEFRAME" --bars 600 --workers 2 --lookback-days 7 --retry-failed 4 --require-complete
       - name: Send PNG cards and FULL CSV directly to its preexisting Telegram topic
         run: python -m scripts.atc_timeframe_visuals --timeframe "$ATC_SCAN_TIMEFRAME"
       - name: Export only confirmed, fresh directional evidence for EOD Kesişim
