@@ -22,7 +22,7 @@ class PineRiskWiringTests(unittest.TestCase):
     def test_all_nine_source_parameter_tuples_match_python(self):
         pine = SOURCE.read_text(encoding="utf-8")
         for letter, (scanner, spec) in zip("abcdefghi", PINE_A_I.items(), strict=True):
-            pattern = rf"\\[{letter}Stop, {letter}Tp1, {letter}Tp2, {letter}Tp3\\] = f_plan\\(swing(\\d+), ema(\\d+), ([^)]+)\\)"
+            pattern = rf"\[{letter}Stop, {letter}Tp1, {letter}Tp2, {letter}Tp3\] = f_plan\(swing(\d+), ema(\d+), ([^)]+)\)"
             match = re.search(pattern, pine)
             self.assertIsNotNone(match, letter)
             parsed = (int(match[1]), int(match[2]))
