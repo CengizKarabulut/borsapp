@@ -45,9 +45,9 @@ MAX_ROWS_PER_CARD = 20
 def pine_plan_required(match) -> bool:
     """Only owner-Pine supported directions own a standalone Stop/TP plan."""
     _symbol, number, state = match
-    return (state == "POZITIF" and number <= 16) or (
-        state == "NEGATIF" and 10 <= number <= 16
-    )
+    # 17 Oct native Pine defines both directions for A-I and 10-16.
+    # Rules 17/18 have no standalone source risk family.
+    return state in {"POZITIF", "NEGATIF"} and 1 <= number <= 16
 
 
 def require_complete_publication(
