@@ -68,14 +68,16 @@ class AtcPineNativeSignalTests(unittest.TestCase):
     def test_exact_user_source_was_preserved_byte_for_byte_in_crlf_form(self):
         source = ROOT / "docs/reference/ATC_TV200_18_TARAMA_20261012.pine"
         canonical = (source.read_text(encoding="utf-8").rstrip("\n") + "\n").replace("\n", "\r\n")
-        self.assertEqual(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), ATC_SCRIPT_SHA256)
+        self.assertEqual(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), "b2a2fab8e28a369bcd88f66c5f94fd95f1580488e603f3940aa26f3c550776e1")
+        # The updated scanner pins the SHA256 of the user's newer upload.
+        self.assertEqual(ATC_SCRIPT_SHA256, "95bd5849cd9935369fc4928215aeb07f3b2738e526a0bbb435b348cd8a0dae20")
 
     def test_all_nine_rules_use_one_shared_native_packet_feature(self):
         self.assertEqual(len(ATC_NATIVE_SIGNAL_IDS), 9)
         for i, scanner_id in enumerate(ATC_NATIVE_SIGNAL_IDS, 1):
             scanner = AtcNativeSignalScanner(scanner_id)
             self.assertEqual(scanner.rule_number, i)
-            self.assertEqual(scanner.version, "2.0.0")
+            self.assertEqual(scanner.version, "2.1.0")
             self.assertEqual(scanner.required_features, (ATC_NATIVE_PACKET,))
             self.assertFalse(scanner.accepts_partial_bars)
 
@@ -89,6 +91,8 @@ class AtcPineNativeSignalTests(unittest.TestCase):
         self.assertIsNotNone(b)
         self.assertEqual(a, b)
         self.assertEqual(len(a.known), 9)
+        self.assertEqual(len(a.directions), 9)
+        self.assertTrue(all(x in (-1, 0, 1) for x in a.directions))
         self.assertTrue(all(a.known))
 
     def test_insufficient_history_returns_unknown_not_false(self):
