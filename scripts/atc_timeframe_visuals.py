@@ -32,7 +32,11 @@ from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_export_dashboard import LATEST_SQL, SCANNER_ORDER, status_label
 from scripts.atc_full_universe_status import universe_status_csv
 from scripts.atc_publish_targeted import AtcOnlyOutbox
-from scripts.atc_saved_scan_plans import fmt_level, load_saved_trade_plans
+from scripts.atc_saved_scan_plans import (
+    complete_reference_levels,
+    fmt_level,
+    load_saved_trade_plans,
+)
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 COLORS = {"POZITIF": "#177A4F", "NEGATIF": "#B83636",
@@ -68,7 +72,9 @@ def require_complete_publication(
     ]
     missing = [
         match for match in required
-        if plans.get(match) is None and match not in nonactionable
+        if match not in nonactionable and not complete_reference_levels(
+            plans.get(match), "bullish" if match[2] == "POZITIF" else "bearish",
+        )
     ]
     print(
         f"ATC complete-report audit {timeframe}: coverage={covered}/630, "
@@ -100,9 +106,10 @@ def full_card_pages(match_count: int) -> int:
 
 
 def _font(size, *, bold=False):
-    from pathlib import Path
-
+    windows_fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
     names = (
+        windows_fonts / ("segoeuib.ttf" if bold else "segoeui.ttf"),
+        windows_fonts / ("arialbd.ttf" if bold else "arial.ttf"),
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
          if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         ("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
@@ -111,7 +118,10 @@ def _font(size, *, bold=False):
     for name in names:
         if Path(name).exists():
             return ImageFont.truetype(name, size=size)
-    return ImageFont.load_default()
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:  # Pillow 10.0 has no size argument on its fallback font.
+        return ImageFont.load_default()
 
 
 def render_card_png(*, timeframe: str, bar_time: datetime, rows,
@@ -135,7 +145,8 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
     draw.text((52, 181), f"Değerlendirilen: {total_symbols}/630 hisse · Eşleşme: {matched_count}",
               font=_font(21, bold=True), fill="#26374C")
     columns = ((55, "HİSSE"), (250, "KOD"), (355, "YÖN"), (555, "GİRİŞ"),
-               (770, "STOP"), (995, "TP1"), (1210, "TP2"), (1435, "TP3"))
+               (770, "STOP"), (995, "TP1"), (1210, "TP2"), (1435, "TP3"),
+               (1640, "PLAN"))
     for x, name in columns:
         draw.text((x, 229), name, font=_font(19, bold=True), fill="#51687D")
     draw.line((52, 260, width - 52, 260), fill="#D5DFE8", width=2)
@@ -175,6 +186,14 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
             draw.text((x, top + 10), display,
                       font=_font(18, bold=x == 770),
                       fill="#B83636" if model_failure and display == "-" else "#33485B")
+        complete = complete_reference_levels(
+            plan, "bullish" if state == "POZITIF" else "bearish",
+        ) if state in ("POZITIF", "NEGATIF") else False
+        draw.text(
+            (1640, top + 12),
+            "UYGULANAMAZ" if model_failure else "REFERANS" if complete else "YOK",
+            font=_font(14, bold=True), fill="#B83636" if model_failure else "#60748A",
+        )
     shown = visible_count if visible_count is not None else matched_count
     footer = (f"Sayfa {page}/{pages} · {shown}/{matched_count} eşleşme görselde"
               if shown != matched_count else f"Sayfa {page}/{pages} · {kind} tarama")
@@ -182,7 +201,7 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
     disclaimer = (
         "Giriş/Stop/TP referanstır, emir değildir; geçici mumda değişebilir. YTD."
         if provisional else
-        "— yerine -: geçersiz veya ayrı planı olmayan fiyat · risk modeli uyarıları CSV'de · YTD."
+        "-: geçersiz/ayrı planı olmayan fiyat · UYGULANAMAZ: tam Stop/TP planı yok; pozitif alanlar yalnız referans · YTD."
     )
     draw.text((52, height - 45), disclaimer, font=_font(16), fill="#60748A")
     output = io.BytesIO()

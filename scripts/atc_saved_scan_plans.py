@@ -42,7 +42,11 @@ def model_rejected_display_levels(plan, *, frame, direction):
     This object is DISPLAY-ONLY. The source plan stays 'unavailable', and
     the rejection reason must remain visible in the report metadata.
     """
-    if plan.get("status") != "unavailable" or plan.get("reason") not in {
+    if direction not in ("bullish", "bearish") or frame.is_partial:
+        return None
+    if frame.price_basis.value not in ("raw", "split_adjusted"):
+        return None
+    if not isinstance(plan, dict) or plan.get("status") != "unavailable" or plan.get("reason") not in {
         "nonpositive_level", "invalid_stop_or_target",
     }:
         return None
@@ -62,7 +66,36 @@ def model_rejected_display_levels(plan, *, frame, direction):
     # If the entry itself is invalid, no reliable reference price is shown.
     if vals[0] is None or all(value is not None for value in vals):
         return None
+    entry, stop, *targets = vals
+    sign = 1 if direction == "bullish" else -1
+    if stop is not None and sign * (entry - stop) <= 0:
+        return None
+    previous = entry
+    unavailable_target = False
+    for target in targets:
+        if target is None:
+            unavailable_target = True
+        elif unavailable_target or sign * (target - previous) <= 0:
+            # Correct source formulas have a directional, ordered target
+            # prefix. Do not salvage mismatched or corrupt stored plans.
+            return None
+        else:
+            previous = target
     return PlanLevels(*vals, frame.price_basis.value)
+
+
+def complete_reference_levels(plan, direction):
+    """A full directional price family, rather than a display-only fragment."""
+    if not isinstance(plan, PlanLevels) or direction not in ("bullish", "bearish"):
+        return False
+    if plan.price_basis not in ("raw", "split_adjusted"):
+        return False
+    levels = tuple(_positive_display_level(value) for value in plan[:5])
+    if any(value is None for value in levels):
+        return False
+    entry, stop, tp1, tp2, tp3 = levels
+    return (stop < entry < tp1 < tp2 < tp3 if direction == "bullish"
+            else tp3 < tp2 < tp1 < entry < stop)
 
 
 EVALUATION_PLANS_SQL = """
@@ -351,15 +384,16 @@ def load_saved_trade_plans(
                 # not absent OHLC. A 3R SHORT below zero, or LONG with a
                 # negative original stop, cannot become a legal price order.
                 # Flag it explicitly without altering Pine risk or inventing TP.
-                if (direction == "bearish" and reason == "nonpositive_level"
-                        or direction == "bullish" and reason == "invalid_stop_or_target"):
+                if reason in {"nonpositive_level", "invalid_stop_or_target"}:
                     model_failures[key] = reason
                     # Show positive entry/stop/targets, but never present an
                     # impossible price or mark the overall plan as actionable.
                     partial = model_rejected_display_levels(
                         original_plan, frame=frame, direction=direction,
                     )
-                    if partial is not None:
+                    # Callers that did not request the rejection metadata
+                    # must not mistake display-only fields for a valid plan.
+                    if partial is not None and include_model_failures:
                         saved[key] = partial
     stats["persisted_valid"] = sum(
         value is not None for key, value in saved.items()
