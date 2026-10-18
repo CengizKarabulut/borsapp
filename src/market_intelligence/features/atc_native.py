@@ -13,8 +13,8 @@ from market_intelligence.market_data.bars import CanonicalFrame
 
 ATC_NATIVE_PACKET = FeatureSpec(
     feature_id="atc.pine.native_packet_1_9",
-    implementation="atc_20261014_exact_seeded_bounded_v2",
-    version="2.0.0",
+    implementation="atc_20261017_exact_seeded_bounded_bidirectional_v3",
+    version="3.0.0",
     parameters={"requested_bars": 600, "source": "f_native_legacy_snapshot"},
     warmup=WarmupSpec(bars=2, seed="first_close_and_first_delta"),
 )
