@@ -8,6 +8,23 @@ from math import isfinite
 VERSION = "structural-atr-v1"
 
 
+def _display_only_levels(side, entry, stop, targets):
+    """Keep valid original prices without turning an impossible plan into one.
+
+    A SHORT target computed below zero is an unavailable price, never a
+    negative stock price, a price floor, or an instruction to reverse side.
+    The unavailable field names retain the diagnostic; positive fields keep
+    their exact source formula values for display only.
+    """
+    original = dict(zip(("entry", "stop", "tp1", "tp2", "tp3"),
+                        (entry, stop, *targets), strict=True))
+    invalid = [name for name, value in original.items()
+               if not isfinite(value) or value <= 0]
+    return {"side": side, **{
+        name: None if name in invalid else value for name, value in original.items()
+    }}, invalid
+
+
 def build_trade_plan(frame, direction):
     meta = {
         "version": VERSION,
@@ -22,12 +39,13 @@ def build_trade_plan(frame, direction):
         "executable_order": False,
     }
 
-    def unavailable(reason, display_levels=None):
+    def unavailable(reason, display_levels=None, invalid_level_fields=None):
         result = {**meta, "status": "unavailable", "reason": reason, "scenarios": []}
-        # Preserve raw formula outputs only for non-actionable display diagnostics.
-        # This never turns an invalid plan into an executable reference scenario.
+        # Display diagnostics contain positive source prices or None, never
+        # negative/nonfinite prices that could leak through another JSON client.
         if display_levels is not None:
             result["display_levels"] = display_levels
+            result["invalid_level_fields"] = invalid_level_fields
         return result
 
     if frame.is_partial:
@@ -72,10 +90,7 @@ def build_trade_plan(frame, direction):
         stop = entry - sign * risk
         targets = [entry + sign * risk * r for r in (1, 2, 3)]
         if min(stop, *targets) <= 0 or not all(isfinite(x) for x in (stop, *targets, risk)):
-            invalid_display_levels.append({
-                "side": side, "entry": entry, "stop": stop,
-                "tp1": targets[0], "tp2": targets[1], "tp3": targets[2],
-            })
+            invalid_display_levels.append(_display_only_levels(side, entry, stop, targets))
             continue
         scenarios.append(
             {
@@ -95,8 +110,10 @@ def build_trade_plan(frame, direction):
         )
     if not scenarios:
         # Only a unique directional scenario is safe to show field by field.
-        partial = invalid_display_levels[0] if len(invalid_display_levels) == 1 else None
-        return unavailable("nonpositive_level", display_levels=partial)
+        partial, invalid = (invalid_display_levels[0]
+                            if len(invalid_display_levels) == 1 else (None, None))
+        return unavailable("nonpositive_level", display_levels=partial,
+                           invalid_level_fields=invalid)
     return {
         **meta,
         "status": "conditional" if len(sides) > 1 else "reference",
@@ -143,10 +160,11 @@ def build_pine_a_i_plan(frame, scanner_id, direction):
         "executable_order": False,
     }
 
-    def unavailable(why, display_levels=None):
+    def unavailable(why, display_levels=None, invalid_level_fields=None):
         result = {**base, "status": "unavailable", "reason": why, "scenarios": []}
         if display_levels is not None:
             result["display_levels"] = display_levels
+            result["invalid_level_fields"] = invalid_level_fields
         return result
 
     if frame.is_partial:
@@ -194,10 +212,9 @@ def build_pine_a_i_plan(frame, scanner_id, direction):
     stop = entry - risk
     targets = [entry + risk * ratio for ratio in (r1, r2, r3)]
     if not all(isfinite(v) and v > 0 for v in (entry, stop, *targets)):
-        return unavailable("invalid_stop_or_target", display_levels={
-            "side": "long", "entry": entry, "stop": stop,
-            "tp1": targets[0], "tp2": targets[1], "tp3": targets[2],
-        })
+        partial, invalid = _display_only_levels("long", entry, stop, targets)
+        return unavailable("invalid_stop_or_target", display_levels=partial,
+                           invalid_level_fields=invalid)
     return {
         **base,
         "status": "reference", "reason": "pine_a_i_bullish_reference",

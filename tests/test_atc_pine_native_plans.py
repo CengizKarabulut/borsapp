@@ -53,7 +53,11 @@ class PineSpecializedPlanTests(unittest.TestCase):
         self.assertEqual(plan["version"], "pine-a-i-plan-v1")
         self.assertEqual(plan["status"], "unavailable")
         self.assertEqual(plan["reason"], "invalid_stop_or_target")
-        self.assertAlmostEqual(plan["display_levels"]["stop"], 8.0 - 0.75 * 16.2)
+        self.assertIsNone(plan["display_levels"]["stop"])
+        self.assertEqual(plan["invalid_level_fields"], ["stop"])
+        # The original ATR minimum and positive targets remain exact. There
+        # is no clipping/floor to turn the nonpositive stop into a trade.
+        self.assertAlmostEqual(plan["display_levels"]["tp1"], 8.0 + 0.75 * 16.2 * 0.8)
         self.assertEqual(plan["scenarios"], [])
 
     def test_short_partial_and_adjustment_do_not_invent_pine_long(self):
