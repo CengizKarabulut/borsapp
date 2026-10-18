@@ -13,7 +13,7 @@ from market_intelligence.features.atc_native import ATC_NATIVE_PACKET, NativePac
 from market_intelligence.market_data.bars import CanonicalFrame
 from market_intelligence.scanning.contracts import Finding, ScanContext, ScannerUnavailable
 
-ATC_SCRIPT_SOURCE = "docs/reference/ATC_TV200_18_TARAMA_20261012.pine"
+ATC_SCRIPT_SOURCE = "docs/reference/ATC_USER_LATEST_20261017.pine"
 # SHA256 of the exact user-uploaded source bytes (CRLF line endings).
 ATC_SCRIPT_SHA256 = "b2a2fab8e28a369bcd88f66c5f94fd95f1580488e603f3940aa26f3c550776e1"
 ATC_NATIVE_SIGNAL_IDS = (
@@ -38,7 +38,7 @@ class AtcNativeConfig:
 
 class AtcNativeSignalScanner:
     family = "signal"
-    version = "2.0.0"
+    version = "2.1.0"
     result_kind = ResultKind.EVENT
     supported_timeframes = set(Timeframe)
     required_features = (ATC_NATIVE_PACKET,)
@@ -68,8 +68,17 @@ class AtcNativeSignalScanner:
         packet = self._packet(context)
         if not packet.flags[self.rule_number - 1]:
             return ()
+        if not packet.directions or packet.directions[self.rule_number - 1] not in (-1, 1):
+            raise ScannerUnavailable("Pine native directional parity packet is missing")
+        side_code = packet.directions[self.rule_number - 1]
+        side = "long" if side_code == 1 else "short"
+        selected_plan = packet.long_plan if side_code == 1 else packet.short_plan
         plan = {
-            "version": "atc-pine-native-20261014",
+            "version": "atc-pine-native-20261017",
+            "snapshot_id": frame.snapshot_id,
+            "timeframe": frame.timeframe.value,
+            "bar_time": frame.through_bar_time.isoformat(),
+            "price_basis": frame.price_basis.value,
             "source": ATC_SCRIPT_SOURCE,
             "source_sha256": ATC_SCRIPT_SHA256,
             "status": "unavailable",
@@ -77,12 +86,12 @@ class AtcNativeSignalScanner:
             "executable_order": False,
             "scenarios": [],
         }
-        if packet.long_plan:
-            stop, tp1, tp2, tp3 = packet.long_plan
+        if selected_plan:
+            stop, tp1, tp2, tp3 = selected_plan
             plan.update(
                 status="reference",
                 scenarios=[{
-                    "side": "long", "entry": frame.bars[-1].close,
+                    "side": side, "entry": frame.bars[-1].close,
                     "stop": stop, "tp1": tp1, "tp2": tp2, "tp3": tp3,
                 }],
             )
@@ -97,10 +106,10 @@ class AtcNativeSignalScanner:
                 ruleset_hash=context.ruleset_hash,
                 kind=self.result_kind,
                 bar_time=context.bar_close_time,
-                direction=Direction.BULLISH,
+                direction=Direction.BULLISH if side_code == 1 else Direction.BEARISH,
                 metrics={
                     "atc_rule_number": self.rule_number,
-                    "source": "20261014_pine_native_packet",
+                    "source": "20261017_pine_native_packet",
                     "source_sha256": ATC_SCRIPT_SHA256,
                     "frame_bars": packet.bars,
                     "trade_plan": plan,
