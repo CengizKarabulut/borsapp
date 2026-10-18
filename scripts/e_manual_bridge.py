@@ -18,7 +18,7 @@ from hashlib import sha256
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-VERSION = "e-manual-support-context-20261018-v2"
+VERSION = "e-manual-support-context-20261018-v3"
 EXPECTED_MANUAL_BATCH_SHA256 = "e7ad01a0cf2c3ecd7aa1dda7fefdf86a25a45afd0123bf957933a987cee271c1"
 EXPECTED_RUNTIME_CODE_IDENTITY = "a97f9342eac134ea81bd0a051efcc84ddb9da2fb69562f895842ecf998171bf5"
 
@@ -194,9 +194,17 @@ def format_plan_line(item, fallback):
         and bool(scenario["profile_id"])
     )
     label = "Kalibre referans" if calibrated else "Referans"
+    distances = (abs(stop - entry) / entry * 100.0, abs(tp3 - entry) / entry * 100.0)
+    distance_line = ""
+    if all(math.isfinite(value) and value > 0 for value in distances):
+        def percentage(value):
+            rendered = f"{value:.2f}"
+            return format(value, ".4g") if len(rendered) > 11 else rendered
+        distance_line = (f" · Stop mesafesi %{percentage(distances[0])}"
+                         f" · TP3 mesafesi %{percentage(distances[1])}")
     return (
         f" | Giriş ref. {_price(entry)} · Stop {_price(stop)} · TP1 {_price(tp1)}"
-        f" · TP2 {_price(tp2)} · TP3 {_price(tp3)} · {label}"
+        f" · TP2 {_price(tp2)} · TP3 {_price(tp3)} · {label}{distance_line}"
     )
 
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
-from math import isfinite
+from math import isclose, isfinite
 from typing import NamedTuple
 
 from market_intelligence.core.enums import PriceBasis
@@ -98,6 +98,22 @@ def complete_reference_levels(plan, direction):
             else tp3 < tp2 < tp1 < entry < stop)
 
 
+def plan_distance_percentages(plan, direction):
+    """Describe the exact whole plan; never validate or resize a risk model.
+
+    Both distances are positive percentages of the SAME stored entry. They
+    are not probabilities, daily limits or expected returns. An incomplete,
+    incorrectly ordered or nonfinite plan has no publishable distance pair.
+    """
+    if not complete_reference_levels(plan, direction):
+        return None
+    distances = {
+        "stop": abs(plan.stop - plan.entry) / plan.entry * 100.0,
+        "tp3": abs(plan.tp3 - plan.entry) / plan.entry * 100.0,
+    }
+    return distances if all(isfinite(value) and value > 0 for value in distances.values()) else None
+
+
 EVALUATION_PLANS_SQL = """
 SELECT e.instrument_id::text, e.scanner_id, e.timeframe, e.bar_time,
        e.evaluation_id::text, f.direction, f.metrics, e.snapshot_id
@@ -163,6 +179,16 @@ def validate_reference_plan(metrics, *, direction: str, timeframe: str,
         return None
     if side == "short" and not (tp3 < tp2 < tp1 < entry < stop):
         return None
+    if plan.get("version") in {"structural-atr-v1", "atc-native-dual-direction-v3"}:
+        # This declared family has exact 1R/2R/3R targets. A stale/corrupt saved
+        # field must not pass just because its prices are positive and ordered.
+        # Other native Pine/calibrated families have their own ratios and are
+        # not relabelled or forced into this model.
+        sign = 1 if side == "long" else -1
+        risk = sign * (entry - stop)
+        if not all(isclose(target, entry + sign * risk * ratio, rel_tol=1e-9, abs_tol=1e-9)
+                   for ratio, target in enumerate((tp1, tp2, tp3), 1)):
+            return None
     return PlanLevels(entry, stop, tp1, tp2, tp3, basis)
 
 

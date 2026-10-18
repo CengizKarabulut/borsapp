@@ -19,7 +19,20 @@ E'nin mevcut motoru zaten bu tür tam senaryoları reddeder. E köprüsü bunu
 metinde açıklar; geçerli kalibre Stop/TP1/TP2/TP3 hesabını ve en yakın bütün
 plan seçimini korur. Stop sabittir; otomatik emir veya yeni stop taşıma yoktur.
 
+Pozitif bir hedefin uzak olması tek başına hesap hatası değildir. Kalibrasyon
+bulunmayan standart model son7mum yapısı ile ATR'den risk çıkarır; bu riskin
+1/2/3katı hedefleri uzak olabilir. Görselde `PLAN` altında Stop mesafesi,
+CSV'de ve E metninde Stop/TP3 mesafeleri giriş referansına göre yüzde olarak
+gösterilir. Bunlar aynı tam planın fiyat farklarıdır; başarı olasılığı, günlük
+fiyat limiti veya beklenen kazanç değildir. Seviyeler kırpılmaz; eksik veya
+uygulanamaz plan için bu yüzdeler üretilmez. `Kalibre referans` ve standart
+`Referans` ayrımı korunur.
+
 ## Destek ve direnç
+
+Hesabın geçmişte başarılı olup olmadığı ayrı ölçülür. İlk16hisselik deney ve
+veri sürekliliği koşulları [araştırma notunda](https://github.com/CengizKarabulut/borsapp/blob/main/docs/SUPPORT_RESISTANCE_RESEARCH.md).
+Yeni aday saklanan testte iyileşmediği için mevcut120/3 ayarı korunur.
 
 `scripts/atc_support_resistance.py`, araştırma modülünün son120mum içindeki
 3sol+3sağ teyitli pivot yöntemini taşır. En çok üç destek ve üç direnç,
