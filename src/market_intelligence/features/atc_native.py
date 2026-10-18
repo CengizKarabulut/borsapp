@@ -27,6 +27,7 @@ class NativePacketSnapshot:
     long_plan: tuple[float, ...]
     short_plan: tuple[float, ...]
     bars: int
+    directions: tuple[int, ...] = ()
 
 
 def _ema(values: list[float], period: int) -> list[float]:
@@ -184,6 +185,51 @@ def calculate_native_packet(frame: CanonicalFrame, *, requested_bars: int = 600)
         known[7] and negative_core and not (price > sma.get(200, float("inf")) and high20),
         known[8] and n >= 30 and l7 > 60 and r7cross and high10,
     )
+    # Pine 2026-10-17 f_native_legacy_snapshot: bullish flags win any
+    # simultaneous bearish flag; evaluate the same nine independent conditions.
+    macd_down = (
+        (macd[-2] >= signal[-2] and macd[-1] < signal[-1])
+        or (macd[-1] < signal[-1] and macd[-1] < macd[-2])
+    )
+    smi_down = smi_ready and (
+        (smi[-2] >= smi_signal[-2] and smi[-1] < smi_signal[-1])
+        or (smi[-1] < smi_signal[-1] and smi[-1] < smi[-2])
+    )
+    bear_core = smi_down and smi[-1] < 0 and histogram[-1] < 0 and histogram[-1] < histogram[-2]
+    bear_recovery = smi_down and smi[-1] > 0 and histogram[-1] > 0 and histogram[-1] < histogram[-2]
+    ema_down = False
+    if trend:
+        e5, e8, e13, e21, e55, e200 = (ema[p] for p in (5, 8, 13, 21, 55, 200))
+        ema_down = (
+            price < e21[-1] and price < e55[-1] and price < e200[-1]
+            and (
+                (e8[-2] >= e13[-2] and e8[-1] < e13[-1])
+                or (e8[-1] < e13[-1] and e8[-1] < e8[-2])
+            )
+            and (
+                (e5[-2] >= e8[-2] and e5[-1] < e8[-1])
+                or (e5[-1] < e8[-1] and e5[-1] < e5[-2])
+            )
+            and (
+                (e5[-2] >= e13[-2] and e5[-1] < e13[-1])
+                or (e5[-1] < e13[-1] and e5[-1] < e5[-2])
+            )
+        )
+    l14_down = (l14_prev >= 50 > l14) or (l14 < 50 and l14 < l14_prev)
+    l7_down = (l7_prev >= 50 > l7) or (l7 < 50 and l7 < l7_prev)
+    bear_flags = (
+        known[0] and r14 < 70 and macd[-1] < 0 and macd_down,
+        known[1] and n >= 200 and bear_core,
+        known[2] and bear_core and price < sma.get(200, float("-inf")) and high20,
+        known[3] and ema_down and high20,
+        known[4] and l14_down and l14 > 30 and macd_down and high20,
+        known[5] and all(price < sma[p] for p in sma) and macd[-1] < 0 and macd_down and high20 if trend else False,
+        known[6] and bear_recovery and price < sma.get(200, float("-inf")) and high20,
+        known[7] and bear_recovery and not (price < sma.get(200, float("-inf")) and high20),
+        known[8] and n >= 30 and l7 < 40 and l7_down and high10,
+    )
+    directions = tuple(1 if bull else -1 if bear else 0 for bull, bear in zip(flags, bear_flags, strict=True))
+    flags = tuple(direction != 0 for direction in directions)
     long_plan: tuple[float, ...] = ()
     short_plan: tuple[float, ...] = ()
     if n >= 15 and wseed and atr > 0:
@@ -198,7 +244,7 @@ def calculate_native_packet(frame: CanonicalFrame, *, requested_bars: int = 600)
             long_plan = candidates[0]
         if min(candidates[1]) > 0:
             short_plan = candidates[1]
-    return NativePacketSnapshot(tuple(known), tuple(bool(x) for x in flags), long_plan, short_plan, n)
+    return NativePacketSnapshot(tuple(known), tuple(bool(x) for x in flags), long_plan, short_plan, n, directions)
 
 
 class AtcNativePacketProvider:
