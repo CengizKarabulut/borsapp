@@ -36,6 +36,7 @@ from scripts.atc_saved_scan_plans import (
     complete_reference_levels,
     fmt_level,
     load_saved_trade_plans,
+    plan_distance_percentages,
 )
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
@@ -190,10 +191,19 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
             plan, "bullish" if state == "POZITIF" else "bearish",
         ) if state in ("POZITIF", "NEGATIF") else False
         draw.text(
-            (1640, top + 12),
+            (1640, top + 3),
             "UYGULANAMAZ" if model_failure else "REFERANS" if complete else "YOK",
             font=_font(14, bold=True), fill="#B83636" if model_failure else "#60748A",
         )
+        distances = plan_distance_percentages(
+            plan, "bullish" if state == "POZITIF" else "bearish",
+        ) if complete and not model_failure else None
+        if distances is not None:
+            percentage = f"{distances['stop']:.2f}"
+            if len(percentage) > 11:
+                percentage = format(distances["stop"], ".4g")
+            draw.text((1640, top + 24), "Stop %" + percentage,
+                      font=_font(12), fill="#60748A")
     shown = visible_count if visible_count is not None else matched_count
     footer = (f"Sayfa {page}/{pages} · {shown}/{matched_count} eşleşme görselde"
               if shown != matched_count else f"Sayfa {page}/{pages} · {kind} tarama")
@@ -207,6 +217,36 @@ def render_card_png(*, timeframe: str, bar_time: datetime, rows,
     output = io.BytesIO()
     img.save(output, format="PNG", optimize=True)
     return output.getvalue()
+
+
+def confirmed_match_csv(*, matches, plans, model_failures, bar_time):
+    """Render original same-evaluation prices and descriptive distances only."""
+    table = io.StringIO()
+    writer = csv.writer(table)
+    writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3",
+                     "FiyatBazi", "TeyitliMumTSI", "PlanDurumu", "PlanNedeni",
+                     "StopMesafesiYuzde", "TP3MesafesiYuzde"))
+    for symbol, number, state in matches:
+        key = symbol, number, state
+        plan = plans.get(key)
+        levels = (plan.entry, plan.stop, plan.tp1, plan.tp2, plan.tp3) if plan else (None,) * 5
+        distances = plan_distance_percentages(
+            plan, "bullish" if state == "POZITIF" else "bearish",
+        ) if state in ("POZITIF", "NEGATIF") and key not in model_failures else None
+        writer.writerow((
+            symbol, scanner_code(number), direction_display(state),
+            *(fmt_level(v, csv=True) for v in levels),
+            plan.price_basis if plan else "", bar_time.astimezone(ISTANBUL).isoformat(),
+            ("RISK_MODELI_UYGULANAMAZ" if key in model_failures
+             else "TEYITLI" if pine_plan_required(key)
+             else "YON_BELIRSIZ" if state == "ESLESME_YON_BELIRSIZ"
+             else "NOTR_PLAN_YOK" if state == "NOTR" else "AYRI_PLAN_YOK"),
+            model_failures.get(key, ""),
+            *(format(distances[field], ".8g") if distances is not None else ""
+              for field in ("stop", "tp3")),
+        ))
+    return ("\ufeff" + table.getvalue()).encode("utf-8")
+
 
 def select_verified_matches(members, evaluations, bindings, timeframe, *, now):
     tf = parse_timeframe(timeframe)
@@ -396,28 +436,9 @@ def publish_timeframe(timeframe: str, *, now=None) -> dict:
             ))
         # One 20-row PNG per page, without truncating any confirmed matches.
         # Every verified match is also kept in the full CSV in the same topic.
-        complete_table = io.StringIO()
-        writer = csv.writer(complete_table)
-        writer.writerow(("Hisse", "TaramaKodu", "Yon", "Giris", "Stop", "TP1", "TP2", "TP3", "FiyatBazi", "TeyitliMumTSI", "PlanDurumu", "PlanNedeni"))
-        for symbol, number, state in matches:
-            plan = plans.get((symbol, number, state))
-            levels = (plan.entry, plan.stop, plan.tp1, plan.tp2, plan.tp3) if plan else (None,) * 5
-            writer.writerow((
-                symbol, scanner_code(number), direction_display(state),
-                *(fmt_level(v, csv=True) for v in levels),
-                plan.price_basis if plan else "",
-                bar_time.astimezone(ISTANBUL).isoformat(),
-                (
-                    "RISK_MODELI_UYGULANAMAZ"
-                    if (symbol, number, state) in model_failures
-                    else "TEYITLI" if pine_plan_required((symbol, number, state))
-                    else "YON_BELIRSIZ" if state == "ESLESME_YON_BELIRSIZ"
-                    else "NOTR_PLAN_YOK" if state == "NOTR"
-                    else "AYRI_PLAN_YOK"
-                ),
-                model_failures.get((symbol, number, state), ""),
-            ))
-        complete_bytes = ("\ufeff" + complete_table.getvalue()).encode("utf-8")
+        complete_bytes = confirmed_match_csv(
+            matches=matches, plans=plans, model_failures=model_failures, bar_time=bar_time,
+        )
         envelopes.append(route_timeframe_image(
             settings, topic_ids, tf,
             identity={

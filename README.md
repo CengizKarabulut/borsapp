@@ -23,6 +23,8 @@ Laptop kapalıyken de çalışması isteniyorsa aynı Docker servisleri, kalıc�
 E diski üzerindeki manuel tarama ile ortak destek/direnç bileşeni, short
 Stop/TP geçersiz fiyat kontrolleri ve kaynak kimliğini koruyan güncelleme
 adımları: [GitHub–E birlikte kullanım rehberi](docs/NATIVE_E_REPO_SYNC.md).
+Destek/direnç yönteminin geçmiş tepki deneyi ve kapsam sınırları:
+[araştırma notu](docs/SUPPORT_RESISTANCE_RESEARCH.md).
 
 - Scanner veri çekmez, Telegram'a yazmaz ve sistem saatini doğrudan okumaz.
 - İndikatörler ortak feature katmanında, açık implementasyon ve warmup kimliğiyle hesaplanır.

@@ -63,6 +63,13 @@ class PersistedStopAndTargetsTests(unittest.TestCase):
             PlanLevels(100, 104, 96, 92, 88, "raw"),
         )
 
+    def test_declared_generic_model_rejects_corrupt_ordered_target_without_capping_valid_prices(self):
+        plan = saved_plan()
+        plan["scenarios"][0]["tp3"] = 100000.0
+        self.assertIsNone(self.valid(plan))
+        plan["scenarios"][0].update(stop=1.0, tp1=199.0, tp2=298.0, tp3=397.0)
+        self.assertEqual(self.valid(plan), PlanLevels(100, 1, 199, 298, 397, "raw"))
+
     def test_never_fabricate_for_incompatible_or_unavailable_plan(self):
         for direction in ("neutral", "mixed", "unknown"):
             with self.subTest(direction=direction):
