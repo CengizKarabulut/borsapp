@@ -15,7 +15,7 @@ from market_intelligence.scanning.contracts import Finding, ScanContext, Scanner
 
 ATC_SCRIPT_SOURCE = "docs/reference/ATC_USER_LATEST_20261017.pine"
 # SHA256 of the exact user-uploaded source bytes (CRLF line endings).
-ATC_SCRIPT_SHA256 = "b2a2fab8e28a369bcd88f66c5f94fd95f1580488e603f3940aa26f3c550776e1"
+ATC_SCRIPT_SHA256 = "95bd5849cd9935369fc4928215aeb07f3b2738e526a0bbb435b348cd8a0dae20"
 ATC_NATIVE_SIGNAL_IDS = (
     "signal.macd_positive_cross",
     "signal.smi_macd_positive",
@@ -115,7 +115,7 @@ class AtcNativeSignalScanner:
                     "trade_plan": plan,
                 },
                 evidence=(
-                    "ATC kullanıcı Pine f_native_legacy_snapshot A–I alarm paketi.",
+                    "17 Ekim orijinal Pine f_native_legacy_snapshot A–I çift yön alarm paketi.",
                     "Bütün 1–9 kuralları aynı 600 mumluk fiyat geçmişiyle hesaplandı.",
                     "TradingView/Python aynı-feed bağımsız sayısal eşitlik doğrulaması bekliyor.",
                 ),
