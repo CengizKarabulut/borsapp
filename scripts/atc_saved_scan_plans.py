@@ -15,7 +15,8 @@ from market_intelligence.core.enums import PriceBasis
 from market_intelligence.core.timeframes import parse_timeframe
 from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
 from market_intelligence.scanning.display_codes import SCANNER_ORDER
-from market_intelligence.scanning.trade_plan import build_pine_a_i_plan, build_trade_plan
+from market_intelligence.scanning.trade_plan import build_trade_plan
+from market_intelligence.features.atc_native import calculate_native_packet
 
 
 class PlanLevels(NamedTuple):
@@ -124,7 +125,7 @@ def plan_from_stored_rows(rows, *, members, evaluations, matches, timeframe, bar
         # The user's Pine model exposes standalone A-I bullish plans and
         # generic 10-16 directional plans. Rules 17/18 do not own a valid
         # standalone stop/target family and must never borrow an unrelated one.
-        if number >= 17 or (number <= 9 and state != "POZITIF"):
+        if number >= 17:
             continue
         saved = validate_reference_plan(
             metrics, direction=direction, timeframe=timeframe, close=bar_time,
@@ -164,10 +165,11 @@ ORDER BY close_time ASC
 
 
 def reconstruct_pine_plan(frame: CanonicalFrame, scanner_id: str, direction: str):
-    """Use only original confirmed OHLCV frame, never an unrelated market quote.
+    """Recreate the alarm's active native 1-9 / generic 10-16 levels.
 
-    A-I use the owner's f_plan; 10-16 use the original Python/Pine generic
-    swing7+ATR directional formula. 17/18 and non-directional return None.
+    Last uploaded Pine f_atc_best_plan selects nativePlans for A-I, NOT
+    the unrelated chart-only f_plan calls. Both directions are supported.
+    No synthetic positive floor is applied.
     """
     if frame.is_partial or direction not in ("bullish", "bearish"):
         return None
@@ -175,9 +177,28 @@ def reconstruct_pine_plan(frame: CanonicalFrame, scanner_id: str, direction: str
         return None
     number = SCANNER_ORDER.index(scanner_id) + 1
     if number <= 9:
-        if direction != "bullish":
+        native = calculate_native_packet(frame)
+        if native is None or not native.directions:
             return None
-        raw = build_pine_a_i_plan(frame, scanner_id, direction)
+        expected = 1 if direction == "bullish" else -1
+        if native.directions[number - 1] != expected:
+            return None
+        levels = native.long_plan if expected == 1 else native.short_plan
+        if not levels:
+            return None
+        stop, tp1, tp2, tp3 = levels
+        raw = {
+            "status": "reference",
+            "snapshot_id": frame.snapshot_id,
+            "timeframe": frame.timeframe.value,
+            "bar_time": frame.through_bar_time.isoformat(),
+            "price_basis": frame.price_basis.value,
+            "scenarios": [{
+                "side": "long" if expected == 1 else "short",
+                "entry": frame.bars[-1].close,
+                "stop": stop, "tp1": tp1, "tp2": tp2, "tp3": tp3,
+            }],
+        }
     else:
         raw = build_trade_plan(frame, direction)
     return validate_reference_plan(
@@ -275,7 +296,7 @@ def load_saved_trade_plans(
                 continue
             # 17/18 and A-I SHORT do not own standalone reference plans in
             # the owner's Pine code. These are N/A, NOT missing plan data.
-            if number > 16 or (number <= 9 and state != "POZITIF"):
+            if number > 16:
                 continue
             # Cache by complete data snapshot identity; scanner-specific plans
             # can reuse bars for the same exact saved series.
@@ -297,7 +318,7 @@ def load_saved_trade_plans(
             else:
                 stats["unsupported_or_invalid_plan"] += 1
                 original_plan = (
-                    build_pine_a_i_plan(frame, scanner, direction)
+                    {"status": "unavailable", "reason": "native_packet_no_valid_side"}
                     if number <= 9 else build_trade_plan(frame, direction)
                 )
                 reason = original_plan.get("reason", "unknown")
@@ -313,7 +334,7 @@ def load_saved_trade_plans(
                 # negative original stop, cannot become a legal price order.
                 # Flag it explicitly without altering Pine risk or inventing TP.
                 if (direction == "bearish" and reason == "nonpositive_level"
-                        or direction == "bullish" and reason == "invalid_stop_or_target"):
+                        or direction == "bullish" and reason == "native_packet_no_valid_side"):
                     model_failures[key] = reason
     stats["persisted_valid"] = sum(v is not None for v in saved.values()) - stats["reconstructed_exact_snapshot"]
     stats["match_rows"] = len(matches)
