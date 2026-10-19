@@ -16,6 +16,18 @@ ISTANBUL = ZoneInfo("Europe/Istanbul")
 
 
 class AtcTelegramBriefingTests(unittest.TestCase):
+    def test_classic_levels_reject_nonpositive_geometry_without_clamping(self):
+        for values in ((100, 1, 1), (100, 1, 50), (4, 1, 1)):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                pivot_levels(*values)
+
+    def test_classic_levels_reject_nonfinite_and_nonprice_inputs(self):
+        for values in ((float('inf'), 1, 1), (10, float('nan'), 5),
+                       (10, 1, float('inf')), (True, 1, 1),
+                       (10, 0, 5), (1e308, 1e308, 1e308)):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                pivot_levels(*values)
+
     def test_pivot_uses_previous_high_low_close(self):
         s1, s2, pivot, r1, r2 = pivot_levels(110, 90, 100)
         self.assertEqual((s2, s1, pivot, r1, r2), (80, 90, 100, 110, 120))
