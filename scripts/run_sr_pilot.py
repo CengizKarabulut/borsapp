@@ -28,6 +28,14 @@ SYMBOLS = (
 )
 IST = ZoneInfo('Europe/Istanbul')
 BASELINE = 'lb120-w3'
+CAPTURE_SOURCE = 'borsapy-tradingview-adjust-true-0.11.0-v2'
+CAPTURE_METHOD = 'pinned-sdk-history-explicit-start-v2'
+CAPTURE_CONTRACT = 'pinned-sdk-adjust-true-auto-adjust-false-v2'
+FEED_CONTRACT = {
+    'price_basis': 'split_adjusted', 'sdk_version': '0.11.0',
+    'provider': 'borsapy', 'adjustment': 'splits', 'method': CAPTURE_CONTRACT,
+    'history_parameters': {'adjust': True, 'auto_adjust': False, 'actions': False},
+}
 
 
 def digest(path):
@@ -38,30 +46,59 @@ def read_json(path):
     return json.loads(Path(path).read_text(encoding='utf-8-sig'))
 
 
-def load_store(root):
-    """Use the actual installed immutable object reader without mkdir/init."""
+def load_store(root, *, corrected=False):
+    """Use the actual installed immutable object reader without mkdir/init.
+
+    The legacy directory remains available to the read-only continuity forensic
+    audit. New outcome studies must explicitly request the corrected directory.
+    """
     path = root / 'src/market_intelligence/research/history_store.py'
     spec = importlib.util.spec_from_file_location('sr_pilot_installed_history_store', path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     store = module.HistoryStore.__new__(module.HistoryStore)
-    store.directory = root / 'results/exit-research/history'
+    relative = ('results/exit-research-adjusted-v2/history' if corrected
+                else 'results/exit-research/history')
+    store.directory = root / relative
     store.objects = store.directory / 'objects'
     return store, {'file': str(path), 'sha256': digest(path)}
 
 
 def select_reference(manifest, symbol, vintage):
-    references = [request['reference'] for request in manifest['requests'].values()
+    references = [request['reference'] for key, request in manifest['requests'].items()
                   if request.get('status') == 'completed' and request.get('symbol') == symbol
                   and request.get('interval') == '1d' and request.get('vintage') == vintage
-                  and request.get('reference', {}).get('source') == 'borsapy-tradingview-0.11.0'
+                  and key.endswith(':contract-' + CAPTURE_CONTRACT + ':vintage-' + vintage)
+                  and request.get('reference', {}).get('source') == CAPTURE_SOURCE
                   and request.get('reference', {}).get('adjustment') == 'splits']
     if not references:
         raise ValueError('verified_daily_vintage_unavailable:' + symbol)
     # Within a fixed vintage choose the longest independently hash-verified
     # capture, without splicing sources or silently taking legacy raw data.
     return max(references, key=lambda ref: (ref['row_count'], ref['last_bar'], ref['sha256']))
+
+
+def validate_dataset_contract(dataset):
+    """The old split label alone cannot authorize a new outcome study."""
+    metadata = dataset.metadata
+    provenance = metadata.get('provenance', {})
+    try:
+        actual = json.dumps(provenance.get('feed_contract'), sort_keys=True,
+                            separators=(',', ':'), allow_nan=False)
+        expected = json.dumps(FEED_CONTRACT, sort_keys=True, separators=(',', ':'))
+        valid = (dataset.source == metadata.get('source') == dataset.reference.get('source') == CAPTURE_SOURCE
+                 and dataset.adjustment == metadata.get('adjustment') == 'splits'
+                 and metadata.get('sdk_version') == '0.11.0'
+                 and metadata.get('closed_only') is True
+                 and provenance.get('method') == CAPTURE_METHOD
+                 and provenance.get('series_adjustment') == 'splits'
+                 and provenance.get('network_request') is True
+                 and actual == expected)
+    except (TypeError, ValueError):
+        valid = False
+    if not valid:
+        raise ValueError('corrected_v2_history_contract_required')
 
 
 def protect_state(root):
@@ -110,7 +147,8 @@ def select_on_validation(rows, baseline=BASELINE):
 
 def output_directory(path, root):
     output = Path(path).resolve()
-    forbidden = [root / name for name in ('src', 'config', 'tools', 'results/exit-research')]
+    forbidden = [root / name for name in ('src', 'config', 'tools', 'results/exit-research',
+                                         'results/exit-research-adjusted-v2')]
     if any(output == base or output.is_relative_to(base) for base in forbidden):
         raise ValueError('output_must_not_overlap_protected_runtime_or_existing_research')
     output.mkdir(parents=True, exist_ok=False)
@@ -126,17 +164,19 @@ def write_csv(path, rows):
         writer.writerows(rows)
 
 
-def run(root, output, *, vintage='2026-10-15', symbols=SYMBOLS):
+def run(root, output, *, vintage='2026-10-19', symbols=SYMBOLS):
     root = Path(root).resolve(strict=True)
-    store, reader = load_store(root)
+    store, reader = load_store(root, corrected=True)
     before = protect_state(root)
     manifest_path = store.directory / 'manifest.json'
     manifest = read_json(manifest_path)
     output = output_directory(output, root)
     protocol = Protocol()
     protocol_record = {
-        'schema': 'sr-pilot-prespecified-v1', 'created_at': datetime.now(UTC).isoformat(),
+        'schema': 'sr-pilot-prespecified-v2', 'created_at': datetime.now(UTC).isoformat(),
         'symbols': list(symbols), 'vintage': vintage, 'timeframe': '1d',
+        'history_source': CAPTURE_SOURCE, 'feed_contract': FEED_CONTRACT,
+        'legacy_capture_contract_allowed': False,
         'configs': [config.id for config in CONFIGS], 'baseline': BASELINE,
         'common_warmup': 252, 'anchor_stride': 21, 'first_contact_window_bars': 10,
         'reaction_window_after_contact_bars': 10, 'target_atr': 1.0, 'break_atr': 0.5,
@@ -161,8 +201,7 @@ def run(root, output, *, vintage='2026-10-15', symbols=SYMBOLS):
             path = store.directory / reference['path']
             object_sha = digest(path)
             dataset = store.load(reference)
-            if not dataset.metadata.get('closed_only') or dataset.adjustment != 'splits':
-                raise ValueError('closed_split_history_required')
+            validate_dataset_contract(dataset)
             bars = []
             for row in dataset.rows:
                 stamp = datetime.fromisoformat(row['timestamp']).astimezone(IST)
@@ -190,7 +229,7 @@ def run(root, output, *, vintage='2026-10-15', symbols=SYMBOLS):
     if after != before or any(digest(path) != value for path, value in source_objects.items()):
         raise ValueError('protected_input_or_runtime_changed_during_pilot')
     report = {
-        'schema': 'sr-pilot-result-v1', 'created_at': datetime.now(UTC).isoformat(),
+        'schema': 'sr-pilot-result-v2', 'created_at': datetime.now(UTC).isoformat(),
         'protocol': protocol_record, 'protocol_sha256': digest(protocol_path),
         'history_manifest_sha256': digest(manifest_path), 'history_reader': reader,
         'evaluation_code_sha256': digest(Path(__file__).with_name('atc_sr_evaluation.py')),
@@ -224,7 +263,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--vintage', default='2026-10-15')
+    parser.add_argument('--vintage', default='2026-10-19')
     args = parser.parse_args()
     if os.name == 'nt':
         import ctypes

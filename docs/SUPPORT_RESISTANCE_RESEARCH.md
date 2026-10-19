@@ -1,5 +1,15 @@
 # Destek/direnç: hesap doğruluğu ve geçmiş tepki ölçümü
 
+**19 Ekim veri düzeltmesi:** Aşağıdaki 18 Ekim pilotu, eski E adaptörünün
+`adjust=False` kullanarak bölünme düzeltmesini geri açtığı bir arşive dayanır.
+Dosya hashleri doğrudur; ekonomik fiyat esası etiketi doğru değildir. Bu yüzden
+pilotun sayısal sonuçları doğrulanmış ekonomik başarı veya bir yöntemin üstünlük
+kanıtı sayılmaz. Eski veriler ve sonuçlar değiştirilmeyip denetim için korunur.
+Yeni deneyler ayrı v2 arşivinden, gerçek istek parametreleri doğrulanarak yapılır.
+İncelenmiş 16 hissenin test dönemi yeniden temiz saklı test kabul edilmez.
+Yeni sabit aday ve birincil akademik kaynaklar
+[bölge araştırması notunda](SUPPORT_RESISTANCE_ZONE_RESEARCH.md) açıklanmıştır.
+
 Mevcut üretim hesabı 120 kapanmış mumda 3 sol + 3 sağ teyitli pivotları kullanır.
 Fiyatın altında/üstünde en yakın üç farklı seviye seçilir. Sabit yüzde1 ayırma,
 ikinci/üçüncü seviyeleri etkiler; yalnız en yakın seviyeyi ölçen deney bunun

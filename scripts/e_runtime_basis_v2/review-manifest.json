@@ -1,0 +1,48 @@
+{
+  "asset_kind": "frozen-compatibility-source-text-not-imported-upstream",
+  "capture_method": "pinned-sdk-history-explicit-start-v2",
+  "capture_source": "borsapy-tradingview-adjust-true-0.11.0-v2",
+  "feed_contract": {
+    "adjustment": "splits",
+    "history_parameters": {
+      "actions": false,
+      "adjust": true,
+      "auto_adjust": false
+    },
+    "method": "pinned-sdk-adjust-true-auto-adjust-false-v2",
+    "price_basis": "split_adjusted",
+    "provider": "borsapy",
+    "sdk_version": "0.11.0"
+  },
+  "files": {
+    "src/market_intelligence/native/market_data.py": {
+      "before_sha256": "053f6ced5a522e57ccf3880f5a2391764f21a367b0b07a78fd7df52a04006d9f",
+      "after_sha256": "f8132ad230667f156027874912d58e94fce2bfd873d18ae00ed4691fece7f6d6",
+      "asset": "market_data.py.txt"
+    },
+    "src/market_intelligence/research/history_store.py": {
+      "before_sha256": "4802312fd9bb53e2c86f689534909234ce900ff1a1faf689327857310561252b",
+      "after_sha256": "2936c48765258e45e2c995863e74442e496d1d02cffa32e22aef6bc5293961cb",
+      "asset": "history_store.py.txt"
+    }
+  },
+  "format": "atc-frozen-e-runtime-basis-v2-review",
+  "migration": {
+    "calibration_must_be_disabled": true,
+    "corrected_history_requires_separate_store": true,
+    "event_by_event_validation_claimed": false,
+    "legacy_cache_namespace_retained": true,
+    "legacy_history_objects_not_retagged": true,
+    "legacy_profile_bundle_unchanged": true,
+    "live_history_overlap_revision_requires_full_bootstrap": true
+  },
+  "offline_tests": {
+    "failed": 0,
+    "passed": 14,
+    "scope": "actual SDK semantics, v1 cache isolation, exact typed v2 provenance, failed refresh preservation, closed overlap revision, actual capture contract and resume"
+  },
+  "schema": 1,
+  "supported_sdk_version": "0.11.0",
+  "before_runtime_identity": "a97f9342eac134ea81bd0a051efcc84ddb9da2fb69562f895842ecf998171bf5",
+  "after_runtime_identity": "8ad6dfa91f5c6017d59e58a80cb6a0a1e51c7816f18100d7d8bbbb12f7e8b8c9"
+}

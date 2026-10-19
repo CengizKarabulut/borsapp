@@ -72,7 +72,8 @@ def preflight(root):
             raise ValueError('active_profile_outside_install_root') from None
     bundle = owned(root, configured)
     bundle_sha = digest(bundle)
-    if (settings.get('calibrated_exit_profiles_enabled') is not True
+    enabled = settings.get('calibrated_exit_profiles_enabled')
+    if (type(enabled) is not bool
             or bundle.with_suffix('.sha256').read_text().strip() != bundle_sha):
         raise ValueError('active_profile_receipt_changed')
     wrapper = owned(root, 'tools/manual_stop_tp.py')
@@ -86,6 +87,7 @@ def preflight(root):
     if 'tools\\manual_stop_tp.py" --root' not in (root / 'Tarama-Gonder.bat').read_text(encoding='utf-8-sig'):
         raise ValueError('manual_batch_entrypoint_changed')
     return {'runtime_identity': identity, 'config_sha256': digest(root / 'config.json'),
+            'calibration_enabled': enabled,
             'profile_bundle_path': str(bundle.relative_to(root)), 'profile_bundle_sha256': bundle_sha}
 
 

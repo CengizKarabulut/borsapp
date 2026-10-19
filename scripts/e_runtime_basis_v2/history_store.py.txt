@@ -1,0 +1,382 @@
+"""Separate, resumable public OHLCV research inputs. Never writes live caches.
+
+The injected fetcher owns authentication/network policy. This store requests a
+very early boundary but never claims that a provider has exhausted its history.
+Legacy unknown-adjustment inputs and SDK split-adjusted inputs remain separate.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+import gzip
+import hashlib
+import json
+import math
+from pathlib import Path
+import re
+import sqlite3
+from zoneinfo import ZoneInfo
+
+SDK_VERSION = "0.11.0"
+CAPTURE_METHOD = "pinned-sdk-history-explicit-start-v2"
+CAPTURE_SOURCE = "borsapy-tradingview-adjust-true-0.11.0-v2"
+CAPTURE_CONTRACT = "pinned-sdk-adjust-true-auto-adjust-false-v2"
+SCHEMA = 1
+MAX_ROWS = 250_000
+MAX_BYTES = 64 * 1024 * 1024
+_SYMBOL = re.compile(r"^[A-Z][A-Z0-9.]{1,15}$")
+_SOURCE = re.compile(r"^[A-Za-z0-9_.:/-]{1,120}$")
+_DIGEST = re.compile(r"^[0-9a-f]{64}$")
+_INTERVALS = ("1h", "1d")
+_ZONE = ZoneInfo("Europe/Istanbul")
+
+
+class HistoryStoreError(ValueError):
+    """Only fixed public codes are surfaced; provider exception text is private."""
+
+
+def _canonical(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+
+
+def _aware(value):
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            raise HistoryStoreError("invalid_timestamp") from None
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise HistoryStoreError("invalid_timestamp")
+    return value.astimezone(timezone.utc)
+
+
+def _identity(symbol, interval):
+    if not isinstance(symbol, str) or not _SYMBOL.fullmatch(symbol) or interval not in _INTERVALS:
+        raise HistoryStoreError("invalid_history_identity")
+
+
+def _capture_contract(data):
+    """Validate the actual fetch result, not merely an installed SDK version."""
+    from market_intelligence.native.market_data import _verified_split_provenance
+    attrs = getattr(data, "attrs", None)
+    if not isinstance(attrs, dict):
+        raise HistoryStoreError("unproven_history_adjustment_v2")
+    value = _verified_split_provenance(attrs.get("atc_price_provenance"))
+    if value is None or value.get("method") != CAPTURE_CONTRACT:
+        raise HistoryStoreError("unproven_history_adjustment_v2")
+    return value
+
+
+def _is_current_capture(dataset):
+    metadata = dataset.metadata
+    provenance = metadata.get("provenance", {})
+    if (metadata.get("source") != CAPTURE_SOURCE
+            or metadata.get("adjustment") != "splits"
+            or metadata.get("sdk_version") != SDK_VERSION
+            or provenance.get("method") != CAPTURE_METHOD
+            or provenance.get("series_adjustment") != "splits"
+            or provenance.get("network_request") is not True):
+        return False
+    from market_intelligence.native.market_data import _verified_split_provenance
+    value = _verified_split_provenance(provenance.get("feed_contract"))
+    return value is not None and value.get("method") == CAPTURE_CONTRACT
+
+
+def _closed(stamp, interval, observed):
+    if interval == "1h":
+        return stamp + timedelta(hours=1) <= observed
+    # Daily provider timestamps can be midnight or 09:00 local. The complete
+    # BIST regular session is observable only after 18:00 local on that date.
+    local = stamp.astimezone(_ZONE)
+    close = local.replace(hour=18, minute=0, second=0, microsecond=0)
+    return close <= observed
+
+
+def _rows(values, interval, observed):
+    if hasattr(values, "iterrows"):
+        lookup = {str(c).lower(): c for c in values.columns}
+        if not all(k in lookup for k in ("open", "high", "low", "close", "volume")):
+            raise HistoryStoreError("invalid_history_columns")
+        values = [{"timestamp": stamp.isoformat(), **{k: row[lookup[k]] for k in ("open", "high", "low", "close", "volume")}}
+                  for stamp, row in values.iterrows()]
+    if not isinstance(values, (list, tuple)) or not 1 <= len(values) <= MAX_ROWS:
+        raise HistoryStoreError("invalid_history_rows")
+    unique, duplicates, removed = {}, 0, 0
+    for row in values:
+        if not isinstance(row, dict) or set(row) != {"timestamp", "open", "high", "low", "close", "volume"}:
+            raise HistoryStoreError("invalid_history_row_schema")
+        stamp = _aware(row["timestamp"])
+        if stamp > observed:
+            raise HistoryStoreError("future_history_row")
+        clean = {"timestamp": stamp.isoformat()}
+        for key in ("open", "high", "low", "close", "volume"):
+            value = row[key]
+            # numpy scalars from SDK dataframes are accepted via float, boolean
+            # fields and null/NaN are never accepted as observed market data.
+            if value is None or isinstance(value, (bool, str)):
+                raise HistoryStoreError("invalid_history_number")
+            try:
+                value = float(value)
+            except (TypeError, ValueError, OverflowError):
+                raise HistoryStoreError("invalid_history_number") from None
+            if not math.isfinite(value) or value < 0 or (key != "volume" and value == 0):
+                raise HistoryStoreError("invalid_history_number")
+            clean[key] = value
+        if not clean["low"] <= min(clean["open"], clean["close"]) <= max(clean["open"], clean["close"]) <= clean["high"]:
+            raise HistoryStoreError("invalid_history_ohlc")
+        key = clean["timestamp"]
+        if key in unique:
+            if unique[key] != clean:
+                raise HistoryStoreError("conflicting_duplicate_history_row")
+            duplicates += 1
+        unique[key] = clean
+    result = []
+    for key in sorted(unique):
+        row = unique[key]
+        if _closed(_aware(key), interval, observed):
+            result.append(row)
+        else:
+            removed += 1
+    if not result:
+        raise HistoryStoreError("no_closed_history_rows")
+    return result, duplicates, removed
+
+
+@dataclass(frozen=True)
+class HistoryDataset:
+    symbol: str
+    interval: str
+    adjustment: str
+    source: str
+    rows: tuple[dict, ...]
+    metadata: dict
+    reference: dict
+
+
+class HistoryStore:
+    """Research-only store with immutable content hashes and resumable requests.
+
+    capture fetcher signature: fetcher(symbol, interval, aware_start_datetime).
+    Results contain status, fixed code on failure and a reference on success.
+    Successful capture is reused only after its object hash/schema revalidate.
+    A failed or interrupted request is retryable on the next invocation.
+    """
+    def __init__(self, directory):
+        self.directory = Path(directory).absolute()
+        if self.directory.is_symlink() or (hasattr(self.directory, "is_junction") and self.directory.is_junction()):
+            raise HistoryStoreError("unsafe_history_store")
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.objects = self.directory / "objects"
+        if self.objects.is_symlink() or (hasattr(self.objects, "is_junction") and self.objects.is_junction()):
+            raise HistoryStoreError("unsafe_history_store")
+        self.objects.mkdir(exist_ok=True)
+        self.manifest_path = self.directory / "manifest.json"
+        if self.manifest_path.is_symlink():
+            raise HistoryStoreError("unsafe_history_store")
+        if self.manifest_path.exists():
+            try:
+                self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                raise HistoryStoreError("invalid_history_manifest") from None
+            if not isinstance(self.manifest, dict) or type(self.manifest.get("schema")) is not int or self.manifest.get("schema") != SCHEMA or self.manifest.get("format") != "research-history-manifest-v1" or not isinstance(self.manifest.get("requests"), dict) or not isinstance(self.manifest.get("histories"), list):
+                raise HistoryStoreError("invalid_history_manifest")
+        else:
+            self.manifest = {"schema": SCHEMA, "format": "research-history-manifest-v1", "requests": {}, "histories": []}
+
+    def _save(self):
+        temporary = self.manifest_path.with_name("manifest.tmp")
+        if temporary.is_symlink():
+            raise HistoryStoreError("unsafe_history_store")
+        temporary.write_bytes(_canonical(self.manifest))
+        temporary.replace(self.manifest_path)
+
+    def put(self, symbol, interval, rows, *, source, adjustment, received_at, provenance,
+            requested_start=None, sdk_version=None):
+        _identity(symbol, interval)
+        observed = _aware(received_at)
+        if not isinstance(source, str) or not _SOURCE.fullmatch(source) or adjustment not in ("unknown", "splits"):
+            raise HistoryStoreError("invalid_history_provenance")
+        if not isinstance(provenance, dict) or not provenance:
+            raise HistoryStoreError("invalid_history_provenance")
+        # Data from a different SDK cannot silently inherit pinned source claims.
+        if sdk_version is not None and sdk_version != SDK_VERSION:
+            raise HistoryStoreError("unsupported_history_sdk_version")
+        if adjustment == "splits" and not (sdk_version == SDK_VERSION or provenance.get("series_adjustment") == "splits"):
+            raise HistoryStoreError("unproven_history_adjustment")
+        clean, duplicates, removed = _rows(rows, interval, observed)
+        metadata = {"symbol": symbol, "interval": interval, "source": source, "adjustment": adjustment,
+                    "received_at": observed.isoformat(), "requested_start": _aware(requested_start).isoformat() if requested_start else None,
+                    "sdk_version": sdk_version, "row_count": len(clean), "first_bar": clean[0]["timestamp"],
+                    "last_bar": clean[-1]["timestamp"], "duplicate_rows_removed": duplicates,
+                    "open_rows_removed": removed, "closed_only": True, "history_exhaustion": "unproven",
+                    "provenance": provenance}
+        document = {"schema": SCHEMA, "format": "research-history-v1", "metadata": metadata, "rows": clean}
+        raw = _canonical(document)
+        if len(raw) > MAX_BYTES:
+            raise HistoryStoreError("history_object_too_large")
+        digest = hashlib.sha256(raw).hexdigest()
+        reference = {"sha256": digest, "path": "objects/" + digest + ".json.gz", "symbol": symbol,
+                     "interval": interval, "adjustment": adjustment, "source": source,
+                     "row_count": len(clean), "first_bar": clean[0]["timestamp"], "last_bar": clean[-1]["timestamp"]}
+        path = self.objects / (digest + ".json.gz")
+        if path.exists():
+            self.load(reference)
+        else:
+            with path.open("xb") as handle:
+                handle.write(gzip.compress(raw, compresslevel=6, mtime=0))
+        if not any(r.get("sha256") == digest for r in self.manifest["histories"]):
+            self.manifest["histories"].append(reference)
+            self._save()
+        return reference
+
+    def load(self, reference):
+        digest = reference.get("sha256") if isinstance(reference, dict) else None
+        if not isinstance(digest, str) or not _DIGEST.fullmatch(digest) or reference.get("path") != "objects/" + digest + ".json.gz":
+            raise HistoryStoreError("invalid_history_reference")
+        path = self.objects / (digest + ".json.gz")
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_BYTES:
+            raise HistoryStoreError("invalid_history_object")
+        try:
+            with gzip.open(path, "rb") as handle:
+                raw = handle.read(MAX_BYTES + 1)
+            if len(raw) > MAX_BYTES or hashlib.sha256(raw).hexdigest() != digest:
+                raise HistoryStoreError("history_hash_mismatch")
+            document = json.loads(raw)
+            if not isinstance(document, dict) or type(document.get("schema")) is not int or document.get("schema") != SCHEMA or document.get("format") != "research-history-v1":
+                raise HistoryStoreError("invalid_history_object_schema")
+            meta = document["metadata"]
+            _identity(meta["symbol"], meta["interval"])
+            clean, duplicates, removed = _rows(document["rows"], meta["interval"], _aware(meta["received_at"]))
+            if duplicates or removed or meta.get("closed_only") is not True or meta.get("history_exhaustion") != "unproven" or type(meta.get("row_count")) is not int:
+                raise HistoryStoreError("invalid_history_object_metadata")
+            if meta.get("adjustment") not in ("unknown", "splits") or meta.get("sdk_version") not in (None, SDK_VERSION) or not isinstance(meta.get("provenance"), dict) or not meta.get("provenance") or not isinstance(meta.get("source"), str) or not _SOURCE.fullmatch(meta["source"]):
+                raise HistoryStoreError("invalid_history_provenance")
+            if meta["adjustment"] == "splits" and not (meta.get("sdk_version") == SDK_VERSION or meta["provenance"].get("series_adjustment") == "splits"):
+                raise HistoryStoreError("unproven_history_adjustment")
+            for key in ("symbol", "interval", "source", "adjustment", "row_count", "first_bar", "last_bar"):
+                if reference.get(key) != meta.get(key):
+                    raise HistoryStoreError("history_reference_mismatch")
+            if len(clean) != meta["row_count"] or clean[0]["timestamp"] != meta["first_bar"] or clean[-1]["timestamp"] != meta["last_bar"]:
+                raise HistoryStoreError("invalid_history_object_metadata")
+            return HistoryDataset(meta["symbol"], meta["interval"], meta["adjustment"], meta["source"], tuple(clean), meta, dict(reference))
+        except HistoryStoreError:
+            raise
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, EOFError):
+            raise HistoryStoreError("invalid_history_object") from None
+
+    def best(self, symbol, interval, adjustment="splits"):
+        _identity(symbol, interval)
+        if adjustment not in ("unknown", "splits"):
+            raise HistoryStoreError("invalid_history_provenance")
+        candidates = [r for r in self.manifest["histories"] if r.get("symbol") == symbol and r.get("interval") == interval and r.get("adjustment") == adjustment]
+        # Most complete single source only. Never concatenate overlapping data,
+        # providers or incompatible adjustment bases to manufacture more history.
+        candidates.sort(key=lambda r: (-r["row_count"], r["first_bar"], -_aware(r["last_bar"]).timestamp()))
+        return self.load(candidates[0]) if candidates else None
+
+    def capture(self, symbol, interval, fetcher, *, requested_start="1985-01-01", as_of=None,
+                retry_failed=True, vintage=None, force_refresh=False):
+        _identity(symbol, interval)
+        start = _aware(requested_start + "T00:00:00+00:00" if len(requested_start) == 10 else requested_start)
+        # The same vintage resumes successfully; a new UTC day fetches fresh
+        # history. Explicit vintage supports a stable externally managed run.
+        if vintage is None:
+            vintage = _aware(as_of or datetime.now(timezone.utc)).date().isoformat()
+        if not isinstance(vintage, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", vintage):
+            raise HistoryStoreError("invalid_history_vintage")
+        try:
+            datetime.strptime(vintage, "%Y-%m-%d")
+        except ValueError:
+            raise HistoryStoreError("invalid_history_vintage") from None
+        if type(force_refresh) is not bool:
+            raise HistoryStoreError("invalid_history_refresh")
+        # The nominal-price v1 captures keep their old immutable objects/keys.
+        # They cannot be resumed as corrected split-adjusted v2 observations.
+        key = (symbol + ":" + interval + ":" + start.date().isoformat()
+               + ":sdk-" + SDK_VERSION + ":contract-" + CAPTURE_CONTRACT + ":vintage-" + vintage)
+        previous = self.manifest["requests"].get(key)
+        if previous and previous.get("status") == "completed" and not force_refresh:
+            dataset = self.load(previous["reference"])
+            if _is_current_capture(dataset):
+                return {**previous, "reused": True}
+        if previous and previous.get("status") in ("failed", "paused") and not retry_failed and not force_refresh:
+            return {**previous, "reused": True}
+        self.manifest["requests"][key] = {"status": "running", "symbol": symbol, "interval": interval, "requested_start": start.isoformat(), "vintage": vintage}
+        self._save()
+        try:
+            values = fetcher(symbol, interval, start)
+            feed_contract = _capture_contract(values)
+            received = _aware(as_of or datetime.now(timezone.utc))
+            reference = self.put(symbol, interval, values, source=CAPTURE_SOURCE, adjustment="splits", received_at=received,
+                                 sdk_version=SDK_VERSION, requested_start=start,
+                                 provenance={"method": CAPTURE_METHOD, "series_adjustment": "splits",
+                                             "feed_contract": feed_contract,
+                                             "network_request": True,
+                                             "corporate_action_validation": "request_contract_not_event_by_event"})
+            result = {"status": "completed", "symbol": symbol, "interval": interval, "reference": reference,
+                      "history_exhaustion": "unproven", "vintage": vintage, "reused": False}
+        except KeyboardInterrupt:
+            self.manifest["requests"][key] = {"status": "paused", "symbol": symbol, "interval": interval, "code": "history_capture_interrupted", "vintage": vintage}
+            self._save()
+            raise
+        except Exception as exc:
+            result = {"status": "failed", "symbol": symbol, "interval": interval,
+                      "code": str(exc) if isinstance(exc, HistoryStoreError) else "history_provider_failed", "vintage": vintage, "reused": False}
+        self.manifest["requests"][key] = result
+        self._save()
+        return result
+
+    def import_native_cache(self, path, symbols=None):
+        selected = set(symbols) if symbols is not None else None
+        results = []
+        for file in sorted(Path(path).glob("*.json")):
+            try:
+                raw = file.read_bytes()
+                doc = json.loads(raw.decode("utf-8-sig"))
+                symbol = str(doc.get("symbol", "")).removesuffix(".IS").removesuffix(".E")
+                interval = doc.get("interval")
+                if interval not in _INTERVALS or (selected is not None and symbol not in selected):
+                    continue
+                if type(doc.get("schema")) is not int or doc.get("schema") != 1 or doc.get("provider") not in ("borsapy", "yfinance"):
+                    raise HistoryStoreError("unsupported_native_cache_schema")
+                reference = self.put(symbol, interval, doc["rows"], source="legacy-" + doc["provider"], adjustment="unknown", received_at=doc["received_at"],
+                                     provenance={"method": "legacy-native-cache-read-only", "source_sha256": hashlib.sha256(raw).hexdigest(),
+                                                 "source_filename": file.name, "adjustment_not_recorded": True})
+                results.append({"status": "completed", "reference": reference})
+            except Exception as exc:
+                results.append({"status": "failed", "source_filename": file.name, "code": str(exc) if isinstance(exc, HistoryStoreError) else "native_history_import_failed"})
+        return results
+
+    def import_sqlite(self, path, symbols=None, intervals=("1h", "1d")):
+        selected = set(symbols) if symbols is not None else None
+        result = []
+        path = Path(path).resolve(strict=True)
+        con = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+        con.execute("PRAGMA query_only=ON")
+        con.execute("BEGIN")
+        try:
+            series = con.execute("SELECT id,feed,symbol,timeframe,adjustment,session,observed_us FROM series ORDER BY symbol,timeframe,id").fetchall()
+            for sid, feed, symbol, interval, adjustment, session, observed in series:
+                if interval not in intervals or interval not in _INTERVALS or (selected is not None and symbol not in selected):
+                    continue
+                if adjustment not in ("splits", "unknown"):
+                    continue
+                # Unknown series can be inspected, but cannot inherit split
+                # provenance merely because a similarly named provider exists.
+                if adjustment == "splits" and feed != "borsapy-tradingview-0.11.0":
+                    result.append({"status": "failed", "symbol": symbol, "interval": interval, "code": "unproven_sqlite_split_feed"})
+                    continue
+                try:
+                    rows = [{"timestamp": datetime.fromtimestamp(r[0]/1_000_000, timezone.utc).isoformat(), **dict(zip(("open", "high", "low", "close", "volume"), r[1:]))}
+                            for r in con.execute("SELECT time_us,open,high,low,close,volume FROM candles WHERE series_id=? ORDER BY time_us", (sid,))]
+                    reference = self.put(symbol, interval, rows, source=feed, adjustment=adjustment,
+                        received_at=datetime.fromtimestamp(observed/1_000_000, timezone.utc), sdk_version=SDK_VERSION if adjustment == "splits" else None,
+                        provenance={"method": "stream-cache-read-only-transaction", "series_id": sid, "session": session,
+                                    "series_adjustment": adjustment, "source_basename": path.name})
+                    result.append({"status": "completed", "reference": reference})
+                except Exception as exc:
+                    result.append({"status": "failed", "symbol": symbol, "interval": interval, "code": str(exc) if isinstance(exc, HistoryStoreError) else "sqlite_history_import_failed"})
+        finally:
+            con.rollback()
+            con.close()
+        return result

@@ -1,0 +1,709 @@
+"""Live OHLCV with per-provider disk caches and market-specific session anchors."""
+from __future__ import annotations
+
+import json
+import math
+from collections import defaultdict
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, time, timedelta
+from pathlib import Path
+from uuid import uuid4
+from zoneinfo import ZoneInfo
+
+from market_intelligence.core.enums import PriceBasis
+from market_intelligence.core.identity import canonical_json, stable_hash
+from market_intelligence.core.timeframes import Timeframe
+from market_intelligence.market_data.bars import CanonicalBar, CanonicalFrame
+from market_intelligence.native.cancellation import checkpoint
+from market_intelligence.native.commodities import CATALOG, commodity_symbol, uses_tradingview
+from market_intelligence.native.sparse_days import (
+    DaySeriesIdentity, ReconciledDayProof, validate_reconciled_gap_days,
+)
+
+
+@dataclass(frozen=True)
+class MarketSpec:
+    name: str
+    timezone: str
+    opened: time | None = None
+    closed: time | None = None
+    yahoo_suffix: str = ""
+
+
+MARKETS = {
+    "bist": MarketSpec("BIST", "Europe/Istanbul", time(10), time(18), ".IS"),
+    "abd": MarketSpec("USA", "America/New_York", time(9, 30), time(16)),
+    "almanya": MarketSpec("XETRA", "Europe/Berlin", time(9), time(17, 30), ".DE"),
+    "ingiltere": MarketSpec("LSE", "Europe/London", time(8), time(16, 30), ".L"),
+    "emtia": MarketSpec("COMMODITY_FUTURES", "UTC"),
+    "coin": MarketSpec("CRYPTO", "UTC"),
+}
+# Official 2025/2026 equity half days (weekend holidays are not sessions):
+# https://www.borsaistanbul.com/resmi-tatil-gunleri
+# https://www.borsaistanbul.com/piyasalar/pay-piyasasi/islem-saatleri
+# Recorded TradingView/borsapy 1h history uses a 09:30 grid on these days.
+# Continuous trading is still 10:00-12:30; closing auctions end at 12:40.
+# Never relabel/split the auction-overlapping 09:30 or closing 12:30 OHLC.
+_BORSAPY_HALF_DAYS = frozenset({
+    "2025-06-05", "2025-10-28", "2026-03-19", "2026-05-26", "2026-10-28",
+})
+# Compatibility export: canonical identities, including separately identified spot feeds.
+COMMODITIES = {symbol: symbol for symbol in CATALOG}
+_SPLIT_HISTORY_METHOD = "pinned-sdk-adjust-true-auto-adjust-false-v2"
+
+
+def _split_history_provenance() -> dict:
+    """Declare the inspected SDK request, without reversing its split factors.
+
+    This contract cannot certify every vendor corporate action. Its version also
+    separates prior nominal-price caches that incorrectly used the v1 marker.
+    Return a fresh nested object so a caller cannot mutate the shared contract.
+    """
+    return {
+        "price_basis": "split_adjusted", "sdk_version": "0.11.0",
+        "provider": "borsapy", "adjustment": "splits",
+        "method": _SPLIT_HISTORY_METHOD,
+        "history_parameters": {"adjust": True, "auto_adjust": False, "actions": False},
+    }
+
+
+class PriceDataError(RuntimeError):
+    def __init__(self, symbol: str, failures: list[dict]):
+        self.symbol, self.failures = symbol, failures
+        super().__init__(f"{symbol}: " + "; ".join(f"{x['provider']} {x['code']}: {x['detail']}" for x in failures))
+
+
+def provider_symbol(market: str, symbol: str, provider: str = "yfinance") -> str:
+    spec, symbol = MARKETS[market], symbol.strip().upper()
+    if market == "coin":
+        explicit = symbol.replace('-', '/').split('/')
+        if len(explicit) > 1 and (len(explicit) != 2 or explicit[1] not in ('USDT', 'BTC', 'ETH', 'FDUSD', 'USDC')):
+            raise ValueError('Binance spot quote desteklenmiyor; açık çift USDT/BTC/ETH/FDUSD/USDC içermeli')
+        symbol = symbol.replace("/", "").replace("-", "")
+        if symbol.endswith('USD') and not symbol.endswith('FDUSD'):
+            raise ValueError("USD çifti USDT'ye çevrilmez; gerçek Binance spot çiftini belirtin")
+        if symbol in ("BTC", "ETH", "USDT", "USDC", "FDUSD") or not symbol.endswith(("USDT", "BTC", "ETH", "FDUSD", "USDC")):
+            symbol += "USDT"
+        return symbol
+    if market == "emtia":
+        canonical = commodity_symbol(symbol)
+        return CATALOG[canonical].provider_symbol if provider == "borsapy-spot" and uses_tradingview(canonical) else canonical
+    if market == "bist" and provider == "borsapy":
+        return symbol.removesuffix(".IS")
+    if symbol.startswith("^"):
+        return symbol  # Exchange indices keep their Yahoo identities, e.g. ^FTSE.
+    if spec.yahoo_suffix and not symbol.endswith(spec.yahoo_suffix):
+        if "." in symbol:
+            raise ValueError(f"{market} sembolü {spec.yahoo_suffix} ekiyle bitmeli: {symbol}")
+        symbol += spec.yahoo_suffix
+    return symbol.replace(".", "-") if market == "abd" else symbol
+
+
+def atomic_json(path: Path, value: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
+    try:
+        temporary.write_text(canonical_json(value), encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _price_cache_json(path: Path, value: dict) -> None:
+    """Serialize primitive price rows without recursive identity normalization.
+
+    Preserve every archived source row. Frame identities continue using stable_hash;
+    the on-disk serialization order is not part of those identities.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
+    try:
+        temporary.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":"),
+                                        allow_nan=False), encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _source_depth(timeframe: str, bars: int, interval: str) -> int:
+    """Bootstrap source depth includes whole aggregation buckets and warm-up history."""
+    multiplier = 4 if timeframe == "4h" else 5 if timeframe == "1wk" else 1
+    if interval == "30m":
+        multiplier *= 2
+    return bars * multiplier + (5 if timeframe == "1wk" else 0)
+
+
+def _history(provider: str, symbol: str, interval: str, *, start: datetime | None, bars: int, cache_root: Path | None = None):
+    """Network seam; pinned TradingView history is split-adjusted, not RAW."""
+    if provider == "borsapy":
+        import borsapy as bp
+        from importlib.metadata import version
+        if version("borsapy") != "0.11.0":
+            raise ValueError("Borsapy fiyat düzeltme sözleşmesi bu SDK sürümünü desteklemiyor")
+        # In 0.11.0 adjust=False REVERSES split adjustment; it is unrelated to
+        # the separate dividend-adjusted Adj Close option. Preserve split OHLCV.
+        kwargs = {"interval": interval, "adjust": True, "auto_adjust": False, "actions": False}
+        # borsapy 0.11 TradingView history compares naive boundary dates. Cache
+        # timestamps remain aware UTC; translate only this API input to local date.
+        if start is None:
+            # Extra calendar days cover weekends/holidays. A recent IPO can
+            # still have genuinely shorter history; never invent missing bars.
+            days = math.ceil(bars / 8 * 1.6) + 10 if interval == "1h" else bars * 2 + 10
+            start = datetime.now(UTC) - timedelta(days=days)
+        kwargs["start"] = start.astimezone(ZoneInfo("Europe/Istanbul")).date().isoformat()
+        data = bp.Ticker(symbol).history(**kwargs)
+        if not isinstance(getattr(data, "attrs", None), dict):
+            raise ValueError("Borsapy fiyat düzeltme kaynağı metadata içermiyor")
+        data.attrs["atc_price_provenance"] = _split_history_provenance()
+        return data
+    import yfinance as yf
+    if cache_root is not None:
+        # Yahoo's cookie/tz SQLite stores must also reside on the selected disk.
+        location = cache_root / "cache" / "yfinance"
+        location.mkdir(parents=True, exist_ok=True)
+        yf.set_tz_cache_location(str(location))
+    kwargs = {"interval": "60m" if interval == "1h" else interval, "auto_adjust": False,
+              "actions": False, "prepost": False, "timeout": 20, "raise_errors": True}
+    kwargs["start" if start else "period"] = start if start else ("60d" if interval == "30m" else "730d" if interval == "1h" else "max")
+    return yf.Ticker(symbol).history(**kwargs)
+
+
+def _verified_split_provenance(value):
+    expected = _split_history_provenance()
+    if not isinstance(value, dict):
+        return None
+    try:
+        # Canonical JSON distinguishes booleans from 0/1; plain dict equality
+        # would accept adjust=1 and auto_adjust=0 as the exact typed contract.
+        matches = canonical_json(value) == canonical_json(expected)
+    except (TypeError, ValueError):
+        return None
+    return expected if matches else None
+
+
+def _rows(data, market: str) -> list[dict]:
+    if data is None or getattr(data, "empty", True):
+        raise ValueError("Sağlayıcı boş OHLCV döndürdü")
+    lookup = {str(c).lower(): c for c in data.columns}
+    if not all(name in lookup for name in ("open", "high", "low", "close")):
+        raise ValueError("OHLC kolonları eksik")
+    zone, rows = ZoneInfo(MARKETS[market].timezone), []
+    for stamp, row in data.iterrows():
+        stamp = stamp.to_pydatetime() if hasattr(stamp, "to_pydatetime") else stamp
+        if not isinstance(stamp, datetime):
+            raise ValueError("OHLC zaman damgası datetime olmalı")
+        aware = stamp.replace(tzinfo=zone) if stamp.tzinfo is None else stamp
+        values = {name: float(row[lookup[name]]) for name in ("open", "high", "low", "close")}
+        values["volume"] = float(row[lookup["volume"]]) if "volume" in lookup else 0.0
+        if not all(math.isfinite(x) for x in values.values()) or min(values[k] for k in ("open", "high", "low", "close")) <= 0:
+            raise ValueError(f"Geçersiz OHLCV: {stamp}; değerler={values}")
+        rows.append({"timestamp": aware.astimezone(UTC).isoformat(), **values})
+    return rows
+
+
+def _closed_history_changed(previous: list[dict], fresh: list[dict], *,
+                            updated_at: str, market: str, interval: str) -> bool:
+    """A revised closed overlap requires a full source bootstrap, never a tail.
+
+    Split-adjusted vendors can revise every earlier bar at a new corporate
+    action. Even a valid v2 cache cannot safely keep its old scale after such a
+    revision. Only source rows that were already closed at the cache observation
+    are compared; mutable open candles are allowed to change naturally.
+    """
+    try:
+        updated = datetime.fromisoformat(updated_at)
+        if updated.tzinfo is None or updated.utcoffset() is None:
+            return True
+        lookup = {row["timestamp"]: row for row in fresh}
+        closed, matched = 0, 0
+        for row in previous:
+            stamp = datetime.fromisoformat(row["timestamp"])
+            if stamp.tzinfo is None or stamp.utcoffset() is None:
+                return True
+            if interval == "1d":
+                local = stamp.astimezone(ZoneInfo(MARKETS[market].timezone))
+                end = _bucket_bounds(local, MARKETS[market], Timeframe.D1)[1]
+            else:
+                end = stamp + timedelta(hours=1)
+            if end > updated:
+                continue
+            closed += 1
+            revised = lookup.get(row["timestamp"])
+            if revised is None:
+                continue
+            matched += 1
+            if any(row[key] != revised[key] for key in ("open", "high", "low", "close", "volume")):
+                return True
+        return bool(closed and not matched)
+    except (TypeError, KeyError, ValueError):
+        return True
+
+
+def _aggregate(items: list[CanonicalBar], start: datetime, end: datetime) -> CanonicalBar:
+    return CanonicalBar(start, end, items[0].open, max(x.high for x in items),
+                        min(x.low for x in items), items[-1].close, sum(x.volume for x in items))
+
+
+def _bucket_bounds(stamp: datetime, spec: MarketSpec, timeframe: Timeframe) -> tuple[datetime, datetime]:
+    """Use identical target bounds for lookback selection and aggregation."""
+    zone = ZoneInfo(spec.timezone)
+    if timeframe is Timeframe.W1:
+        monday = stamp.date() - timedelta(days=stamp.weekday())
+        start = datetime.combine(monday, spec.opened or time(), zone)
+        end = (datetime.combine(monday + timedelta(days=4), spec.closed, zone) if spec.closed else
+               datetime.combine(monday + timedelta(days=7), time(), zone))
+    elif timeframe is Timeframe.D1:
+        start = datetime.combine(stamp.date(), spec.opened or time(), zone)
+        end = datetime.combine(stamp.date(), spec.closed, zone) if spec.closed else start + timedelta(days=1)
+    else:
+        anchor = datetime.combine(stamp.date(), spec.opened or time(), zone)
+        duration = timedelta(hours=4 if timeframe is Timeframe.H4 else 1)
+        start = anchor + (stamp - anchor) // duration * duration
+        end = start + duration
+        if spec.closed:
+            end = min(end, datetime.combine(start.date(), spec.closed, zone))
+    return start, end
+
+
+def _offset_half_day(stamp: datetime, market: str, timeframe: Timeframe,
+                     source: str, source_minutes: int) -> bool:
+    return (market == "bist" and timeframe is Timeframe.H1 and source == "borsapy"
+            and source_minutes == 60 and stamp.date().isoformat() in _BORSAPY_HALF_DAYS)
+
+
+def _omit_half_day_h4(stamp: datetime, market: str, timeframe: Timeframe,
+                      source: str, source_minutes: int) -> bool:
+    # The verified 09:30 source grid straddles the opening/closing auctions.
+    # No contiguous 10:00 anchored 4h bar can be formed without fabricating
+    # prices or moving those OHLC values to a different time.
+    return (market == "bist" and timeframe is Timeframe.H4 and source == "borsapy"
+            and source_minutes == 60 and stamp.date().isoformat() in _BORSAPY_HALF_DAYS)
+
+
+def _closed_session_cache_allowed(updated: datetime, observed: datetime) -> bool:
+    """BIST regular-session prices cannot change before the next session opens.
+
+    Require a fetch at least 30 minutes after the last regular close to avoid
+    freezing the delayed final candle. Calendar holidays are never inferred;
+    only nights/weekends use this path, and verified half days stay excluded.
+    """
+    zone = ZoneInfo("Europe/Istanbul")
+    local = observed.astimezone(zone)
+    if local.date().isoformat() in _BORSAPY_HALF_DAYS:
+        return False
+    if local.weekday() < 5 and time(10) <= local.time() < time(18, 30):
+        return False
+    day = local.date()
+    if local.weekday() < 5 and local.time() < time(10):
+        day -= timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    if day.isoformat() in _BORSAPY_HALF_DAYS:
+        return False
+    final_observation = datetime.combine(day, time(18, 30), zone)
+    # The date must be exactly the latest ordinary session. Older caches are
+    # not accepted merely because the current market is closed.
+    return updated.astimezone(zone).date() == day and final_observation <= updated <= observed
+
+
+def _half_day_provenance(rows: list[dict], frame: CanonicalFrame, observed_at: datetime) -> dict:
+    """Explain every omitted auction-overlapping row on retained offset half days."""
+    if frame.market != "BIST" or frame.source != "borsapy":
+        return {}
+    if frame.timeframe is Timeframe.H4:
+        first, last = frame.bars[0].open_time.date(), frame.bars[-1].open_time.date()
+        excluded = {}
+        for item in rows:
+            stamp = datetime.fromisoformat(item["timestamp"]).astimezone(ZoneInfo("Europe/Istanbul"))
+            day = stamp.date().isoformat()
+            if first <= stamp.date() <= last and day in _BORSAPY_HALF_DAYS and stamp < observed_at:
+                excluded[day] = excluded.get(day, 0) + 1
+        if not excluded:
+            return {}
+        return {"half_day_source_policy": {
+            "policy": "verified_borsapy_half_days_omitted_from_4h",
+            "omitted_source_rows": excluded,
+            "retained_source_opens": [],
+            "exclusion_reason": "Verified half-day 09:30 source grid overlaps auctions and cannot form a complete 10:00-anchored 4h candle. Entire half-day omitted; no synthetic OHLC.",
+            "calendar_sources": ["https://www.borsaistanbul.com/resmi-tatil-gunleri",
+                                 "https://www.borsaistanbul.com/piyasalar/pay-piyasasi/islem-saatleri"],
+        }}
+    if frame.timeframe is not Timeframe.H1:
+        return {}
+    zone = ZoneInfo("Europe/Istanbul")
+    days = sorted({bar.open_time.date().isoformat() for bar in frame.bars
+                   if bar.open_time.minute == 30
+                   and bar.open_time.date().isoformat() in _BORSAPY_HALF_DAYS})
+    if not days:
+        return {}
+    counts = {day: {"opening_overlap": 0, "closing_auction": 0} for day in days}
+    for item in rows:
+        stamp = datetime.fromisoformat(item["timestamp"]).astimezone(zone)
+        if stamp.date().isoformat() not in counts or stamp >= observed_at:
+            continue
+        if stamp.time() == time(9, 30):
+            counts[stamp.date().isoformat()]["opening_overlap"] += 1
+        elif stamp.time() == time(12, 30):
+            counts[stamp.date().isoformat()]["closing_auction"] += 1
+    return {"half_day_source_policy": {
+        "policy": "verified_borsapy_1h_half_days",
+        "continuous_session": "10:00-12:30 Europe/Istanbul",
+        "source_grid_anchor": "09:30",
+        "retained_source_opens": ["10:30", "11:30"],
+        "excluded_source_rows": counts,
+        "exclusion_reason": "09:30 source candle overlaps the opening auction; 12:30 source candle is the closing auction. OHLC cannot be split, so 10:00-10:30 continuous coverage remains unknown.",
+        "calendar_sources": ["https://www.borsaistanbul.com/resmi-tatil-gunleri",
+                             "https://www.borsaistanbul.com/piyasalar/pay-piyasasi/islem-saatleri"],
+    }}
+
+
+def build_frame(rows: list[dict], *, market: str, symbol: str, timeframe: str,
+                source: str, observed_at: datetime, bars: int = 600, source_minutes: int = 60,
+                reconciled_gap_days: tuple[ReconciledDayProof, ...] = (),
+                reconciliation_identity: DaySeriesIdentity | None = None) -> CanonicalFrame:
+    """Regular market templates: shorter final stock buckets retained, gaps refused.
+
+    Provider dates govern holidays. Only verified borsapy H1 offset half days
+    have a calendar exception: retain whole 10:30/11:30 continuous-session bars,
+    never split/relabel an auction-overlapping source candle. Other half-day
+    calendar parity is not claimed, and incomplete 4h buckets still fail.
+    Weekly data is observed daily history, not an assertion of all expected sessions.
+    An explicit typed same-feed closed-day reconciliation may authorize sparse
+    observed H1 contributions to BIST H4. Missing source bars are never created.
+    """
+    if market not in MARKETS or timeframe not in ("1h", "4h", "1d", "1wk"):
+        raise ValueError("Yalnız tanımlı piyasalar ve 1h/4h/1d/1wk destekleniyor")
+    if observed_at.tzinfo is None or observed_at.utcoffset() is None:
+        raise ValueError("Gözlem zamanı timezone içermeli")
+    if bars <= 0 or source_minutes not in (30, 60):
+        raise ValueError("Geçersiz bar sayısı veya kaynak aralığı")
+    spec, tf = MARKETS[market], Timeframe(timeframe)
+    zone = ZoneInfo(spec.timezone)
+    observed_at = observed_at.astimezone(zone)
+    if reconciled_gap_days and not (market == "bist" and tf is Timeframe.H4 and source_minutes == 60):
+        raise ValueError("Closed-day reconciliation applies only to BIST H4 from H1")
+    reconciled = validate_reconciled_gap_days(rows, proofs=reconciled_gap_days,
+        identity=reconciliation_identity, symbol=symbol, source=source, observed_at=observed_at)
+    # Reconciliation cannot override the existing verified half-day grid policy.
+    reconciled = frozenset(day for day in reconciled if day.isoformat() not in _BORSAPY_HALF_DAYS)
+    intraday, base = tf in (Timeframe.H1, Timeframe.H4), []
+    candidates = []
+    for item in sorted(rows, key=lambda x: x["timestamp"]):
+        stamp = datetime.fromisoformat(item["timestamp"]).astimezone(zone)
+        half_day = _offset_half_day(stamp, market, tf, source, source_minutes)
+        if _omit_half_day_h4(stamp, market, tf, source, source_minutes):
+            if stamp.date() == observed_at.date():
+                raise ValueError("Beklenmeyen BIST 4h: güncel yarım gün kaynağından eksiksiz 10:00 mum oluşturulamaz")
+            continue
+        if intraday and spec.opened is not None:
+            closed = time(12, 30) if half_day else spec.closed
+            if not datetime.combine(stamp.date(), spec.opened, zone) <= stamp < datetime.combine(stamp.date(), closed, zone):
+                continue
+        raw_start = stamp if intraday else datetime.combine(stamp.date(), spec.opened or time(), zone)
+        if raw_start < observed_at:
+            bucket = (stamp, stamp + timedelta(hours=1)) if half_day else _bucket_bounds(stamp, spec, tf)
+            candidates.append((item, stamp, bucket))
+    # A provider can return years of history. Retain every source row belonging
+    # to the requested latest target buckets before checking their alignment.
+    # This never repairs a bad selected bar or cuts a 4h/week bucket mid-way.
+    selected = set(sorted({bucket for _, _, bucket in candidates})[-bars:])
+    for item, stamp, bucket in candidates:
+        if bucket not in selected:
+            continue
+        if spec.opened is not None:
+            start = datetime.combine(stamp.date(), spec.opened, zone)
+            half_day = _offset_half_day(stamp, market, tf, source, source_minutes)
+            end = datetime.combine(stamp.date(), time(12, 30) if half_day else spec.closed, zone)
+            if intraday:
+                if not start <= stamp < end:
+                    continue  # Provider pre/post-market records are not regular sessions.
+                anchor = datetime.combine(stamp.date(), time(9, 30), zone) if half_day else start
+                if (stamp - anchor) % timedelta(minutes=source_minutes):
+                    raise ValueError(f"Beklenmeyen {spec.name} saatlik mum başlangıcı: {stamp.isoformat()}")
+                start, end = stamp, min(stamp + timedelta(minutes=source_minutes), end)
+        else:
+            start = stamp if intraday else datetime.combine(stamp.date(), time(), zone)
+            end = start + (timedelta(minutes=source_minutes) if intraday else timedelta(days=1))
+        if start < observed_at:
+            base.append(CanonicalBar(start, end, *(float(item[k]) for k in ("open", "high", "low", "close", "volume"))))
+    if not base:
+        raise ValueError("İstek zamanından önce fiyat mumu yok")
+    if len({x.open_time for x in base}) != len(base):
+        raise ValueError("Yinelenen OHLCV zamanı")
+    if tf is Timeframe.D1 or (tf is Timeframe.H1 and source_minutes == 60):
+        result = base
+    else:
+        groups = defaultdict(list)
+        for bar in base:
+            start, end = _bucket_bounds(bar.open_time, spec, tf)
+            groups[(start, end)].append(bar)
+        result = []
+        # Gaps outside the actual scanner lookback cannot poison a current request.
+        for (start, end), items in sorted(groups.items())[-bars:]:
+            if tf in (Timeframe.H1, Timeframe.H4):
+                contiguous = items[0].open_time == start and all(a.close_time == b.open_time for a, b in zip(items, items[1:], strict=False))
+                # Futures have legitimate venue maintenance pauses. Keep only complete
+                # contiguous UTC buckets; this differs explicitly from session stocks.
+                if market == "emtia" and (not contiguous or (end <= observed_at and items[-1].close_time != end)):
+                    continue
+                sparse_proven = (market == "bist" and tf is Timeframe.H4 and source_minutes == 60
+                                 and start.date() in reconciled and end <= observed_at)
+                if (not contiguous or (end <= observed_at and items[-1].close_time != end)) and not sparse_proven:
+                    raise ValueError(f"Eksik saat nedeniyle {timeframe} mum oluşturulamadı: {start.isoformat()}")
+            result.append(_aggregate(items, start, end))
+    if not result:
+        raise ValueError("İstenen zaman diliminde eksiksiz OHLCV mumu yok")
+    result = tuple(result[-bars:])
+    snapshot = stable_hash({"bars": result, "market": market, "symbol": symbol, "source": source, "tf": timeframe})
+    partial = result[-1].close_time > observed_at
+    return CanonicalFrame(f"{market}:{symbol}", symbol, spec.name, tf, snapshot, 1,
+                          PriceBasis.RAW, source, result, partial, "preliminary" if partial else "complete")
+
+
+def _fetch_binance(symbol: str, timeframe: str, bars: int, *, start: datetime | None = None,
+                   base_url: str = 'https://data-api.binance.vision', check_cancelled=None) -> list[dict]:
+    from market_intelligence.native.binance import get_json
+    parameters = {'symbol': symbol, 'interval': '1w' if timeframe == '1wk' else timeframe,
+                  'limit': min(bars, 1000)}
+    if start is not None:
+        parameters['startTime'] = int(start.timestamp() * 1000)
+    checkpoint(check_cancelled)
+    values = get_json('/api/v3/klines', parameters, base_url=base_url)
+    checkpoint(check_cancelled)
+    if not isinstance(values, list) or not values:
+        raise ValueError('Binance boş mum listesi döndürdü')
+    if start is None:
+        # Binance caps each page at 1000 candles. Fetch older pages only on bootstrap.
+        while len(values) < bars and len(values) >= parameters['limit']:
+            checkpoint(check_cancelled)
+            parameters['endTime'] = int(values[0][0]) - 1
+            parameters['limit'] = min(bars-len(values), 1000)
+            older = get_json('/api/v3/klines', parameters, base_url=base_url)
+            checkpoint(check_cancelled)
+            if not isinstance(older, list):
+                raise ValueError('Binance geçmiş mum sayfası geçersiz')
+            if not older:
+                break
+            if int(older[-1][0]) >= int(values[0][0]):
+                raise ValueError('Binance mum sayfaları ilerlemiyor')
+            values = older + values
+            if len(older) < parameters['limit']:
+                break
+    return [{"timestamp": datetime.fromtimestamp(x[0] / 1000, UTC).isoformat(),
+             "end": datetime.fromtimestamp((x[6] + 1) / 1000, UTC).isoformat(),
+             **dict(zip(("open", "high", "low", "close", "volume"), map(float, x[1:6]), strict=True))} for x in values][-bars:]
+
+
+def fetch_frame(market: str, symbol: str, timeframe: str, root: Path, *, observed_at: datetime,
+                bars: int = 600, check_cancelled=None,
+                cache_max_age_seconds: float = 0) -> tuple[CanonicalFrame, dict]:
+    if market not in MARKETS or timeframe not in ("1h", "4h", "1d", "1wk"):
+        raise ValueError("Yalnız tanımlı piyasalar ve 1h/4h/1d/1wk destekleniyor")
+    if observed_at.tzinfo is None or observed_at.utcoffset() is None:
+        raise ValueError("Gözlem zamanı timezone içermeli")
+    if not math.isfinite(cache_max_age_seconds) or not 0 <= cache_max_age_seconds <= 300:
+        raise ValueError("Fiyat önbelleği yaşı 0 ile 300 saniye arasında olmalı")
+    failures = []
+    providers = (("borsapy-spot",) if market == "emtia" and uses_tradingview(symbol) else
+                 ("borsapy", "yfinance") if market == "bist" else (("binance", "borsapy-binance") if market == "coin" else ("yfinance",)))
+    coin_fallback_allowed = False
+    for provider in providers:
+        if provider == 'borsapy-binance' and not coin_fallback_allowed:
+            break
+        checkpoint(check_cancelled)
+        try:
+            interval = timeframe if market == "coin" or provider == "borsapy-spot" else ("30m" if market == "bist" and provider == "yfinance" else "1h") if timeframe in ("1h", "4h") else "1d"
+            symbol_key = provider_symbol(market, symbol, provider)
+            cache_identity = {"provider": provider, "symbol": symbol_key, "interval": interval}
+            if provider == "borsapy":
+                # Never load or overwrite pre-v2 nominal-price caches. A new
+                # contract needs a complete, separate provider bootstrap.
+                cache_identity["price_history_contract"] = _SPLIT_HISTORY_METHOD
+            path = root / "cache" / "prices" / market / (stable_hash(cache_identity) + ".json")
+            cached = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+            price_provenance = None
+            cache_reused = False
+            unchanged_closed_session = False
+            cache_age = None
+            requested_source_bars = _source_depth(timeframe, bars, interval)
+            if cached and (cached.get("schema") != 1 or cached.get("provider") != provider or cached.get("symbol") != symbol_key or cached.get("interval") != interval):
+                raise ValueError("Fiyat önbelleği kimliği geçersiz")
+            if provider == "borsapy" and cached and not _verified_split_provenance(cached.get("price_provenance")):
+                # A copied/untrusted document in the v2 namespace cannot be
+                # reused even during closed-session or recent-cache shortcuts.
+                cached = None
+            if provider == "borsapy-spot":
+                from market_intelligence.native.spot_commodities import fetch_spot_frame
+                frame, rows = fetch_spot_frame(symbol_key, timeframe, observed_at, bars,
+                    previous=(cached or {}).get('rows', []), check_cancelled=check_cancelled)
+            elif provider == 'borsapy-binance':
+                from market_intelligence.native.spot_crypto import fetch_crypto_frame
+                frame, rows = fetch_crypto_frame(symbol_key, timeframe, observed_at, bars,
+                    previous=(cached or {}).get('rows', []), check_cancelled=check_cancelled)
+            elif provider == "binance":
+                from market_intelligence.native.binance import endpoint
+                base_url = endpoint(root)
+                duration = {'1h': timedelta(hours=1), '4h': timedelta(hours=4),
+                            '1d': timedelta(days=1), '1wk': timedelta(days=7)}[timeframe]
+                previous = (cached or {}).get('rows', [])
+                start = None
+                if len(previous) >= bars:
+                    last = datetime.fromisoformat(previous[-1]['timestamp'])
+                    if observed_at-last < duration*(min(bars,1000)-3):
+                        start = last-duration*2  # Re-fetch mutable current/overlap bars.
+                fresh = _fetch_binance(symbol_key, timeframe, bars, start=start, base_url=base_url,
+                                       check_cancelled=check_cancelled)
+                merged = {x['timestamp']: x for x in previous} if start is not None else {}
+                merged.update({x['timestamp']: x for x in fresh})
+                rows = [merged[key] for key in sorted(merged)][-bars:]
+                canonical = tuple(CanonicalBar(datetime.fromisoformat(x["timestamp"]), datetime.fromisoformat(x["end"]),
+                                  *(x[k] for k in ("open", "high", "low", "close", "volume"))) for x in rows)
+                canonical = tuple(x for x in canonical if x.open_time < observed_at)
+                if not canonical:
+                    raise ValueError("Binance fiyat mumu döndürmedi")
+                if any(min(bar.open, bar.high, bar.low, bar.close) <= 0 for bar in canonical):
+                    raise ValueError('Binance OHLC fiyatları pozitif olmalı')
+                if any(bar.close_time - bar.open_time != duration for bar in canonical):
+                    raise ValueError('Binance mum süresi istenen aralıktan farklı')
+                if any(a.close_time != b.open_time for a, b in zip(canonical, canonical[1:], strict=False)):
+                    raise ValueError('Binance OHLCV dizisinde eksik veya çakışan mum var')
+                partial = canonical[-1].close_time > observed_at
+                frame = CanonicalFrame(f"coin:{symbol_key}", symbol, "CRYPTO", Timeframe(timeframe), stable_hash(canonical),
+                                       1, PriceBasis.RAW, provider, canonical, partial, "preliminary" if partial else "complete")
+            else:
+                previous = (cached or {}).get("rows", [])
+                cached_frame = None
+                if previous:
+                    # A 1h cache may be too shallow for 600 aggregated 4h bars,
+                    # likewise daily history for 600 weeks. An incremental tail
+                    # alone can never recover the missing older history.
+                    try:
+                        cached_frame = build_frame(previous, market=market, symbol=symbol,
+                            timeframe=timeframe, source=provider, observed_at=observed_at,
+                            bars=bars, source_minutes=30 if interval == "30m" else 60)
+                    except (TypeError, KeyError, ValueError):
+                        pass
+                enough_history = cached_frame is not None and len(cached_frame.bars) >= bars
+                if cache_max_age_seconds and enough_history and cached.get("updated_at"):
+                    try:
+                        updated = datetime.fromisoformat(cached["updated_at"])
+                        if updated.tzinfo is None or updated.utcoffset() is None:
+                            raise ValueError("Önbellek gözlem zamanı timezone içermeli")
+                        cache_age = (observed_at - updated).total_seconds()
+                        timestamps = [datetime.fromisoformat(row["timestamp"]) for row in previous]
+                        # Never reuse future observations, unordered/duplicate rows,
+                        # or rows that were not yet open at their recorded fetch.
+                        valid_chronology = (all(stamp.tzinfo is not None and stamp <= updated for stamp in timestamps)
+                            and all(a < b for a, b in zip(timestamps, timestamps[1:], strict=False)))
+                        latest = timestamps[-1].astimezone(ZoneInfo(MARKETS[market].timezone))
+                        if interval in ("1h", "30m"):
+                            source_end = latest + timedelta(minutes=30 if interval == "30m" else 60)
+                            if MARKETS[market].closed:
+                                source_end = min(source_end, datetime.combine(latest.date(), MARKETS[market].closed,
+                                                                             latest.tzinfo))
+                        else:
+                            source_end = _bucket_bounds(latest, MARKETS[market], Timeframe.D1)[1]
+                        # An unfinished source candle cannot become a claimed
+                        # final candle without another provider observation.
+                        finalized_since_fetch = updated < source_end <= observed_at
+                        unchanged_closed_session = (market == "bist" and provider == "borsapy"
+                            and _closed_session_cache_allowed(updated, observed_at))
+                        cache_reused = (0 <= cache_age and
+                            (cache_age <= cache_max_age_seconds or unchanged_closed_session)
+                            and valid_chronology and not finalized_since_fetch)
+                    except (TypeError, KeyError, ValueError):
+                        cache_reused = False
+                if cache_reused:
+                    frame, rows = cached_frame, previous
+                    if provider == "borsapy":
+                        price_provenance = _verified_split_provenance(cached.get("price_provenance"))
+                else:
+                    attempted_depth = int((cached or {}).get("requested_source_bars", 0))
+                    must_backfill = not enough_history and requested_source_bars > attempted_depth
+                    start = (datetime.fromisoformat(previous[-1]["timestamp"]) - timedelta(days=5)
+                             if previous and not must_backfill else None)
+                    data = _history(provider, symbol_key, interval, start=start,
+                                    bars=requested_source_bars, cache_root=root)
+                    checkpoint(check_cancelled)
+                    if provider == "borsapy":
+                        price_provenance = _verified_split_provenance(
+                            getattr(data, "attrs", {}).get("atc_price_provenance"))
+                        if not price_provenance:
+                            raise ValueError("Borsapy split-adjusted v2 fiyat kaynağı doğrulanamadı")
+                        cached_provenance = _verified_split_provenance((cached or {}).get("price_provenance"))
+                        if price_provenance and previous and not cached_provenance:
+                            # First migration of a legacy/unknown series: a
+                            # five-day tail cannot certify years of old rows.
+                            # Bootstrap once, retain only this verified response.
+                            if start is not None:
+                                data = _history(provider, symbol_key, interval, start=None,
+                                                bars=requested_source_bars, cache_root=root)
+                                checkpoint(check_cancelled)
+                                if not _verified_split_provenance(getattr(data, "attrs", {}).get("atc_price_provenance")):
+                                    raise ValueError("Fiyat düzeltme kaynağı yenileme sırasında değişti")
+                            previous = []
+                    fresh = _rows(data, market)
+                    if (provider == "borsapy" and previous and start is not None
+                            and _closed_history_changed(previous, fresh,
+                                updated_at=(cached or {}).get("updated_at"),
+                                market=market, interval=interval)):
+                        # Full refetch protects future split/revision events as
+                        # well as today's v1 -> v2 migration. Failure returns no
+                        # mixed frame and leaves the previous file untouched.
+                        data = _history(provider, symbol_key, interval, start=None,
+                                        bars=requested_source_bars, cache_root=root)
+                        checkpoint(check_cancelled)
+                        price_provenance = _verified_split_provenance(
+                            getattr(data, "attrs", {}).get("atc_price_provenance"))
+                        if not price_provenance:
+                            raise ValueError("Borsapy fiyat ölçeği tam yenilemede doğrulanamadı")
+                        fresh = _rows(data, market)
+                        previous = []
+                    merged = {x["timestamp"]: x for x in previous}
+                    merged.update({x["timestamp"]: x for x in fresh})
+                    rows = [merged[key] for key in sorted(merged)]
+                    frame = build_frame(rows, market=market, symbol=symbol, timeframe=timeframe,
+                                        source=provider, observed_at=observed_at, bars=bars, source_minutes=30 if interval == "30m" else 60)
+            if provider == "borsapy" and price_provenance:
+                frame = replace(frame, price_basis=PriceBasis.SPLIT_ADJUSTED,
+                                snapshot_id=stable_hash({"series": frame.snapshot_id,
+                                                         "price_provenance": price_provenance}))
+            checkpoint(check_cancelled)
+            updated_at = cached["updated_at"] if cache_reused else observed_at.isoformat()
+            received_at = cached.get("received_at") if cache_reused else datetime.now(UTC).isoformat()
+            if not cache_reused:
+                _price_cache_json(path, {"schema": 1, "provider": provider, "symbol": symbol_key, "interval": interval,
+                    "updated_at": updated_at, "received_at": received_at, "rows": rows,
+                    "requested_source_bars": max(requested_source_bars, int((cached or {}).get("requested_source_bars", 0))),
+                    **({"price_provenance": price_provenance} if price_provenance else {})})
+            return frame, {"provider": provider, "provider_symbol": symbol_key, "updated_at": updated_at,
+                           "latest_bar_open": frame.bars[-1].open_time.isoformat(), "latest_bar_end": frame.through_bar_time.isoformat(),
+                           "elapsed_since_bar_end_seconds": max(0.0, (observed_at-frame.through_bar_time).total_seconds()),
+                           "provider_delay_seconds": None,  # OHLCV endpoints provide no quote observation clock.
+                           "received_at": received_at,
+                           "price_basis_verification": "verified_split_adjusted" if price_provenance else "unverified_or_other_provider",
+                           **({"price_provenance": price_provenance} if price_provenance else {}),
+                           "cache_update": "recent_cache" if cache_reused else "network_refresh",
+                           "cache_age_seconds": cache_age if cache_reused else 0.0,
+                           "cache_reuse_reason": ("closed_session" if unchanged_closed_session else "recent_observation") if cache_reused else None,
+                           "bar_count": len(frame.bars), "partial": frame.is_partial, "prior_provider_failures": failures,
+                           "session_policy": "OANDA_native_candles_NY_calendar_bounds" if provider == "borsapy-spot" else "venue_candles_UTC" if provider in ("binance", "borsapy-binance") else "regular_session_template" if MARKETS[market].opened else "UTC_venue_timestamps",
+                           **_half_day_provenance(rows, frame, observed_at),
+                           **({'venue': 'BINANCE:' + symbol_key, 'market_type': 'spot', 'quote_asset_changed': False} if market == 'coin' else {}),
+                           "cache_path": str(path), **({'endpoint': base_url, 'cache_update': 'incremental' if start is not None else 'bootstrap'} if provider == 'binance' else {})}
+        except (KeyboardInterrupt, InterruptedError):
+            raise
+        except Exception as exc:
+            failure = {"provider": provider, "code": type(exc).__name__, "detail": str(exc)[:500]}
+            if provider == 'binance':
+                from market_intelligence.native.binance import failure_kind, public_failure_detail
+                from market_intelligence.native.spot_crypto import can_use_tradingview
+                failure['kind'] = failure_kind(exc)
+                failure['detail'] = public_failure_detail(exc)
+                coin_fallback_allowed = can_use_tradingview(exc)
+            elif provider == 'borsapy-binance':
+                from market_intelligence.native.binance import failure_kind
+                failure['kind'] = failure_kind(exc)
+                failure['detail'] = 'TradingView Binance spot mumu alınamadı: ' + type(exc).__name__
+            failures.append(failure)
+    raise PriceDataError(symbol, failures)
