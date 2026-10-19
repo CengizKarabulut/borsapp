@@ -18,9 +18,9 @@ from hashlib import sha256
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-VERSION = "e-manual-support-context-20261018-v3"
+VERSION = "e-manual-support-context-20261019-v4"
 EXPECTED_MANUAL_BATCH_SHA256 = "e7ad01a0cf2c3ecd7aa1dda7fefdf86a25a45afd0123bf957933a987cee271c1"
-EXPECTED_RUNTIME_CODE_IDENTITY = "a97f9342eac134ea81bd0a051efcc84ddb9da2fb69562f895842ecf998171bf5"
+EXPECTED_RUNTIME_CODE_IDENTITY = "8ad6dfa91f5c6017d59e58a80cb6a0a1e51c7816f18100d7d8bbbb12f7e8b8c9"
 
 
 def _unavailable_plan_line(item):

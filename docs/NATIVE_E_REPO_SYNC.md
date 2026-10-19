@@ -1,5 +1,21 @@
 # GitHub ve E manuel taramasının birlikte kullanımı
 
+19 Ekim düzeltmesi: eski E veri katmanı `adjust=False` ile bölünme düzeltmesini
+geri açarken sonucu yanlışlıkla `split_adjusted` kaydediyordu. HRKET'te gerçek
+yanıtla 14 kat fark doğrulandı. CAL18'in 125 profili yeniden doğrulanana kadar
+devre dışıdır. Eski arşiv ve profil paketi korunur; doğru veriler ayrı
+`results/exit-research-adjusted-v2/history` altında yeniden indirilir.
+Kaynak katmanının bu geçişi için `scripts/install_e_history_basis.py` kullanılır;
+bu, aşağıdaki yalnız sunum kurucusundan farklı, iki tam hash ile sınırlandırılmış
+veri dosyasını ve yeni sunum köprüsünü yedekleyerek kurar. Kaynak metni uyumluluk
+paketi olarak saklanır; güncel GitHub motorunun `src` klasörü E'ye kopyalanmaz.
+
+Yeni önbellek ad alanı eski fiyatları okumaz. Önceden kapanmış ortak mumlarda
+fiyat/hacim düzeltmesi görülürse son birkaç günlük güncelleme eski satırlarla
+birleştirilmez; tam geçmiş yenilenir. Bu istek sözleşmesi bütün şirket
+işlemlerinin ayrı ayrı ekonomik doğrulandığı anlamına gelmez. Yeni kalibrasyon
+ancak bu veri kontrollerinden ve yeni geçmiş testlerinden sonra yayımlanır.
+
 GitHub deposu bu projenin mevcut kaynağıdır. GitHub'ın güncel canonical tarama
 motoru ile E'de geçmiş testleri doğrulanmış yerel motor farklı sürümlerdir.
 Birini diğerinin `src` klasörüne topluca kopyalamak, mevcut kalibrasyonların
@@ -16,7 +32,7 @@ Pozitif görünen parçalar tam ve geçerli bir plan sayılmaz. Negatif hedefin
 mutlak değeri alınmaz, stop daraltılmaz, başka kuraldan hedef eklenmez.
 
 E'nin mevcut motoru zaten bu tür tam senaryoları reddeder. E köprüsü bunu
-metinde açıklar; geçerli kalibre Stop/TP1/TP2/TP3 hesabını ve en yakın bütün
+metinde açıklar; aynı tam Stop/TP1/TP2/TP3 senaryosunu ve en yakın bütün
 plan seçimini korur. Stop sabittir; otomatik emir veya yeni stop taşıma yoktur.
 
 Pozitif bir hedefin uzak olması tek başına hesap hatası değildir. Kalibrasyon
@@ -26,13 +42,14 @@ CSV'de ve E metninde Stop/TP3 mesafeleri giriş referansına göre yüzde olarak
 gösterilir. Bunlar aynı tam planın fiyat farklarıdır; başarı olasılığı, günlük
 fiyat limiti veya beklenen kazanç değildir. Seviyeler kırpılmaz; eksik veya
 uygulanamaz plan için bu yüzdeler üretilmez. `Kalibre referans` ve standart
-`Referans` ayrımı korunur.
+`Referans` ayrımı korunur. CAL18 eski veri temeli nedeniyle şu anda kapalıdır.
 
 ## Destek ve direnç
 
 Hesabın geçmişte başarılı olup olmadığı ayrı ölçülür. İlk16hisselik deney ve
 veri sürekliliği koşulları [araştırma notunda](https://github.com/CengizKarabulut/borsapp/blob/main/docs/SUPPORT_RESISTANCE_RESEARCH.md).
-Yeni aday saklanan testte iyileşmediği için mevcut120/3 ayarı korunur.
+Eski pilotun fiyat esası artık güvenilir kabul edilmediğinden sonuçlar ekonomik
+başarı kanıtı değildir; mevcut120/3 ayarı yeni deney sonuçlanana kadar korunur.
 
 `scripts/atc_support_resistance.py`, araştırma modülünün son120mum içindeki
 3sol+3sağ teyitli pivot yöntemini taşır. En çok üç destek ve üç direnç,
