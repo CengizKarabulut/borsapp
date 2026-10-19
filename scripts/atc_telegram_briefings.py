@@ -11,6 +11,7 @@ import argparse
 import base64
 import csv
 import io
+import math
 import os
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -50,16 +51,20 @@ SCANNER_LABELS = (
 
 def pivot_levels(high: float, low: float, close: float) -> tuple[float, ...]:
     """Classic floor pivots based on the previous CONFIRMED daily candle."""
-    if not (0 < low <= close <= high):
+    if (not all(type(value) in (int, float) and math.isfinite(value) and value > 0
+                for value in (high, low, close)) or not low <= close <= high):
         raise ValueError("Previous-day OHLC is inconsistent")
     pivot = (high + low + close) / 3
-    return (
+    levels = (
         2 * pivot - high,
         pivot - (high - low),
         pivot,
         2 * pivot - low,
         pivot + (high - low),
     )  # S1, S2, Pivot, R1, R2
+    if not all(math.isfinite(value) and value > 0 for value in levels):
+        raise ValueError("Classic pivot has nonpositive or nonfinite price levels")
+    return levels
 
 
 def last_closed_session(calendar, today):

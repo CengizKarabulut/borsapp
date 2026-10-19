@@ -25,6 +25,8 @@ Stop/TP geçersiz fiyat kontrolleri ve kaynak kimliğini koruyan güncelleme
 adımları: [GitHub–E birlikte kullanım rehberi](docs/NATIVE_E_REPO_SYNC.md).
 Destek/direnç yönteminin geçmiş tepki deneyi ve kapsam sınırları:
 [araştırma notu](docs/SUPPORT_RESISTANCE_RESEARCH.md).
+GitHub'dan normal taramayı çalıştırma ve gruba teyitli destek/direnç ile klasik
+pivot raporu gönderme: [manuel Telegram rapor rehberi](docs/TELEGRAM_SUPPORT_PIVOT.md).
 
 - Scanner veri çekmez, Telegram'a yazmaz ve sistem saatini doğrudan okumaz.
 - İndikatörler ortak feature katmanında, açık implementasyon ve warmup kimliğiyle hesaplanır.

@@ -1,0 +1,108 @@
+name: ATC manual support resistance and pivot report
+
+on:
+  workflow_dispatch:
+    inputs:
+      delivery:
+        description: Preview creates files only; publish sends to existing Reports topic
+        type: choice
+        options: [preview, publish]
+        default: preview
+        required: true
+      prepared_run_id:
+        description: Optional successful preview run ID; publish its exact files without downloading prices again
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: atc-manual-support-pivot-report
+  cancel-in-progress: false
+
+jobs:
+  structure-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_TIMEZONE: Europe/Istanbul
+      TZ: UTC
+      PREPARED_RUN_ID: ${{ inputs.prepared_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install the closed-candle data and report runtime
+        run: python -m pip install --editable '.[runtime,atcdata]'
+      - name: Check the selected preview belongs to this report workflow
+        if: ${{ inputs.prepared_run_id != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PREPARED_RUN_ID" =~ ^[0-9]+$ ]] || { echo 'Invalid run ID'; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREPARED_RUN_ID" > /tmp/structure-source-run.json
+          python - <<'PY'
+          import json
+          run = json.load(open('/tmp/structure-source-run.json'))
+          assert run['path'] == '.github/workflows/atc-support-pivot-report.yml', 'Wrong source workflow'
+          assert run['event'] == 'workflow_dispatch' and run['conclusion'] == 'success', 'Preview not successful'
+          print('Verified report source run:', run['id'], run['head_sha'])
+          PY
+      - name: Download the exact previously prepared report
+        if: ${{ inputs.prepared_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: atc-support-pivot-report
+          path: runtime_artifacts/structure
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.prepared_run_id }}
+      - name: Prepare all 630 stocks from fresh previous-session closed candles
+        if: ${{ inputs.prepared_run_id == '' }}
+        run: python -m scripts.atc_structure_report --prepare --workers 2 --output-dir runtime_artifacts/structure
+      - name: Show coverage and methods in the GitHub summary
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path('runtime_artifacts/structure')
+          report = json.loads((p / 'report.json').read_bytes())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('## Daily support, resistance and classic pivots\n\n')
+              out.write(f"Previous closed session: {report['previous_session']}\n\n")
+              out.write(f"Coverage: {report['counts']}\n\n")
+              out.write('Closed swing pivots: 120 bars, 3 left + 3 closed right. Classic pivot: previous H/L/C.\n\n')
+              out.write('All 630 rows remain in CSV/JSON, including unavailable data. Summary image shows the top 20 only.\n\n')
+              out.write('These are reference levels; no Stop/TP calibration or order is applied.\n')
+          print((p / 'summary.txt').read_text())
+          PY
+      - name: Publish the same hash-verified packet to the existing Reports topic
+        if: ${{ inputs.delivery == 'publish' && github.ref_name == 'main' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TOPIC_REPORTS: ${{ vars.TELEGRAM_TOPIC_REPORTS }}
+        run: python -m scripts.atc_structure_report --publish-from runtime_artifacts/structure
+      - name: Refuse live publication from a development branch
+        if: ${{ inputs.delivery == 'publish' && github.ref_name != 'main' }}
+        run: echo 'Publication requires main; use preview on development branches.' && exit 1
+      - name: Retain only the report and acknowledgement files, never credentials or raw history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-support-pivot-report
+          path: |
+            runtime_artifacts/structure/report.json
+            runtime_artifacts/structure/report.csv
+            runtime_artifacts/structure/summary.txt
+            runtime_artifacts/structure/summary.png
+            runtime_artifacts/structure/manifest.json
+            runtime_artifacts/structure/delivery.json
+          retention-days: 2
+          if-no-files-found: warn
