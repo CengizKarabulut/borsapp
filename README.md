@@ -28,6 +28,9 @@ Destek/direnç yönteminin geçmiş tepki deneyi ve kapsam sınırları:
 GitHub'dan normal taramayı çalıştırma ve gruba teyitli destek/direnç ile klasik
 pivot raporu gönderme: [manuel Telegram rapor rehberi](docs/TELEGRAM_SUPPORT_PIVOT.md).
 
+Son gerçek mumu kapanmasını beklemeden kullanarak 630 hisseyi tarama:
+[CANLI / TEYİTSİZ tarama rehberi](docs/TELEGRAM_LIVE_SNAPSHOT.md).
+
 - Scanner veri çekmez, Telegram'a yazmaz ve sistem saatini doğrudan okumaz.
 - İndikatörler ortak feature katmanında, açık implementasyon ve warmup kimliğiyle hesaplanır.
 - Event ile state farklı saklanır; MATCH, NO_MATCH ve UNKNOWN aynı şey değildir.
