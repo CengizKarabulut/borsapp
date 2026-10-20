@@ -84,6 +84,19 @@ yalnız gönderim adımına verilir, rapor dosyalarına yazılmaz.
 - **Eksik mum:** Hisse işlem görmediyse, sağlayıcı gerçek mum göndermediyse
   veya geçmiş seri uygun değilse durum eksik kalır. Mum kapanışını beklememek
   bu tür veri eksikliğini kendiliğinden çözmez.
+- **Eksik son aralık:** Özellikle 45 dakikalık birleştirmede, nominal aralık
+  bitmiş olsa da sağlayıcının verdiği son yerel mumlar o aralığın yalnız
+  baştan başlayan kesintisiz bölümünü kapsayabilir. Aynı seanstaki son gerçek
+  kaynak mumunun bitişi en fazla 30 dakika eskiyse bu gözlenen bölüm yalnız
+  **CANLI / TEYİTSİZ** hesapta tutulabilir. Başlangıcı eksik veya içinde boşluk
+  bulunan bölüm kabul edilmez; eksik sona fiyat/hacim eklenmez. Bu kullanım
+  bütün 45 dakikanın OHLCV'sinin mevcut olduğu veya mumun teyit edildiği
+  anlamına gelmez. Metin ve görseldeki **Eksik son aralık** sayısı bu ayrı
+  durumu gösterir; bütün veri eksiklerinin giderildiği anlamına gelmez.
+  CSV'de `SonHedefAralikTam`, `GozlenenOnEkSonu` ve `SonMumDurumu` bulunur.
+  `GozlenenOnEkSonu`, gözlenen son yerel mumun nominal bitiş zamanıdır;
+  gerçek son işlem zamanı değildir. Kaynak hatalarının yalnız güvenli,
+  önceden tanımlanmış doğrulama gerekçeleri `KaynakHatalari` alanına yazılır.
 - **Kısa seanslar:** Güncel beklenen seans yarım günse bu sürüm açıkça
   desteklenmedi hatası verir. Geçmiş yarım günlerin gerçek OHLCV değerleri
   korunur; nominal saat ve eksik birleştirme uyarıları CSV/JSON'da görünür.

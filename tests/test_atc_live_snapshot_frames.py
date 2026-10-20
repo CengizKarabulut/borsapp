@@ -90,6 +90,81 @@ class LatestActualFrameTests(unittest.TestCase):
         self.assertEqual(current.volume, 13 + 14 + 15)
         self.assertEqual(current.close, 106)
         self.assertTrue(meta["current_bucket"])
+        self.assertFalse(meta["latest_target_complete"])
+
+    def test_delayed_contiguous_45m_prefix_survives_nominal_boundary_without_fake_tail(self):
+        # Real bootstrap pattern: request started just before 16:45, receipt
+        # crossed the boundary while the vendor still lacked its 16:30 row.
+        starts = [NOW.replace(hour=16, minute=0), NOW.replace(hour=16, minute=15)]
+        raw = raw_frame(starts=starts, partial=False)
+        moments = iter((NOW.replace(hour=16, minute=44), NOW.replace(hour=16, minute=45, second=6)))
+        frame, meta = live.prepare_frame(Vendor(raw), MEMBER, "45m", now=lambda: next(moments))
+        self.assertEqual(frame.bars[-1].open_time, starts[0])
+        self.assertEqual(frame.bars[-1].close_time, NOW.replace(hour=16, minute=45))
+        self.assertEqual(frame.bars[-1].volume, 21)
+        self.assertEqual(frame.bars[-1].close, raw.bars[-1].close)
+        self.assertEqual(len(frame.bars), 1)
+        self.assertEqual(meta["status"], "incomplete_latest_native_prefix")
+        self.assertEqual(meta["observed_prefix_end"], NOW.replace(hour=16, minute=30).isoformat())
+        self.assertFalse(meta["latest_target_complete"])
+        self.assertFalse(meta["current_bucket"])
+        self.assertFalse(meta["actual_bar_is_open"])
+        self.assertFalse(meta["temporally_open"])
+        self.assertTrue(meta["usable_latest"])
+        self.assertFalse(meta["persisted"])
+        self.assertFalse(frame.is_partial)  # Formula-only RAM frame, never confirmation.
+        self.assertEqual(frame.quality, live.QUALITY)
+        self.assertIsNone(meta["last_trade_at"])
+        self.assertIsNone(meta["price_delay_seconds"])
+
+    def test_after_boundary_prefix_limit_is_30_minutes_and_never_claims_fresh_quote(self):
+        starts = [NOW.replace(hour=16, minute=0), NOW.replace(hour=16, minute=15)]
+        raw = raw_frame(starts=starts, partial=False)
+        _, boundary = live.prepare_frame(Vendor(raw), MEMBER, "45m", now=NOW.replace(hour=17, minute=0))
+        self.assertTrue(boundary["usable_latest"])
+        self.assertEqual(boundary["latest_native_close_age_seconds"], 1800)
+        self.assertFalse(boundary["latest_target_complete"])
+        with self.assertRaisesRegex(ValueError, "missing native"):
+            live.prepare_frame(Vendor(raw), MEMBER, "45m", now=NOW.replace(hour=17, minute=0, second=1))
+
+    def test_after_boundary_prefix_never_accepts_start_or_interior_gap(self):
+        now = NOW.replace(hour=16, minute=46)
+        for starts in (
+            [NOW.replace(hour=16, minute=15)],
+            [NOW.replace(hour=16, minute=0), NOW.replace(hour=16, minute=30)],
+        ):
+            with self.subTest(starts=starts), self.assertRaisesRegex(ValueError, "missing native"):
+                live.prepare_frame(Vendor(raw_frame(starts=starts, partial=False)), MEMBER, "45m", now=now)
+
+    def test_old_session_or_after_hours_incomplete_prefix_is_not_rescued(self):
+        cases = (
+            ([datetime(2026, 10, 19, 16, 0, tzinfo=IST), datetime(2026, 10, 19, 16, 15, tzinfo=IST)],
+             NOW.replace(hour=10, minute=1)),
+            ([NOW.replace(hour=17, minute=30)], NOW.replace(hour=18, minute=1)),
+            ([NOW.replace(hour=13, minute=45)], NOW.replace(hour=16, minute=56)),
+        )
+        for starts, observed in cases:
+            with self.subTest(starts=starts), self.assertRaisesRegex(ValueError, "missing native"):
+                live.prepare_frame(Vendor(raw_frame(starts=starts, partial=False)), MEMBER, "45m", now=observed)
+
+    def test_historical_incomplete_bucket_is_not_promoted_by_new_prefix_exception(self):
+        starts = [NOW.replace(hour=15, minute=15), NOW.replace(hour=15, minute=30),
+                  NOW.replace(hour=16, minute=0), NOW.replace(hour=16, minute=15)]
+        frame, meta = live.prepare_frame(Vendor(raw_frame(starts=starts, partial=False)),
+            MEMBER, "45m", now=NOW.replace(hour=16, minute=46))
+        self.assertEqual(len(frame.bars), 1)
+        self.assertEqual(meta["dropped_incomplete_history_buckets"], 1)
+        self.assertEqual(meta["status"], "incomplete_latest_native_prefix")
+        self.assertEqual(frame.bars[0].open_time, NOW.replace(hour=16, minute=0))
+
+    def test_complete_closed_target_exposes_complete_metadata(self):
+        starts = [NOW.replace(hour=16, minute=0), NOW.replace(hour=16, minute=15),
+                  NOW.replace(hour=16, minute=30)]
+        _, meta = live.prepare_frame(Vendor(raw_frame(starts=starts, partial=False)),
+            MEMBER, "45m", now=NOW.replace(hour=16, minute=46))
+        self.assertTrue(meta["latest_target_complete"])
+        self.assertEqual(meta["observed_prefix_end"], NOW.replace(hour=16, minute=45).isoformat())
+        self.assertEqual(meta["status"], "stale_previous_bucket")
 
     def test_two_and_four_hour_native_resolution_mapping(self):
         starts = [datetime(2026, 10, 20, 10 + i, tzinfo=IST) for i in range(2)]

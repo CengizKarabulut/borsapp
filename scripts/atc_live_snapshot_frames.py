@@ -133,7 +133,7 @@ def _native_bars(raw: ProviderFrame, *, received_at, schedule, sessions):
 
 def _aggregate(base, *, source, target, received_at, schedule):
     if source is target:
-        return base, 0, False
+        return base, 0, False, False
     groups = defaultdict(list)
     for bar in base:
         groups[_bucket(bar.open_time, target, schedule)].append(bar)
@@ -141,6 +141,7 @@ def _aggregate(base, *, source, target, received_at, schedule):
     dropped = 0
     latest_group = max(groups)
     last_truncated = False
+    latest_incomplete_prefix = False
     for (opened, closed), group in sorted(groups.items()):
         ordered = sorted(group, key=lambda bar: bar.open_time)
         contiguous = all(a.close_time == b.open_time for a, b in zip(
@@ -150,6 +151,18 @@ def _aggregate(base, *, source, target, received_at, schedule):
         # traded. Closed historical targets must contain the complete bucket.
         complete = ordered[-1].close_time == closed
         mutable = opened <= received_at < closed
+        # A delayed feed may still expose only an authentic contiguous prefix
+        # just after this target's nominal end. Keep that observed prefix ONLY
+        # in the RAM what-if path, with an explicit incomplete-target label.
+        # Never accept an interior/start gap, old session, or >30m native lag.
+        session_open, session_close = schedule.session_bounds(received_at.date())
+        fresh_late_prefix = (
+            (opened, closed) == latest_group and not complete and not mutable
+            and opened.date() == received_at.date()
+            and session_open <= received_at < session_close
+            and timedelta(0) <= received_at - ordered[-1].close_time
+            <= timedelta(minutes=MAX_LATEST_NATIVE_AGE_MINUTES)
+        )
         truncated = (closed - opened) < timedelta(minutes=target.minutes or 0)
         # Keep the established canonical history contract (45m historical
         # session tails are not full 45m bars). Only the latest actual bucket
@@ -158,7 +171,7 @@ def _aggregate(base, *, source, target, received_at, schedule):
             dropped += 1
             continue
         if (ordered[0].open_time != opened or not contiguous
-                or ordered[-1].close_time > closed or not (complete or mutable)):
+                or ordered[-1].close_time > closed or not (complete or mutable or fresh_late_prefix)):
             if (opened, closed) == latest_group:
                 raise ValueError("Latest derived candle has missing native OHLCV; no gap filling")
             dropped += 1
@@ -170,7 +183,8 @@ def _aggregate(base, *, source, target, received_at, schedule):
             volume=sum(bar.volume for bar in ordered),
         ))
         last_truncated = truncated
-    return tuple(result), dropped, last_truncated
+        latest_incomplete_prefix = fresh_late_prefix
+    return tuple(result), dropped, last_truncated, latest_incomplete_prefix
 
 
 def prepare_frame(
@@ -230,7 +244,7 @@ def prepare_frame(
         base = _native_bars(raw, received_at=received_at, schedule=schedule, sessions=sessions)
         if not base:
             raise ValueError("No authentic observed native candles")
-        derived, dropped, truncated = _aggregate(
+        derived, dropped, truncated, incomplete_prefix = _aggregate(
             base, source=native, target=target, received_at=received_at, schedule=schedule,
         )
         if not derived:
@@ -245,6 +259,8 @@ def prepare_frame(
         # Native flag is additional vendor provenance, never a reason to drop
         # its actual row or to claim exchange confirmation.
         actual_open = temporal_open or raw.last_bar_is_partial
+        target_complete = (base[-1].close_time == latest.close_time
+                           and received_at >= latest.close_time and not raw.last_bar_is_partial)
         today_open, today_close = schedule.session_bounds(received_at.date())
         during_regular_session = received_at.date() in sessions and today_open <= received_at < today_close
         native_close_age = max(0.0, (received_at - base[-1].close_time).total_seconds())
@@ -253,7 +269,9 @@ def prepare_frame(
             native_close_age <= MAX_LATEST_NATIVE_AGE_MINUTES * 60
             if during_regular_session else native_current
         )
-        if latest.open_time.date() < expected_open.date():
+        if incomplete_prefix:
+            status = "incomplete_latest_native_prefix"
+        elif latest.open_time.date() < expected_open.date():
             status = "stale_previous_session"
         elif target_bucket_present and not native_current:
             status = "stale_native_prefix"
@@ -286,6 +304,10 @@ def prepare_frame(
             "actual_bar_is_open": actual_open, "temporally_open": temporal_open,
             "last_bar_open": latest.open_time.isoformat(),
             "last_bar_close": latest.close_time.isoformat(),
+            "latest_target_complete": target_complete,
+            # Nominal end of the last ACTUAL native row, not a last-trade time
+            # or an assertion that the remaining target interval was observed.
+            "observed_prefix_end": base[-1].close_time.isoformat(),
             "expected_bucket_open": expected_open.isoformat(),
             "expected_bucket_close": expected_close.isoformat(),
             "expected_native_open": expected_native_open.isoformat(),

@@ -30,10 +30,13 @@ def synthetic_reader(symbol, **_):
         "history_bars": 600, "close": 100.0, "source_errors": [],
         "metadata": {
             "current_bucket": True, "usable_latest": True, "actual_bar_is_open": True,
+            "status": "live_open",
             "observed_at": (NOW - timedelta(seconds=2)).isoformat(),
             "received_at": (NOW - timedelta(seconds=1)).isoformat(),
             "last_bar_open": NOW.replace(minute=30).isoformat(),
             "last_bar_close": NOW.replace(minute=45).isoformat(),
+            "latest_target_complete": False,
+            "observed_prefix_end": NOW.replace(minute=45).isoformat(),
         },
         "evaluations": [{"number": n, "code": live.scanner_code(n),
             "scanner_id": scanner_id, "version": "test", "ruleset_hash": "test",
@@ -212,6 +215,62 @@ class LivePreparedPacketTests(unittest.TestCase):
         self.assertEqual(len(missing), 18)
         self.assertTrue(all(row["Durum"] == "unknown" and row["Hata"] == "source_unavailable"
                             and row["SonFiyat"] == "" for row in missing))
+
+    def test_latest_observed_prefix_is_counted_with_native_end_and_missing_stock_preserved(self):
+        prefix_symbol, regular_symbol, missing_symbol = self.symbols[:3]
+        prefix_end = NOW.replace(minute=15).isoformat()
+
+        def reader(symbol, **options):
+            if symbol == missing_symbol:
+                return {"symbol": symbol, "status": "source_unavailable",
+                    "source_errors": [{"source": "vendor", "code": "ValueError"}], "evaluations": []}
+            row = synthetic_reader(symbol, **options)
+            if symbol == prefix_symbol:
+                row["metadata"].update(status="incomplete_latest_native_prefix",
+                    current_bucket=False, actual_bar_is_open=False, latest_target_complete=False,
+                    last_bar_open=NOW.replace(hour=10, minute=45).isoformat(),
+                    last_bar_close=NOW.replace(minute=30).isoformat(), observed_prefix_end=prefix_end)
+            return row
+
+        folder = Path(self.tmp.name) / "prefix-packet"
+        with patch.object(live, "render_png", return_value=b"test-only-png"):
+            packet = live.prepare_report(folder, timeframe="45m", symbols=self.symbols[:3],
+                reader=reader, clock=lambda: NOW)
+        self.assertEqual(packet["counts"], {"usable": 2, "current": 1, "stale": 0,
+            "missing": 1, "incomplete_latest": 1})
+        self.assertIn("Eksik son aralık: 1", (folder / "live-snapshot.txt").read_text(encoding="utf-8"))
+        rows = list(csv.DictReader(io.StringIO((folder / "live-snapshot.csv").read_text(encoding="utf-8-sig"))))
+        self.assertEqual(len(rows), 3 * 18)
+        prefix_rows = [row for row in rows if row["Hisse"] == prefix_symbol]
+        self.assertTrue(all(row["SonHedefAralikTam"] == "False" and row["GozlenenOnEkSonu"] == prefix_end
+            and row["GuncelMum"] == "False" and row["SonMumDurumu"] == "incomplete_latest_native_prefix"
+            for row in prefix_rows))
+        self.assertTrue(all(row["Durum"] == "unknown" and row["SonFiyat"] == ""
+            for row in rows if row["Hisse"] == missing_symbol))
+        self.assertTrue(all(row["SonHedefAralikTam"] == "False" and row["SonMumDurumu"] == "live_open"
+            for row in rows if row["Hisse"] == regular_symbol))
+
+    def test_only_exact_application_value_error_reason_is_exposed_without_provider_secrets(self):
+        reason = "Latest derived candle has missing native OHLCV; no gap filling"
+        providers = [Mock(), Mock(), Mock()]
+        for number, provider in enumerate(providers):
+            provider.name = f"vendor_{number}"
+        private_error = "https://vendor.example/?sessionid=PRIVATE_TEST_VALUE"
+        with patch.object(live, "prepare_frame", side_effect=[ValueError(reason),
+                ValueError(private_error), RuntimeError(reason)]):
+            row = live.read_symbol("ASELS", timeframe="45m", bindings=(),
+                calendar_version="test", providers=providers, clock=lambda: NOW)
+        self.assertEqual(row["status"], "source_unavailable")
+        self.assertEqual(row["source_errors"], [
+            {"source": "vendor_0", "code": "ValueError", "reason": reason},
+            {"source": "vendor_1", "code": "ValueError"},
+            {"source": "vendor_2", "code": "RuntimeError"}])
+        csv_text = live.csv_report({"timeframe": "45m", "rows": [row]}).decode("utf-8-sig")
+        self.assertIn(reason, csv_text)
+        self.assertNotIn("PRIVATE_TEST_VALUE", json.dumps(row) + csv_text)
+        csv_rows = list(csv.DictReader(io.StringIO(csv_text)))
+        self.assertEqual(len(csv_rows), 18)
+        self.assertEqual(json.loads(csv_rows[0]["KaynakHatalari"]), row["source_errors"])
 
     def test_two_direction_all_rule_summary_fits_one_telegram_message(self):
         packet = copy.deepcopy(self.packet)

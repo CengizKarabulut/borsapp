@@ -4,12 +4,14 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import os
 import re
 import zipfile
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
+from time import sleep as blocking_sleep
 from uuid import uuid4
 
 import httpx
@@ -31,6 +33,37 @@ PACKET_VERSION = "atc-unpersisted-latest-candle-v1"
 PACKET_FILES = ("live-snapshot.json", "live-snapshot.csv", "live-snapshot.txt", "live-snapshot.png")
 SLOT_FIELDS = {"timeframe", "slot_key", "session", "target_close", "scheduled_at",
                "lateness_seconds", "missed_slot_count", "manual_only"}
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def _retry_read(operation, *, sleep=None):
+    """Retry only transient reads; malformed state never becomes a cold start."""
+    wait = blocking_sleep if sleep is None else sleep
+    for attempt in range(3):
+        try:
+            return operation()
+        except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code not in RETRYABLE_STATUS:
+                raise
+            if attempt == 2:
+                raise
+            delay = (2, 5)[attempt]
+            if isinstance(exc, httpx.HTTPStatusError):
+                try:
+                    requested = float(exc.response.headers.get("Retry-After", ""))
+                except ValueError:
+                    requested = 0
+                if math.isfinite(requested):
+                    delay = min(10, max(delay, requested))
+            wait(delay)
+
+
+def _json_read(client: httpx.Client, url: str, *, params=None, sleep=None):
+    def read():
+        response = client.get(url, params=params)
+        response.raise_for_status()
+        return response.json()
+    return _retry_read(read, sleep=sleep)
 
 
 def _atomic_json(path: Path, value: dict):
@@ -156,7 +189,7 @@ def _read_state_zip(raw: bytes, timeframe: str) -> dict:
     return state
 
 
-def _download(client: httpx.Client, url: str) -> bytes:
+def _download_once(client: httpx.Client, url: str) -> bytes:
     content = bytearray()
     with client.stream("GET", url) as response:
         response.raise_for_status()
@@ -167,8 +200,14 @@ def _download(client: httpx.Client, url: str) -> bytes:
     return bytes(content)
 
 
+def _download(client: httpx.Client, url: str, *, sleep=None) -> bytes:
+    # Every retry starts from the original GitHub API URL, obtaining a fresh
+    # signed redirect rather than repeatedly requesting a failed CDN URL.
+    return _retry_read(lambda: _download_once(client, url), sleep=sleep)
+
+
 def restore_receipts(repository: str, workflow: str, output_dir: Path, *, client=None,
-                     token: str | None = None) -> dict:
+                     token: str | None = None, sleep=None) -> dict:
     """Restore main-workflow ACKs, selecting by logical target, never upload time.
 
     A failed overall workflow may still contain valid completed timeframe ACKs.
@@ -186,7 +225,7 @@ def restore_receipts(repository: str, workflow: str, output_dir: Path, *, client
             "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }) as owned:
-            return restore_receipts(repository, workflow, output_dir, client=owned)
+            return restore_receipts(repository, workflow, output_dir, client=owned, sleep=sleep)
 
     root = f"{API}/repos/{repository}/actions"
     runs = {}
@@ -194,9 +233,8 @@ def restore_receipts(repository: str, workflow: str, output_dir: Path, *, client
     ignored = 0
     for tf in SUPPORTED_TIMEFRAMES:
         name = f"atc-scheduled-delivery-{tf}"
-        response = client.get(f"{root}/artifacts", params={"name": name, "per_page": 10})
-        response.raise_for_status()
-        listing = response.json()
+        listing = _json_read(client, f"{root}/artifacts", params={"name": name, "per_page": 10},
+                             sleep=sleep)
         artifacts = listing.get("artifacts") if isinstance(listing, dict) else None
         if not isinstance(artifacts, list) or len(artifacts) > 10:
             raise ValueError("invalid_github_artifact_listing")
@@ -211,16 +249,14 @@ def restore_receipts(repository: str, workflow: str, output_dir: Path, *, client
                 raise ValueError("github_artifact_workflow_identity_missing")
             run_id = _positive_id(run_info.get("id"))
             if run_id not in runs:
-                run_response = client.get(f"{root}/runs/{run_id}")
-                run_response.raise_for_status()
-                runs[run_id] = run_response.json()
+                runs[run_id] = _json_read(client, f"{root}/runs/{run_id}", sleep=sleep)
             if not _trusted_run(runs[run_id], repository, workflow):
                 ignored += 1
                 continue
             expected_url = f"{root}/artifacts/{artifact_id}/zip"
             if artifact.get("archive_download_url") != expected_url:
                 raise ValueError("github_artifact_download_url_mismatch")
-            state = _read_state_zip(_download(client, expected_url), tf)
+            state = _read_state_zip(_download(client, expected_url, sleep=sleep), tf)
             previous = selected.get(tf)
             if previous is None or _parse_timestamp(state["target_close"]) > _parse_timestamp(previous["target_close"]):
                 selected[tf] = state
