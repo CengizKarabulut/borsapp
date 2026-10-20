@@ -246,5 +246,136 @@ class RecordReceiptTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
 
 
+class RetryReceiptReadTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.output = Path(self.temp.name) / "ledger"
+        self.state = acknowledged(entries(plan(clock(), calendar=Calendar()))["15m"])
+        self.delays = []
+
+    def restore(self, handler):
+        with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True,
+                          headers={"Authorization": "Bearer local-test-token"}) as client:
+            return receipts.restore_receipts(REPO, WORKFLOW, self.output, client=client,
+                                             sleep=self.delays.append)
+
+    def test_cdn_503_restarts_original_github_zip_url_and_strips_authorization(self):
+        api = Api({"15m": [artifact(10)]}, {10: zip_state(self.state)}, redirect=True)
+        cdn_calls = []
+
+        def handler(request):
+            if request.url.host == "artifact.example.invalid":
+                cdn_calls.append(request)
+                if len(cdn_calls) == 1:
+                    return httpx.Response(503, text="Transient egress limit")
+            return api.handle(request)
+
+        self.assertEqual(self.restore(handler)["restored"], 1)
+        self.assertEqual(self.delays, [2])
+        self.assertEqual(sum(request.url.path.endswith("/artifacts/10/zip")
+                             for request in api.calls), 2)
+        self.assertEqual(len(cdn_calls), 2)
+        self.assertTrue(all("Authorization" not in request.headers for request in cdn_calls))
+
+    def test_persistent_503_stops_after_three_reads_and_writes_no_partial_ledger(self):
+        api = Api({"15m": [artifact(10), artifact(20)]}, {10: zip_state(self.state)})
+        failures = []
+
+        def handler(request):
+            if request.url.path.endswith("/artifacts/20/zip"):
+                failures.append(request)
+                return httpx.Response(503)
+            return api.handle(request)
+
+        with self.assertRaises(httpx.HTTPStatusError):
+            self.restore(handler)
+        self.assertEqual(len(failures), 3)
+        self.assertEqual(self.delays, [2, 5])
+        self.assertFalse(self.output.exists())
+
+    def test_transient_transport_error_on_artifact_list_is_retried(self):
+        api = Api()
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            if len(calls) == 1:
+                raise httpx.ReadError("Connection reset", request=request)
+            return api.handle(request)
+
+        self.assertEqual(self.restore(handler)["restored"], 0)
+        self.assertEqual(len(calls), len(SUPPORTED_TIMEFRAMES) + 1)
+        self.assertEqual(self.delays, [2])
+
+    def test_retry_after_is_capped_and_default_second_backoff_is_five_seconds(self):
+        api = Api()
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            if len(calls) == 1:
+                return httpx.Response(429, headers={"Retry-After": "600"})
+            if len(calls) == 2:
+                return httpx.Response(500, headers={"Retry-After": "invalid"})
+            return api.handle(request)
+
+        self.assertEqual(self.restore(handler)["restored"], 0)
+        self.assertEqual(self.delays, [10, 5])
+
+    def test_each_retryable_status_works_but_403_and_404_are_not_retried(self):
+        for code in [429, 500, 502, 503, 504, 403, 404]:
+            with self.subTest(code=code):
+                self.delays.clear()
+                api = Api()
+                calls = []
+
+                def handler(request, calls=calls, code=code, api=api):
+                    calls.append(request)
+                    return httpx.Response(code) if len(calls) == 1 else api.handle(request)
+
+                if code in (403, 404):
+                    with self.assertRaises(httpx.HTTPStatusError):
+                        self.restore(handler)
+                    self.assertEqual(len(calls), 1)
+                    self.assertEqual(self.delays, [])
+                else:
+                    self.assertEqual(self.restore(handler)["restored"], 0)
+                    self.assertEqual(self.delays, [2])
+
+    def test_stream_failure_discards_partial_bytes_before_retry(self):
+        api = Api({"15m": [artifact(10)]}, {10: zip_state(self.state)})
+        attempts = []
+
+        class InterruptedStream(httpx.SyncByteStream):
+            def __iter__(self):
+                yield b"incomplete prefix"
+                raise httpx.ReadError("Midstream reset")
+
+        def handler(request):
+            if request.url.path.endswith("/artifacts/10/zip"):
+                attempts.append(request)
+                if len(attempts) == 1:
+                    return httpx.Response(200, stream=InterruptedStream())
+            return api.handle(request)
+
+        self.assertEqual(self.restore(handler)["restored"], 1)
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(self.delays, [2])
+
+    def test_corrupt_state_zip_and_size_limit_are_never_retried(self):
+        for content in [b"not a zip", zip_state({**self.state, "sent": False})]:
+            with self.subTest(size=len(content)):
+                api = Api({"15m": [artifact(10)]}, {10: content})
+                with self.assertRaises(ValueError):
+                    self.restore(api.handle)
+                self.assertEqual(sum(request.url.path.endswith("/zip") for request in api.calls), 1)
+                self.assertEqual(self.delays, [])
+        api = Api({"15m": [artifact(10)]}, {10: b"too large"})
+        with patch.object(receipts, "MAX_ARCHIVE", 1), self.assertRaisesRegex(ValueError, "too_large"):
+            self.restore(api.handle)
+        self.assertEqual(self.delays, [])
+
+
 if __name__ == "__main__":
     unittest.main()

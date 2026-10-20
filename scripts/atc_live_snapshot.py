@@ -67,6 +67,11 @@ TOPICS = {"15m": 6, "30m": 11, "45m": 9, "1h": 28326,
 FILES = ("live-snapshot.json", "live-snapshot.csv", "live-snapshot.txt", "live-snapshot.png")
 MAX_AGE = timedelta(minutes=30)
 MIN_COVERAGE = 0.90
+# Only fixed validation messages defined by this application's frame adapter
+# may be exposed. Provider exception text can contain URLs or credentials.
+SAFE_SOURCE_ERROR_REASONS = frozenset({
+    "Latest derived candle has missing native OHLCV; no gap filling",
+})
 
 
 class NoQualification:
@@ -156,8 +161,11 @@ def read_symbol(symbol, *, timeframe, bindings, calendar_version, clock=None, pr
                 best = (row, frame)
                 break
         except Exception as error:
-            errors.append({"source": getattr(provider, "name", type(provider).__name__),
-                           "code": type(error).__name__})
+            detail = {"source": getattr(provider, "name", type(provider).__name__),
+                      "code": type(error).__name__}
+            if isinstance(error, ValueError) and str(error) in SAFE_SOURCE_ERROR_REASONS:
+                detail["reason"] = str(error)
+            errors.append(detail)
     if best is None:
         return {"symbol": symbol, "status": "source_unavailable", "source_errors": errors,
                 "evaluations": []}
@@ -187,6 +195,7 @@ def render_summary(report):
         f"Gözlem: {report['observation_start']} → {report['observation_end']}",
         f"Kapsam {report['symbol_count']}/630 · kullanılabilir son mum {counts['usable']} · güncel aralık {counts['current']} · "
         f"eski mum {counts['stale']} · veri yok {counts['missing']}",
+        f"Eksik son aralık: {counts.get('incomplete_latest', 0)} · yalnız gözlenen kesintisiz kaynak bölümü kullanıldı.",
         "Son gerçek mum o an kapansaydı: koşullar ve referans Stop/TP değişebilir."]
     grouped = {}
     for row, scan, _, direction in matches(report):
@@ -216,7 +225,7 @@ def csv_report(report):
         "Kaynak", "FiyatBazi", "Snapshot", "Hata", "Teyit", "SonMumDurumu",
         "SonKaynakMumBaslangici", "SonKaynakMumSonu", "KaynakMumBitisYasiSaniye",
         "KullanimYasSiniriDakika", "AtlananEksikGecmisAralik", "GecmisKisaSeansTarihleri",
-        "GecmisKisaSeansKapanisSaatiNominal"))
+        "GecmisKisaSeansKapanisSaatiNominal", "SonHedefAralikTam", "GozlenenOnEkSonu", "KaynakHatalari"))
     for row in report["rows"]:
         meta = row.get("metadata", {})
         scans = row["evaluations"] or [{"number": n, "status": "unknown", "findings": [],
@@ -238,7 +247,11 @@ def csv_report(report):
                     meta.get("latest_native_age_limit_minutes", ""),
                     meta.get("dropped_incomplete_history_buckets", ""),
                     "/".join(meta.get("nonregular_history_dates", [])),
-                    meta.get("historical_nonregular_close_times_nominal", "")))
+                    meta.get("historical_nonregular_close_times_nominal", ""),
+                    meta.get("latest_target_complete", ""), meta.get("observed_prefix_end", ""),
+                    canonical([{**{key: error[key] for key in ("source", "code") if key in error},
+                                **({"reason": error["reason"]} if error.get("reason") in SAFE_SOURCE_ERROR_REASONS else {})}
+                               for error in row.get("source_errors", [])])))
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
@@ -255,6 +268,8 @@ def render_png(report):
     draw.text((35, 72), f"Gözlem {start:%d.%m.%Y %H:%M:%S} – {end:%d.%m.%Y %H:%M:%S} TSİ · Kaynak mum zamanları CSV'de", fill="white", font=_font(17))
     draw.text((35, 120), f"Son mum {report['counts']['usable']}/{report['symbol_count']} · güncel aralık {report['counts']['current']} · "
         f"{len(rows)} eşleşmeden ilk {len(shown)} · tam liste CSV'de", fill="#112E4A", font=_font(22))
+    draw.text((35, 150), f"Eksik son aralık: {report['counts'].get('incomplete_latest', 0)} · "
+        "yalnız gözlenen kaynak bölümü; tam aralık OHLCV'si değildir.", fill="#52697F", font=_font(17))
     columns = ((35, "HİSSE"), (260, "KOD / YÖN"), (600, "GİRİŞ"), (830, "STOP"),
                (1060, "TP1"), (1290, "TP2"), (1520, "TP3"))
     for x, title in columns:
@@ -304,11 +319,14 @@ def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=r
     counts = Counter(row["status"] for row in rows)
     current = sum(row.get("metadata", {}).get("current_bucket", False) for row in rows)
     usable = sum(row.get("metadata", {}).get("usable_latest", False) for row in rows)
+    incomplete_latest = sum(row.get("metadata", {}).get("status") == "incomplete_latest_native_prefix"
+                            for row in rows)
     report = {"version": VERSION, "timeframe": tf.value, "started_at": started.isoformat(),
         "finished_at": finished.isoformat(), "observation_start": min(observations, default=started).isoformat(),
         "observation_end": max(observations, default=finished).isoformat(), "symbol_count": len(rows),
         "counts": {"usable": usable, "current": current, "stale": counts["available"] - usable,
-                   "missing": counts["source_unavailable"]}, "rows": sorted(rows, key=lambda row: row["symbol"]),
+                   "missing": counts["source_unavailable"], "incomplete_latest": incomplete_latest},
+        "rows": sorted(rows, key=lambda row: row["symbol"]),
         "provisional": True, "confirmed_store_writes": 0, "orders_sent": 0,
         "feed_latency_verified": False, "calibration_used": False}
     folder.mkdir(parents=True, exist_ok=True)
