@@ -1,0 +1,126 @@
+name: ATC manual live candle snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeframe:
+        description: Actual latest candle, evaluated as if it closed at observation time
+        type: choice
+        options: [15m, 30m, 45m, 1h, 2h, 4h, 1d]
+        default: 15m
+        required: true
+      delivery:
+        description: Preview creates files only; publish sends to the existing timeframe topic
+        type: choice
+        options: [preview, publish]
+        default: preview
+        required: true
+      prepared_run_id:
+        description: Optional successful main preview run ID; publish its unchanged files within 30 minutes
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: atc-manual-live-snapshot-${{ inputs.timeframe }}
+  cancel-in-progress: false
+
+jobs:
+  live-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_TIMEZONE: Europe/Istanbul
+      TZ: UTC
+      SNAPSHOT_TIMEFRAME: ${{ inputs.timeframe }}
+      PREPARED_RUN_ID: ${{ inputs.prepared_run_id }}
+    steps:
+      - name: Require main for Telegram publication
+        if: ${{ inputs.delivery == 'publish' && github.ref != 'refs/heads/main' }}
+        run: echo 'Publication requires main; use preview on development branches.' && exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install market data and in-memory scan runtime
+        run: python -m pip install --editable '.[runtime,atcdata]'
+      - name: Verify the prepared snapshot comes from this main implementation
+        if: ${{ inputs.prepared_run_id != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PREPARED_RUN_ID" =~ ^[0-9]+$ ]] || { echo 'Invalid run ID'; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREPARED_RUN_ID" > /tmp/live-source-run.json
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          run = json.loads(Path('/tmp/live-source-run.json').read_bytes())
+          assert run['path'] == '.github/workflows/atc-live-snapshot.yml', 'Wrong source workflow'
+          assert run['event'] == 'workflow_dispatch', 'Source must be a manual run'
+          assert run['conclusion'] == 'success', 'Source run was not successful'
+          assert run['head_branch'] == 'main', 'Prepared source must be from main'
+          assert run['head_sha'] == os.environ['GITHUB_SHA'], 'Implementation changed; prepare a new snapshot'
+          print('Verified live snapshot source run:', run['id'], run['head_sha'])
+          PY
+      - name: Download the exact previously prepared snapshot
+        if: ${{ inputs.prepared_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: atc-live-snapshot
+          path: runtime_artifacts/live
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.prepared_run_id }}
+      - name: Prepare all 630 stocks using their actual latest candles
+        if: ${{ inputs.prepared_run_id == '' }}
+        run: python -m scripts.atc_live_snapshot --prepare --timeframe "$SNAPSHOT_TIMEFRAME" --workers 2 --output-dir runtime_artifacts/live
+      - name: Show actual coverage and provisional status
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path('runtime_artifacts/live')
+          report = json.loads((root / 'live-snapshot.json').read_bytes())
+          assert report['timeframe'] == os.environ['SNAPSHOT_TIMEFRAME'], 'Prepared packet timeframe differs from selection'
+          text = (root / 'live-snapshot.txt').read_text(encoding='utf-8')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write('## CANLI / TEYITSIZ candle snapshot\n\n')
+              out.write('The latest actual candle is evaluated as if closed at its observation time. Results may change.\n\n')
+              out.write('All 630 stocks remain in CSV/JSON, including missing data. No database, calibration or order is written.\n\n')
+              out.write('```text\n' + text + '\n```\n')
+          print(text)
+          PY
+      - name: Publish the same verified provisional packet to its existing timeframe topic
+        if: ${{ inputs.delivery == 'publish' && github.ref == 'refs/heads/main' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TIMEFRAME_TOPICS: ${{ vars.TELEGRAM_TIMEFRAME_TOPICS || secrets.TELEGRAM_TIMEFRAME_TOPICS }}
+          TELEGRAM_TOPIC_15M: ${{ vars.TELEGRAM_TOPIC_15M || secrets.TELEGRAM_TOPIC_15M }}
+          TELEGRAM_TOPIC_30M: ${{ vars.TELEGRAM_TOPIC_30M || secrets.TELEGRAM_TOPIC_30M }}
+          TELEGRAM_TOPIC_45M: ${{ vars.TELEGRAM_TOPIC_45M || secrets.TELEGRAM_TOPIC_45M }}
+          TELEGRAM_TOPIC_1H: ${{ vars.TELEGRAM_TOPIC_1H || secrets.TELEGRAM_TOPIC_1H }}
+          TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
+          TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
+          TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+        run: python -m scripts.atc_live_snapshot --publish-from runtime_artifacts/live
+      - name: Retain only report and acknowledgement files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-live-snapshot
+          path: |
+            runtime_artifacts/live/live-snapshot.json
+            runtime_artifacts/live/live-snapshot.csv
+            runtime_artifacts/live/live-snapshot.txt
+            runtime_artifacts/live/live-snapshot.png
+            runtime_artifacts/live/prepared-packet.json
+            runtime_artifacts/live/publication-receipt.json
+          retention-days: 2
+          if-no-files-found: warn
