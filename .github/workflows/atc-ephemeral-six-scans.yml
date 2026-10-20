@@ -13,8 +13,8 @@ on:
         default: due
         options: [due, all]
   schedule:
-    # UTC; Istanbul = UTC+3. Post-close buffer protects incomplete provider bars.
-    - cron: "7,22,37,52 7-14 * * 1-5"
+    # The latest-candle intraday schedule lives in atc-scheduled-snapshots.yml.
+    # Keep this strict confirmed-candle EOD/Friday-weekly and Kesisim path.
     - cron: "30 15 * * 1-5"
   push:
     branches: [main, feat/atc-automatic-ephemeral-eight-tfs-20261016]
@@ -45,10 +45,12 @@ jobs:
         id: pick
         env:
           # The owner's explicit rescan request can be dispatched by the merge commit.
-          INPUT_SCOPE: ${{ inputs.scope || (github.event_name == 'push' && contains(github.event.head_commit.message, '[ATC_RESCAN_ALL]') && 'all') || 'due' }}
+          INPUT_SCOPE: ${{ inputs.scope || (github.event_name == 'schedule' && 'eod') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[ATC_RESCAN_ALL]') && 'all') || 'due' }}
         run: |
           if [ "$INPUT_SCOPE" = all ]; then
             python -m scripts.atc_ephemeral_schedule --all
+          elif [ "$INPUT_SCOPE" = eod ]; then
+            python -m scripts.atc_ephemeral_schedule --eod
           else
             python -m scripts.atc_ephemeral_schedule
           fi

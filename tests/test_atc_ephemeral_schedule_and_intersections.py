@@ -8,7 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from scripts.atc_ephemeral_intersections import from_verified_digests
-from scripts.atc_ephemeral_schedule import select_timeframes
+from scripts.atc_ephemeral_schedule import select_eod_timeframes, select_timeframes
 
 IST = ZoneInfo("Europe/Istanbul")
 
@@ -23,6 +23,24 @@ class WeekdayCalendar:
 
 
 class EphemeralScheduleTests(unittest.TestCase):
+    def test_delayed_nightly_run_after_23_does_not_silently_skip(self):
+        frames, session = select_eod_timeframes(
+            datetime(2026, 10, 19, 23, 40, tzinfo=IST), calendar=WeekdayCalendar())
+        self.assertEqual(session, date(2026, 10, 19))
+        self.assertEqual(frames, ("15m", "30m", "45m", "1h", "2h", "4h", "1d"))
+
+    def test_late_eod_next_morning_uses_previous_real_session(self):
+        frames, session = select_eod_timeframes(
+            datetime(2026, 10, 20, 9, 40, tzinfo=IST), calendar=WeekdayCalendar())
+        self.assertEqual(session, date(2026, 10, 19))
+        self.assertNotIn("1wk", frames)
+
+    def test_delayed_friday_eod_keeps_weekly_on_weekend(self):
+        frames, session = select_eod_timeframes(
+            datetime(2026, 10, 17, 9, 40, tzinfo=IST), calendar=WeekdayCalendar())
+        self.assertEqual(session, date(2026, 10, 16))
+        self.assertEqual(len(frames), 8)
+
     def test_friday_eod_has_all_eight_timeframes(self):
         actual = select_timeframes(
             datetime(2026, 10, 16, 18, 30, tzinfo=IST),
