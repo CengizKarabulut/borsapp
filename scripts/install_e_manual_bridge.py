@@ -132,6 +132,7 @@ def install(root, *, preview_runner=preview_installed):
     sources = {
         'tools/manual_stop_tp.py': SCRIPTS / 'e_manual_bridge.py',
         'tools/atc_support_resistance.py': SCRIPTS / 'atc_support_resistance.py',
+        'tools/atc_pivot_ladder.py': SCRIPTS / 'atc_pivot_ladder.py',
         'tools/README-manual-integration.md': SCRIPTS.parent / 'docs/NATIVE_E_REPO_SYNC.md',
     }
     targets = {relative: owned(root, relative) for relative in sources}
@@ -164,6 +165,8 @@ def install(root, *, preview_runner=preview_installed):
                         'installed_at': datetime.now(UTC).isoformat(), **before,
                         'files': {name: digest(path) for name, path in targets.items() if name in sources},
                         'support_resistance_role': 'confirmed_structure_context_only',
+                        'pivot_ladder_role': 'traditional_reference_context_only',
+                        'pivot_reference_basis': 'last_completed_timeframe_bar',
                         'trade_plans_unchanged': True, 'real_orders_sent': 0, 'telegram_messages_sent': 0}
             changed.append('tools/manual-integration.json')
             targets['tools/manual-integration.json'].write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')

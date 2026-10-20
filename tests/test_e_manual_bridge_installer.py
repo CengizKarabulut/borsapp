@@ -38,6 +38,7 @@ class ManualBridgeInstallerTests(unittest.TestCase):
         self.wrapper.write_bytes(b"# previous exact presentation wrapper\r\n")
         self.support = self.root / "tools/atc_support_resistance.py"
         self.support.write_bytes(b"# previous context helper\r\n")
+        self.pivot = self.root / "tools/atc_pivot_ladder.py"
         self.manifest = self.root / "tools/manual-integration.json"
         self.profile = self.root / "results/profiles.json"
         self.profile.write_bytes(b'{"schema":"test-receipt-fixture","profiles":[]}\r\n')
@@ -48,6 +49,7 @@ class ManualBridgeInstallerTests(unittest.TestCase):
         self.bat.write_bytes(b'@echo off\r\npython "%ROOT%\\tools\\manual_stop_tp.py" --root "%ROOT%"\r\n')
         (self.scripts / "e_manual_bridge.py").write_bytes(b"# newly tested adapter\n")
         (self.scripts / "atc_support_resistance.py").write_bytes(b"# newly tested context\n")
+        (self.scripts / "atc_pivot_ladder.py").write_bytes(b"# newly tested traditional pivot helper\n")
         (self.scripts.parent / "docs/NATIVE_E_REPO_SYNC.md").write_bytes(b"Installation guide\n")
         patches = (
             patch.object(installer, "SCRIPTS", self.scripts),
@@ -63,7 +65,7 @@ class ManualBridgeInstallerTests(unittest.TestCase):
             self.root / "config/scanners.toml", self.root / "config/manual-scanner-names.json",
         )}
         self.previous = {p: p.read_bytes() if p.exists() else None for p in (
-            self.wrapper, self.support, self.manifest, self.root / "tools/README-manual-integration.md",
+            self.wrapper, self.support, self.pivot, self.manifest, self.root / "tools/README-manual-integration.md",
         )}
         self.preview = Mock(return_value={
             "status": "preview", "symbol_count": 631, "timeframes": ["1h", "4h", "1d", "1wk"],
@@ -95,6 +97,8 @@ class ManualBridgeInstallerTests(unittest.TestCase):
         self.preview.assert_called_once_with(self.root.resolve())
         self.assertEqual(outcome["status"], "installed")
         self.assertTrue(outcome["trade_plans_unchanged"])
+        self.assertEqual(outcome["pivot_ladder_role"], "traditional_reference_context_only")
+        self.assertEqual(outcome["pivot_reference_basis"], "last_completed_timeframe_bar")
         self.assertEqual(outcome["real_orders_sent"], 0)
         self.assertEqual(outcome["telegram_messages_sent"], 0)
         backup = Path(outcome["backup"])
@@ -102,6 +106,7 @@ class ManualBridgeInstallerTests(unittest.TestCase):
         for relative, source in (
             ("tools/manual_stop_tp.py", self.scripts / "e_manual_bridge.py"),
             ("tools/atc_support_resistance.py", self.scripts / "atc_support_resistance.py"),
+            ("tools/atc_pivot_ladder.py", self.scripts / "atc_pivot_ladder.py"),
             ("tools/README-manual-integration.md", self.scripts.parent / "docs/NATIVE_E_REPO_SYNC.md"),
         ):
             target = self.root / relative
@@ -143,6 +148,29 @@ class ManualBridgeInstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "simulated copy failure"):
                 installer.install(self.root, preview_runner=self.preview)
         self.preview.assert_not_called()
+        self.assert_previous_restored()
+
+    def test_pivot_copy_failure_rolls_back_new_helper_and_previous_adapter_files(self):
+        original_copy = installer.shutil.copy2
+
+        def failed_copy(source, target):
+            if Path(source).name == "atc_pivot_ladder.py":
+                Path(target).write_bytes(b"interrupted pivot copy")
+                raise OSError("simulated pivot copy failure")
+            return original_copy(source, target)
+
+        with patch.object(installer.shutil, "copy2", side_effect=failed_copy):
+            with self.assertRaisesRegex(OSError, "simulated pivot copy failure"):
+                installer.install(self.root, preview_runner=self.preview)
+        self.preview.assert_not_called()
+        self.assert_previous_restored()
+
+    def test_pivot_existing_bytes_are_backed_up_and_restored_on_preview_failure(self):
+        self.pivot.write_bytes(b"# previous pivot helper\r\n")
+        self.previous[self.pivot] = self.pivot.read_bytes()
+        self.preview.side_effect = ValueError("preview deliberately rejected")
+        with self.assertRaisesRegex(ValueError, "preview deliberately rejected"):
+            installer.install(self.root, preview_runner=self.preview)
         self.assert_previous_restored()
 
     def test_rollback_preserves_deployment_completed_before_lock_acquisition(self):

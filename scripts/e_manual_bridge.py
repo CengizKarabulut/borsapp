@@ -1,8 +1,9 @@
 """Local E adapter for an explicitly invoked manual scan.
 
 The frozen scanner modules, findings, plans, locks and Telegram delivery path
-are unchanged. Scoped hooks expand the text formatter and attach confirmed
-support/resistance from this run's verified frame archives. The adapter neither
+are unchanged. Scoped hooks expand the text formatter and attach traditional
+pivot references and separate confirmed support/resistance from this run's
+verified frame archives. The adapter neither
 activates profiles nor sends messages on import. --preview delegates to the
 installed no-scan/no-send preview.
 """
@@ -18,7 +19,7 @@ from hashlib import sha256
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-VERSION = "e-manual-support-context-20261019-v4"
+VERSION = "e-manual-pivot-context-20261020-v5"
 EXPECTED_MANUAL_BATCH_SHA256 = "e7ad01a0cf2c3ecd7aa1dda7fefdf86a25a45afd0123bf957933a987cee271c1"
 EXPECTED_RUNTIME_CODE_IDENTITY = "8ad6dfa91f5c6017d59e58a80cb6a0a1e51c7816f18100d7d8bbbb12f7e8b8c9"
 
@@ -48,7 +49,79 @@ def support_context_line(item):
     return " | D/R (kapanmış mum): " + " · ".join(levels)
 
 
-def enrich_result(result, job, root, *, archive_reader=None, support_builder=None):
+def pivot_context_line(item):
+    """Show formula levels with their actual closed timeframe reference."""
+    context = item.get("pivot_ladder")
+    if not isinstance(context, dict):
+        return ""
+    label = "Geleneksel pivot (" + str(context.get("timeframe", "?")) + " · son kapalı mum)"
+    if context.get("status") not in {"ready", "flat_session_coincident_levels", "partial_nonpositive_levels"}:
+        return " | " + label + ": doğrulanmış referans yok"
+    rendered = " · ".join(key + " " + (_price(context[key]) if _number(context.get(key)) else "—")
+                          for key in ("P", "S1", "S2", "S3", "R1", "R2", "R3"))
+    note = ""
+    if context["status"] == "flat_session_coincident_levels":
+        note = " · düz seans: seviyeler çakışır"
+    elif context["status"] == "partial_nonpositive_levels":
+        note = " · uygulanamaz fiyat alanları boş"
+    return " | " + label + ": " + rendered + note
+
+
+def build_pivot_context(frame, *, as_of, pivot_builder):
+    """Use the last real completed timeframe bar, excluding a marked partial.
+
+    The shared helper's method token is retained for compatibility. Explicit
+    reference metadata disambiguates this E timeframe basis from GitHub's
+    previous completed daily session; intraday data is never called daily.
+    """
+    if not isinstance(as_of, datetime) or as_of.tzinfo is None or as_of.utcoffset() is None:
+        raise ValueError("pivot_as_of_must_be_timezone_aware")
+    metadata = {
+        "formula_method": "traditional",
+        "reference_basis": "last_completed_timeframe_bar",
+        "timeframe": frame.timeframe.value,
+        "source": frame.source,
+        "price_basis": frame.price_basis.value,
+        "snapshot_id": frame.snapshot_id,
+        "as_of": as_of.isoformat(),
+        "reference_bar_open": None,
+        "reference_bar_end": None,
+        "reference_ohlc": None,
+        "excluded_open_or_future_bars": 0,
+        "trade_plans_unchanged": True,
+    }
+    unavailable = {
+        **metadata, "method": "traditional_previous_session_hlc",
+        "status": "unavailable_closed_reference", "reason": "no_completed_timeframe_bar",
+        **dict.fromkeys(("P", "S1", "S2", "S3", "R1", "R2", "R3")),
+        "invalid_fields": [],
+    }
+    quality = getattr(frame, "quality", "complete")
+    if quality not in ("complete", "preliminary") or (quality == "preliminary" and not frame.is_partial):
+        return {**unavailable, "status": "unavailable_data_quality", "reason": "invalid_frame_quality"}
+    bars, eligible, previous_end = tuple(frame.bars), [], None
+    for index, bar in enumerate(bars):
+        start, end = bar.open_time, bar.close_time
+        if any(not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None
+               for value in (start, end)):
+            raise ValueError("pivot_bar_times_must_be_timezone_aware")
+        if end <= start or previous_end is not None and end <= previous_end:
+            raise ValueError("pivot_bar_times_must_be_ordered")
+        previous_end = end
+        if end > as_of or index == len(bars) - 1 and frame.is_partial:
+            metadata["excluded_open_or_future_bars"] += 1
+        else:
+            eligible.append(bar)
+    if not eligible:
+        return {**unavailable, "excluded_open_or_future_bars": metadata["excluded_open_or_future_bars"]}
+    bar = eligible[-1]
+    ladder = pivot_builder(bar.high, bar.low, bar.close)
+    metadata.update(reference_bar_open=bar.open_time.isoformat(), reference_bar_end=bar.close_time.isoformat(),
+                    reference_ohlc={"high": bar.high, "low": bar.low, "close": bar.close})
+    return {**ladder, **metadata}
+
+
+def enrich_result(result, job, root, *, archive_reader=None, support_builder=None, pivot_builder=None):
     """Use the immutable inputs of this run, never a fresh quote/history fetch.
 
     Read failures affect only context, never the finding, scenario, calibration
@@ -63,19 +136,28 @@ def enrich_result(result, job, root, *, archive_reader=None, support_builder=Non
         else:
             from atc_support_resistance import build_support_resistance
         support_builder = build_support_resistance
+    if pivot_builder is None:
+        if __package__:
+            from .atc_pivot_ladder import traditional_pivot_ladder
+        else:
+            from atc_pivot_ladder import traditional_pivot_ladder
+        pivot_builder = traditional_pivot_ladder
     observations = {}
     for observed in result.get("observations", []):
         if isinstance(observed, dict):
             key = (observed.get("symbol"), observed.get("snapshot_id"))
             observations.setdefault(key, []).append(observed)
-    contexts, frames = {}, {}
+    contexts, pivot_contexts, frames = {}, {}, {}
     def context_for(item):
         key = item.get("symbol"), item.get("snapshot_id")
         failed = {"status": "unavailable_data_quality", "reason": "exact_archive_unavailable"}
+        pivot_failed = {**failed, "formula_method": "traditional", "method": "traditional_previous_session_hlc",
+                        "reference_basis": "last_completed_timeframe_bar", "timeframe": job["timeframe"]}
         rows = observations.get(key, [])
         if len(rows) != 1:
             contexts[key] = failed
-            return failed
+            pivot_contexts[key] = pivot_failed
+            return failed, pivot_failed
         observed = rows[0]
         # Validate EVERY finding before using a frame-level cache. One malformed
         # finding must neither borrow a ready context nor poison valid siblings.
@@ -86,9 +168,10 @@ def enrich_result(result, job, root, *, archive_reader=None, support_builder=Non
                 or type(observed.get("partial")) is not bool
                 or item.get("preliminary") is not observed["partial"]
                 or item.get("bar_confirmed") is not (not observed["partial"])):
-            return {**failed, "reason": "finding_archive_identity_mismatch"}
+            return ({**failed, "reason": "finding_archive_identity_mismatch"},
+                    {**pivot_failed, "reason": "finding_archive_identity_mismatch"})
         if key in contexts:
-            return contexts[key]
+            return contexts[key], pivot_contexts[key]
         reference = observed.get("frame_archive")
         try:
             if not isinstance(reference, dict) or reference.get("snapshot_id") != key[1]:
@@ -114,10 +197,15 @@ def enrich_result(result, job, root, *, archive_reader=None, support_builder=Non
             as_of = datetime.fromisoformat(observed["observed_at"])
             context = support_builder(frame, as_of=as_of)
             contexts[key] = context
+            pivot_contexts[key] = build_pivot_context(frame, as_of=as_of, pivot_builder=pivot_builder)
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
             contexts[key] = failed
-        return contexts[key]
-    details = [dict(item, support_resistance=context_for(item)) for item in result.get("details", [])]
+            pivot_contexts[key] = pivot_failed
+        return contexts[key], pivot_contexts[key]
+    details = []
+    for item in result.get("details", []):
+        structure, ladder = context_for(item)
+        details.append(dict(item, support_resistance=structure, pivot_ladder=ladder))
     enriched = dict(result, details=details, findings=details)
     enriched["support_resistance_context"] = {
         "version": VERSION, "role": "confirmed_structure_context_only",
@@ -125,6 +213,12 @@ def enrich_result(result, job, root, *, archive_reader=None, support_builder=Non
         "ready": sum(c.get("status") == "ready" for c in contexts.values()),
         "unavailable": sum(c.get("status") != "ready" for c in contexts.values()),
         "unavailable_findings": sum(item["support_resistance"].get("status") != "ready" for item in details),
+        "pivot_ladder_role": "traditional_reference_context_only",
+        "pivot_reference_basis": "last_completed_timeframe_bar",
+        "pivot_ladder_ready": sum(c.get("status") in {"ready", "flat_session_coincident_levels"}
+                                  for c in pivot_contexts.values()),
+        "pivot_ladder_unavailable": sum(c.get("status") not in {"ready", "flat_session_coincident_levels"}
+                                        for c in pivot_contexts.values()),
     }
     return enriched
 
@@ -215,7 +309,7 @@ def presentation_adapter(module, *, root=None):
     original_run = module.run_once if root is not None else None
 
     def expanded(item):
-        return format_plan_line(item, original) + support_context_line(item)
+        return format_plan_line(item, original) + pivot_context_line(item) + support_context_line(item)
 
     def with_context(*args, **kwargs):
         if kwargs.get("preview"):
