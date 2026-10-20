@@ -12,6 +12,7 @@ import io
 import json
 import math
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
@@ -25,17 +26,18 @@ from market_intelligence.market_data.canonicalizer import Canonicalizer
 from market_intelligence.market_data.providers import FetchRequest
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_ephemeral_morning import vendor_chain
+from scripts.atc_pivot_ladder import traditional_pivot_ladder
 from scripts.atc_support_resistance import build_support_resistance
 from scripts.atc_telegram_briefings import last_closed_session, pivot_levels
 from scripts.atc_universe_seed import load_pinned
 
-VERSION = "atc-closed-daily-structure-v1"
+VERSION = "atc-closed-daily-structure-v2"
 IST = ZoneInfo("Europe/Istanbul")
 CHAT = -1004439315048
 TOPIC = 8
 FILES = ("report.json", "report.csv", "summary.txt", "summary.png")
 MIN_COVERAGE = 0.90
-IMPLEMENTATION_FILES = ("atc_structure_report.py", "atc_support_resistance.py", "atc_telegram_briefings.py")
+IMPLEMENTATION_FILES = ("atc_structure_report.py", "atc_support_resistance.py", "atc_telegram_briefings.py", "atc_pivot_ladder.py")
 
 
 def canonical(value):
@@ -96,6 +98,7 @@ def read_structure(symbol, *, previous, now, providers=None):
                             is_partial=False, quality="complete")
             context = build_support_resistance(frame, as_of=cutoff)
             bar = closed[-1]
+            ladder = traditional_pivot_ladder(bar.high, bar.low, bar.close)
             try:
                 s1, s2, p, r1, r2 = pivot_levels(bar.high, bar.low, bar.close)
                 floor = {"status": "ready", "S1": s1, "S2": s2,
@@ -109,13 +112,16 @@ def read_structure(symbol, *, previous, now, providers=None):
                 "price_basis": frame.price_basis.value, "snapshot_id": frame.snapshot_id,
                 "parent_snapshot_id": parent_snapshot,
                 "close": bar.close, "turnover": turnover if math.isfinite(turnover) else None,
-                "history_bars": len(closed), "structure": context, "classic_pivot": floor}
+                "history_bars": len(closed), "structure": context, "classic_pivot": floor,
+                "reference_ohlc": {"high": bar.high, "low": bar.low, "close": bar.close},
+                "pivot_ladder": ladder}
         except Exception as error:
             # No provider text, token, cookie or private account data in logs/files.
             errors.append({"source": source, "code": type(error).__name__})
     return {"symbol": symbol, "status": "source_unavailable", "session": previous.isoformat(),
             "source_errors": errors, "structure": {"status": "unavailable_source"},
-            "classic_pivot": {"status": "unavailable_source"}}
+            "classic_pivot": {"status": "unavailable_source"},
+            "pivot_ladder": {"status": "unavailable_source", "method": "traditional_previous_session_hlc"}}
 
 
 def price(value):
@@ -135,21 +141,22 @@ def ranked(rows):
 
 def render_summary(report):
     counts = report["counts"]
-    lines = ["ATC | Günlük destek–direnç ve klasik pivot",
+    lines = ["ATC | Günlük 3 destek / 3 direnç ve pivot",
         f"{report['previous_session']} kapanışı · 630 hisse · geçerli {counts['fresh']}/630",
         f"Kaynak eksik {counts['missing']} · D/R hazır {counts['structure_ready']} · "
         f"120 mumdan kısa {counts['short_history']} · klasik pivot geçersiz {counts['invalid_classic']}",
-        "Yapısal D/R: son 120 kapalı mum, 3 sol/3 sağ teyitli dönüş noktaları.",
-        "Klasik P: önceki seans (yüksek + düşük + kapanış) / 3.",
+        f"Formül kademesi hazır {counts['ladder_ready']} · düz seans {counts['flat_ladder']} · "
+        f"geçersiz kademe {counts['invalid_ladder']}",
+        "Ana tablo: önceki kapalı seans H/L/C ile geleneksel pivot S1–S2–S3 / R1–R2–R3.",
+        "Geçmişten teyitli D/R ayrı CSV sütunlarında; bu alanlarda 0–3 seviye bulunabilir.",
         "Görselde önceki seans kapanış × hacme göre ilk 20; tüm 630 hisse CSV'de."]
     for row in ranked(report["rows"])[:8]:
-        support = levels(row, "supports")
-        resistance = levels(row, "resistances")
+        ladder = row["pivot_ladder"]
         lines.append(f"#{row['symbol']} · K {price(row.get('close'))} · "
-            f"Destek {price(support[0] if support else None)} · "
-            f"Direnç {price(resistance[0] if resistance else None)} · "
-            f"P {price(row['classic_pivot'].get('P'))}")
-    lines.extend(["Teyit, kaynak mumunun kapanmış olduğunu belirtir; başarı olasılığı değildir.",
+            f"S1 {price(ladder.get('S1'))} · S3 {price(ladder.get('S3'))} · "
+            f"R1 {price(ladder.get('R1'))} · R3 {price(ladder.get('R3'))}")
+    lines.extend(["Formül kademeleri hesaplanmış referanstır; geçmişten teyit edilmiş tepki seviyesi değildir.",
+        "Düz seansta formül seviyeleri çakışabilir; geçersiz fiyat yerine sayı uydurulmaz.",
         "Bu seviyeler Stop/TP veya emir değildir. Kaynak, fiyat bazı ve teyit zamanları CSV'de."])
     return "\n".join(lines)
 
@@ -161,10 +168,18 @@ def csv_report(report):
         "KlasikS2", "KlasikS1", "KlasikPivot", "KlasikR1", "KlasikR2", "KlasikDurum",
         "YapisalDestek1", "YapisalDestek2", "YapisalDestek3", "YapisalDirenc1",
         "YapisalDirenc2", "YapisalDirenc3", "YapisalDurum", "KullanilanKapaliMum",
-        "KisaGecmis", "GozlemKesimi", "Snapshot", "DestekTeyitZamanlari", "DirencTeyitZamanlari"))
+        "KisaGecmis", "GozlemKesimi", "Snapshot", "DestekTeyitZamanlari", "DirencTeyitZamanlari",
+        "PivotDestek1", "PivotDestek2", "PivotDestek3", "PivotDirenc1", "PivotDirenc2", "PivotDirenc3",
+        "PivotYontemi", "PivotKademeDurumu", "PivotGecersizAlanlar", "YapisalDestekAdet", "YapisalDirencAdet",
+        "YapisalDestekAciklamasi", "YapisalDirencAciklamasi", "ReferansYuksek", "ReferansDusuk"))
     for row in report["rows"]:
         context, floor = row["structure"], row["classic_pivot"]
         supports, resistances = levels(row, "supports"), levels(row, "resistances")
+        ladder = row["pivot_ladder"]
+        def structural_note(values, status=context["status"]):
+            if status != "ready":
+                return status
+            return "uc_teyitli_seviye_var" if len(values) == 3 else "bu_yonde_uc_teyitli_donus_bulunmadi"
         writer.writerow((row["symbol"], row["session"], price(row.get("close")), row["status"],
             row.get("source", ""), row.get("price_basis", ""),
             *(price(floor.get(key)) for key in ("S2", "S1", "P", "R1", "R2")), floor["status"],
@@ -173,7 +188,11 @@ def csv_report(report):
             context.get("lookback_used", 0), context.get("history_is_shorter_than_requested", True),
             row.get("as_of", ""), row.get("snapshot_id", ""),
             "/".join(item["confirmed_at"] for item in context.get("supports", [])),
-            "/".join(item["confirmed_at"] for item in context.get("resistances", []))))
+            "/".join(item["confirmed_at"] for item in context.get("resistances", [])),
+            *(price(ladder.get(key)) for key in ("S1", "S2", "S3", "R1", "R2", "R3")),
+            ladder["method"], ladder["status"], "/".join(ladder.get("invalid_fields", [])),
+            len(supports), len(resistances), structural_note(supports), structural_note(resistances),
+            price(row.get("reference_ohlc", {}).get("high")), price(row.get("reference_ohlc", {}).get("low")) ))
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
@@ -185,36 +204,37 @@ def render_png(report):
     image = Image.new("RGB", (1840, 350 + 46 * max(1, len(rows))), "#F1F5F9")
     draw = ImageDraw.Draw(image)
     draw.rectangle((0, 0, 1840, 100), fill="#112E4A")
-    draw.text((35, 30), "ATC | TEYİTLİ DESTEK / DİRENÇ + KLASİK PİVOT", fill="white", font=_font(27, bold=True))
+    draw.text((35, 30), "ATC | 3 DESTEK / 3 DİRENÇ + GELENEKSEL PİVOT", fill="white", font=_font(27, bold=True))
     draw.text((35, 120), f"{report['previous_session']} kapanışı · "
         f"{report['counts']['fresh']}/630 veri · Kapanış × hacimde ilk 20", fill="#112E4A", font=_font(22))
-    columns = ((35, "HİSSE"), (240, "KAPANIŞ"), (440, "DESTEK 1"), (640, "DESTEK 2"),
-        (840, "DESTEK 3"), (1040, "DİRENÇ 1"), (1240, "DİRENÇ 2"), (1440, "DİRENÇ 3"), (1640, "KLASİK P"))
+    columns = ((35, "HİSSE"), (240, "KAPANIŞ"), (440, "S1"), (640, "S2"),
+        (840, "S3"), (1040, "R1"), (1240, "R2"), (1440, "R3"), (1640, "PİVOT"))
     for x, title in columns:
         draw.text((x, 175), title, fill="#52697F", font=_font(18, bold=True))
     for i, row in enumerate(rows):
         y = 215 + i * 46
         if i % 2 == 0:
             draw.rectangle((24, y, 1816, y + 44), fill="white")
-        support, resistance = levels(row, "supports"), levels(row, "resistances")
+        ladder = row["pivot_ladder"]
         values = [row["symbol"], price(row.get("close"))]
-        values += [price(items[j] if len(items) > j else None)
-                   for items in (support, resistance) for j in range(3)]
-        values += [price(row["classic_pivot"].get("P"))]
+        values += [price(ladder.get(key)) for key in ("S1", "S2", "S3", "R1", "R2", "R3", "P")]
         for (x, _), value in zip(columns, values, strict=True):
             draw.text((x, y + 10), value, fill="#112E4A", font=_font(18, bold=x == 35))
     y = image.height - 105
-    draw.text((35, y), "Yapısal: 120 kapalı mum / 3+3 teyit. Klasik: önceki seans H/L/C.", fill="#52697F", font=_font(19))
-    draw.text((35, y + 35), "Tam 630 hisse, klasik S1/S2/R1/R2 ve eksik veri durumları CSV'de. Stop/TP değildir.", fill="#52697F", font=_font(19))
+    draw.text((35, y), "Formül kademeleri: önceki kapalı seans H/L/C. Düz seansta seviyeler çakışabilir.", fill="#52697F", font=_font(19))
+    draw.text((35, y + 35), "Tüm 630 hisse ve geçmişten teyitli D/R ayrı sütunlarla CSV'de. Stop/TP değildir.", fill="#52697F", font=_font(19))
     output = io.BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()
 
 
-def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read_structure):
+def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read_structure,
+                   retries=2, retry_delay=2):
     now = aware(now or datetime.now(IST))
     if type(workers) is not int or not 1 <= workers <= 6:
         raise ValueError("workers_must_be_1_to_6")
+    if type(retries) is not int or not 0 <= retries <= 3 or not 0 <= retry_delay <= 10:
+        raise ValueError("bounded_source_retries_required")
     selected = list(symbols if symbols is not None else load_pinned(Path("config/atc_630_symbols.txt")))
     if not selected or len(selected) != len(set(selected)):
         raise ValueError("unique_symbols_required")
@@ -226,15 +246,35 @@ def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read
         rows = list(executor.map(lambda symbol: reader(symbol, previous=previous, now=now), selected))
     if [row["symbol"] for row in rows] != selected:
         raise ValueError("result_symbol_identity_changed")
+    attempts = dict.fromkeys(selected, 1)
+    by_symbol = {row["symbol"]: row for row in rows}
+    for _ in range(retries):
+        pending = [symbol for symbol in selected if by_symbol[symbol]["status"] != "fresh_closed_source"]
+        if not pending:
+            break
+        time.sleep(retry_delay)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            refreshed = list(executor.map(lambda symbol: reader(symbol, previous=previous, now=now), pending))
+        if [row["symbol"] for row in refreshed] != pending:
+            raise ValueError("retry_result_symbol_identity_changed")
+        for row in refreshed:
+            by_symbol[row["symbol"]] = row
+            attempts[row["symbol"]] += 1
+    rows = [{**by_symbol[symbol], "source_attempts": attempts[symbol]} for symbol in selected]
     rows.sort(key=lambda row: row["symbol"])
     counts = {"fresh": sum(row["status"] == "fresh_closed_source" for row in rows),
         "missing": sum(row["status"] != "fresh_closed_source" for row in rows),
         "structure_ready": sum(row["structure"]["status"] == "ready" for row in rows),
         "short_history": sum(row["structure"].get("history_is_shorter_than_requested", False) for row in rows),
-        "invalid_classic": sum(row["classic_pivot"]["status"] == "unavailable_invalid_price_geometry" for row in rows)}
+        "invalid_classic": sum(row["classic_pivot"]["status"] == "unavailable_invalid_price_geometry" for row in rows),
+        "ladder_ready": sum(row["pivot_ladder"]["status"] in {"ready", "flat_session_coincident_levels"} for row in rows),
+        "flat_ladder": sum(row["pivot_ladder"]["status"] == "flat_session_coincident_levels" for row in rows),
+        "invalid_ladder": sum(row["status"] == "fresh_closed_source" and row["pivot_ladder"]["status"] not in {"ready", "flat_session_coincident_levels"} for row in rows)}
     report = {"version": VERSION, "prepared_at": now.isoformat(), "previous_session": previous.isoformat(),
         "expected_symbols": 630, "symbol_count": len(rows), "counts": counts, "rows": rows,
         "support_method": "confirmed_120_3_3_pivots", "classic_method": "previous_session_HLC_floor",
+        "primary_method": "traditional_previous_session_hlc",
+        "source_retry_limit": retries, "source_retry_attempts": sum(value - 1 for value in attempts.values()),
         "stop_tp_changed": False, "calibration_used": False, "research_zone_model_used": False,
         "independent_corporate_action_validation": False}
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -290,10 +330,10 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
     payloads = {
         "text": {"text": (folder / "summary.txt").read_text(encoding="utf-8")},
         "photo": {"_method": "sendPhoto", "photo_base64": base64.b64encode((folder / "summary.png").read_bytes()).decode("ascii"),
-            "filename": "ATC_Destek_Direnc_Pivot.png", "caption": "Günlük teyitli D/R ve klasik P · görsel ilk 20 · tam 630 hisse CSV'de."},
+            "filename": "ATC_Destek_Direnc_Pivot.png", "caption": "Günlük geleneksel pivot · 3 destek / 3 direnç · görsel ilk 20 · tam 630 hisse CSV'de."},
         "csv": {"_method": "sendDocument", "document_base64": base64.b64encode((folder / "report.csv").read_bytes()).decode("ascii"),
             "filename": f"ATC_630_Destek_Direnc_Pivot_{report['previous_session']}.csv",
-            "caption": "630 hissenin tamamı · teyitli yapısal destek/direnç + klasik pivot · kaynak ve eksik veri durumları dahil."}}
+            "caption": "630 hissenin tamamı · S1/S2/S3 ve R1/R2/R3 · geçmişten teyitli D/R ayrı sütunlarda · kaynak ve eksik veri durumları dahil."}}
     for key, payload in payloads.items():
         if key in receipt["acknowledged"]:
             continue

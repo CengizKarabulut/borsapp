@@ -250,6 +250,9 @@ def render_png(report):
     draw = ImageDraw.Draw(image)
     draw.rectangle((0, 0, 1840, 100), fill="#112E4A")
     draw.text((35, 30), f"ATC | {report['timeframe']} | CANLI / TEYİTSİZ", fill="white", font=_font(28, bold=True))
+    start = datetime.fromisoformat(report["observation_start"]).astimezone(IST)
+    end = datetime.fromisoformat(report["observation_end"]).astimezone(IST)
+    draw.text((35, 72), f"Gözlem {start:%d.%m.%Y %H:%M:%S} – {end:%d.%m.%Y %H:%M:%S} TSİ · Kaynak mum zamanları CSV'de", fill="white", font=_font(17))
     draw.text((35, 120), f"Son mum {report['counts']['usable']}/{report['symbol_count']} · güncel aralık {report['counts']['current']} · "
         f"{len(rows)} eşleşmeden ilk {len(shown)} · tam liste CSV'de", fill="#112E4A", font=_font(22))
     columns = ((35, "HİSSE"), (260, "KOD / YÖN"), (600, "GİRİŞ"), (830, "STOP"),

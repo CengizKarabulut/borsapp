@@ -1,10 +1,9 @@
-name: ATC hourly CANLI TEYITSIZ preview on isolated PostgreSQL
+name: ATC manual legacy daily CANLI TEYITSIZ preview
 
 on:
   workflow_dispatch:
-  schedule:
-    # 10:45–17:45 Europe/Istanbul, weekdays: actual live mutable daily OHLCV.
-    - cron: "45 7-14 * * 1-5"
+  # Historical manual tool only. Automatic previews are consolidated into
+  # atc-scheduled-snapshots.yml to avoid a second hourly daily-candle publisher.
 
 permissions:
   contents: read

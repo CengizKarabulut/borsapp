@@ -41,11 +41,41 @@ def select_timeframes(now: datetime, *, all_scans: bool = False, calendar=None):
     return tuple(tf for tf in due_timeframes(local, calendar) if tf in INTRADAY)
 
 
+def select_eod_timeframes(now: datetime, *, calendar=None):
+    """One scheduled EOD pass, even if GitHub starts it after the old 23:00 cut.
+
+    Select the newest completed exchange session, never reconstruct an old
+    mutable candle or pretend a delayed runner ran at the nominal cron time.
+    Intraday automatic what-if reports use their separate receipt scheduler.
+    """
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("timezone-aware current time required")
+    calendar = calendar or ExchangeCalendarsXist()
+    local = now.astimezone(ISTANBUL)
+    sessions = calendar.sessions(local.date() - timedelta(days=21), local.date())
+    completed = [day for day in sessions
+        if BistSessionSchedule().session_bounds(day)[1] + timedelta(minutes=20) <= local]
+    if not completed:
+        raise ValueError("No completed exchange session for delayed EOD pass")
+    day = completed[-1]
+    monday = day - timedelta(days=day.weekday())
+    week = calendar.sessions(monday, monday + timedelta(days=6))
+    selected = (*INTRADAY, "1d")
+    return ((*selected, "1wk") if week and day == week[-1] else selected), day
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--all", action="store_true", dest="all_scans")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--all", action="store_true", dest="all_scans")
+    mode.add_argument("--eod", action="store_true")
     args = parser.parse_args()
-    found = select_timeframes(datetime.now(ISTANBUL), all_scans=args.all_scans)
+    now = datetime.now(ISTANBUL)
+    if args.eod:
+        found, session = select_eod_timeframes(now)
+        print(f"Newest completed EOD session: {session}; actual runner observation: {now.isoformat()}")
+    else:
+        found = select_timeframes(now, all_scans=args.all_scans)
     print("ATC ephemeral real closed timeframes:", ", ".join(found) or "none", flush=True)
     if output := os.getenv("GITHUB_OUTPUT"):
         with open(output, "a", encoding="utf-8") as file:

@@ -12,7 +12,29 @@ teyitli mum deposuna, tarama geçmişine, Stop/TP kalibrasyonuna veya emir
 sistemine yazılmaz. Referans seviyeleri ölçülmüş başarı ihtimali ya da yeni
 bir kalibrasyon sonucu anlamına gelmez. Gerçek veya sanal emir oluşturmaz.
 
-## GitHub üzerinden çalıştırma
+## Otomatik çalışma
+
+**ATC automatic latest candle snapshots** normal seanslarda vadesi gelen
+`15m`, `30m`, `45m`, `1h`, `2h`, `4h` ve günlük dönemleri kontrol eder.
+Günlük yeni dönem yalnız 18:30 kapanış kontrolünde vadelidir. Saat tablosu
+ve manuel toplu deneme [otomatik zamanlama kılavuzundadır](ATC_AUTOMATIC_SCHEDULE.md).
+Haftalık (`1wk`) bu yolda yoktur; haftanın son seansında ayrı, teyitli
+18:30 kapanış/Kesişim workflow'unda kalır.
+
+Tamamlanan Telegram teslimi, üç gerçek mesaj kimlikli makbuzla saklanır.
+Sonraki otomatik planlayıcı aynı dönemi atlar; başarısız/önizleme çalışması
+teslim kaydını ilerletmez. Bekleyen eski dönemler topluca oynatılmaz:
+gecikmede yalnız en son uygun dönem seçilir, atlanan dönem sayısı kaydedilir.
+İlk kurulumda makbuz yoksa önceki seansın son dönemi bir defalık yakalanabilir;
+bu, önceki seansın o andaki açık mumunu yeniden oluşturmak değildir. Her
+zaman çalışma anındaki son gerçek kaynak mumu kullanılır ve tarihi görünür.
+
+GitHub kuyruğu ve sağlayıcı gecikmesi nedeniyle hedef aralık kesin teslim
+garantisi değildir. Hisselerin son gerçek veri zamanlarını ve kullanılabilir
+kapsamı raporda kontrol edin. Eski saatlik günlük önizlemenin otomatik cron'u
+kaldırılmıştır; aynı canlı yayını ikinci bir iş tekrarlamaz.
+
+## GitHub üzerinden tek zaman dilimini elle çalıştırma
 
 GitHub → Actions → **ATC manual live candle snapshot** → **Run workflow**:
 
@@ -75,7 +97,17 @@ parçaların Telegram mesaj kimlikleri `publication-receipt.json` içinde
 kaydedilir. Yeşil önizleme çalışması mesaj gönderildiğini göstermez;
 gönderimi bu teslim kaydı doğrular. Aynı paket ve teslim kaydıyla tekrar
 denemede onaylanan parçalar atlanır. Ayrı çalışmalar arasında kalıcı grup
-geneli tekilleştirme garanti edilmez.
+geneli tekilleştirme garanti edilmez. Yeni otomatik workflow'un sınırlı
+süreli dönem makbuzuyla atlama düzeni, bu bağımsız manuel denemeden ayrıdır.
+
+## Günlük destek/direnç
+
+08:35'teki ayrı günlük rapor önceki gerçek kapalı seansın H/L/C değerlerinden
+ana **P, S1/S2/S3 ve R1/R2/R3** merdivenini hesaplar. 120 kapalı mumdaki
+teyitli yapısal destek/direnç ayrıca ve sıfır–üç seviye olarak korunur.
+Tam 630 kod CSV/JSON'dadır, görsel ilk 20'dir. Canlı zaman dilimi sonuçları
+bu günlük referansı kalibre edilmiş Stop/TP veya başarı ihtimali yapmaz.
+Yöntem ve deneme adımları [destek/direnç kılavuzundadır](TELEGRAM_SUPPORT_PIVOT.md).
 
 ## Yerel komutlar
 

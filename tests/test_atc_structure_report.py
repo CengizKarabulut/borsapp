@@ -8,6 +8,7 @@ import math
 import shutil
 import tempfile
 import unittest
+from collections import Counter
 from datetime import date, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -52,6 +53,28 @@ def vendor(bars, *, source="test_vendor", symbol="ASELS"):
 
 
 class ClosedReportSourceTests(unittest.TestCase):
+    def test_three_formula_levels_exist_independently_of_confirmed_swing_count(self):
+        bars = sample_bars()
+        row = report.read_structure("ASELS", previous=PREVIOUS, now=NOW,
+            providers=(vendor(bars),))
+        ladder = row["pivot_ladder"]
+        self.assertEqual(ladder["status"], "ready")
+        self.assertEqual(ladder["method"], "traditional_previous_session_hlc")
+        self.assertTrue(ladder["S3"] < ladder["S2"] < ladder["S1"] < ladder["P"]
+                        < ladder["R1"] < ladder["R2"] < ladder["R3"])
+        self.assertEqual(row["reference_ohlc"], {"high": bars[-1].high,
+            "low": bars[-1].low, "close": bars[-1].close})
+
+    def test_flat_session_explains_coincident_formula_levels_without_padding(self):
+        bars = sample_bars()
+        flat = ProviderBar(timestamp=bars[-1].timestamp, open=100, high=100,
+            low=100, close=100, volume=0)
+        row = report.read_structure("ASELS", previous=PREVIOUS, now=NOW,
+            providers=(vendor(bars[:-1] + (flat,)),))
+        self.assertEqual(row["pivot_ladder"]["status"], "flat_session_coincident_levels")
+        self.assertEqual([row["pivot_ladder"][key] for key in
+            ("P", "S1", "S2", "S3", "R1", "R2", "R3")], [100] * 7)
+
     def test_real_structure_and_classic_levels_use_one_same_closed_frame(self):
         source = vendor(sample_bars())
         row = report.read_structure("ASELS", previous=PREVIOUS, now=NOW, providers=(source,))
@@ -155,7 +178,31 @@ class PreparedPublicationTests(unittest.TestCase):
         self.assertFalse(self.packet["calibration_used"])
         self.assertIn("KlasikPivot", data[0])
         self.assertIn("YapisalDestek1", data[0])
+        self.assertIn("PivotDestek3", data[0])
+        self.assertIn("PivotDirenc3", data[0])
+        self.assertTrue(all(row["PivotDestek3"] and row["PivotDirenc3"] for row in data))
+        self.assertIn("YapisalDestekAciklamasi", data[0])
         self.assertNotIn("bars", self.packet)
+
+    def test_only_missing_sources_are_retried_without_discarding_successes(self):
+        calls = []
+        good = copy.deepcopy(self.packet["rows"][0])
+        def reader(symbol, **_):
+            calls.append(symbol)
+            if symbol == "AKBNK" and calls.count(symbol) == 1:
+                return {"symbol": symbol, "status": "source_unavailable",
+                    "structure": {"status": "unavailable_source"},
+                    "classic_pivot": {"status": "unavailable_source"},
+                    "pivot_ladder": {"method": "traditional_previous_session_hlc", "status": "unavailable_source"}}
+            row = copy.deepcopy(good)
+            row["symbol"] = symbol
+            return row
+        with tempfile.TemporaryDirectory() as folder, patch.object(report, "render_png", return_value=b"test-png"):
+            result = report.prepare_report(folder, symbols=["ASELS", "AKBNK"], now=NOW,
+                reader=reader, retries=2, retry_delay=0)
+        self.assertEqual(Counter(calls), {"ASELS": 1, "AKBNK": 2})
+        self.assertEqual(result["counts"]["fresh"], 2)
+        self.assertEqual(result["source_retry_attempts"], 1)
 
     def test_publish_uses_exact_prepared_files_and_does_not_refetch(self):
         transport = Mock()

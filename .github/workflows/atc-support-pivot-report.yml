@@ -74,10 +74,10 @@ jobs:
           p = Path('runtime_artifacts/structure')
           report = json.loads((p / 'report.json').read_bytes())
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-              out.write('## Daily support, resistance and classic pivots\n\n')
+              out.write('## Daily three-level support/resistance and Traditional pivots\n\n')
               out.write(f"Previous closed session: {report['previous_session']}\n\n")
               out.write(f"Coverage: {report['counts']}\n\n")
-              out.write('Closed swing pivots: 120 bars, 3 left + 3 closed right. Classic pivot: previous H/L/C.\n\n')
+              out.write('Primary: Traditional previous-session H/L/C pivot, S1/S2/S3 and R1/R2/R3. Closed swing pivots remain separate: 120 bars, 3 left + 3 closed right.\n\n')
               out.write('All 630 rows remain in CSV/JSON, including unavailable data. Summary image shows the top 20 only.\n\n')
               out.write('These are reference levels; no Stop/TP calibration or order is applied.\n')
           print((p / 'summary.txt').read_text())
