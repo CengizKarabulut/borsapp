@@ -46,6 +46,38 @@ uygulanamaz plan için bu yüzdeler üretilmez. `Kalibre referans` ve standart
 
 ## Destek ve direnç
 
+20 Ekim v5 sunum köprüsü iki ayrı alan gösterir. **Ana geleneksel pivot
+merdiveni**, GitHub günlük raporuyla aynı `atc_pivot_ladder.py` yardımcısını
+kullanarak P, S1/S2/S3 ve R1/R2/R3 hesaplar. Bu matematiksel referans için
+tek gerçek kapanmış mum yeterlidir; geçmişte üç ayrı dip/tepe bulunması
+gerekmez. Formüller [TradingView Traditional pivot tanımıyla](https://www.tradingview.com/support/solutions/43000521824-pivot-points-standard/)
+aynıdır. Seviyeler Stop/TP planı veya başarılı tepki garantisi değildir.
+
+**Referans dönemi açıkça ayrılır:** GitHub günlük destek/direnç raporu
+önceki tamamlanmış günlük seansı kullanır. E manuel taraması ise o
+çalıştırmanın doğrulanmış arşivindeki, kendi zaman diliminde son tamamlanmış
+mumu kullanır. Örneğin 1h taraması `Geleneksel pivot (1h · son kapalı mum)`
+yazar; saatlik mum günlük seans olarak gösterilmez. E ve GitHub aynı formülü
+kullanır, farklı dönemlerin aynı fiyatı vermesi beklenmez. Tarama sinyali
+açık mumla hesaplanmış olsa bile pivot referansı açık veya gelecekte
+kapanacak mumu kullanmaz; işaretlenmiş son kısmi mum daima dışarıda kalır.
+Bu alan için yeni fiyat indirilmez, başka sağlayıcıdan veri birleştirilmez.
+
+JSON'da `pivot_ladder` altında `formula_method=traditional`,
+`reference_basis=last_completed_timeframe_bar`, gerçek zaman dilimi,
+referans mumun açılış/kapanış zamanları ve H/L/C'si, gözlem zamanı, kaynak,
+fiyat bazı ve arşiv snapshot kimliği korunur. Ortak yardımcının geriye
+uyumlu `method=traditional_previous_session_hlc` değeri tek başına günlük
+dönem anlamına gelmez; dönem bu açık referans alanlarıyla belirlenir.
+Düz mumda (H=L=C) seviyelerin çakışması açıklanır. Sıfır/negatif ya da
+sonsuz hesap sonucu boş kalır; mutlak değere çevrilmez, kırpılmaz ve üç
+ayrı fiyat görünmesi için sayı uydurulmaz. Kapalı referans bulunmazsa
+`unavailable_closed_reference` görünür; sinyal ve mevcut plan değişmez.
+
+**Ayrı yapısal destek/direnç alanı** aşağıdaki teyitli geçmiş yöntemini
+korur. Bu alanda sıfır–üç seviye bulunması normaldir; ana formül merdiveni
+ile karıştırılmaz.
+
 Hesabın geçmişte başarılı olup olmadığı ayrı ölçülür. İlk16hisselik deney ve
 veri sürekliliği koşulları [araştırma notunda](https://github.com/CengizKarabulut/borsapp/blob/main/docs/SUPPORT_RESISTANCE_RESEARCH.md).
 Eski pilotun fiyat esası artık güvenilir kabul edilmediğinden sonuçlar ekonomik
@@ -58,7 +90,8 @@ bilinemeyen mum, pivotun sağ teyidi sayılamaz. Fiyata eşit seviye iki tarafa
 da konulmaz. Kısa arz geçmişi ve veri kalitesi ayrı durumlarla kaydedilir.
 
 E'de her bulgunun bu çalıştırmada arşivlenmiş, hash'i doğrulanan aynı OHLCV
-görünümü kullanılır. TXT/Telegram metnine `D/R (kapanmış mum)` eklenir; JSON
+görünümü kullanılır. TXT/Telegram metnine önce `Geleneksel pivot`, ayrıca
+`D/R (kapanmış mum)` eklenir; JSON
 ayrıca kaynak, zaman dilimi, fiyat düzeltmesi, snapshot ve teyit tarihlerini
 tutar. Bu seviyeler Stop/TP profilinin yerine geçmez. Pivot olmayan tarafta
 `—`, geçmiş/veri yetersizse açıklama görünür. Mevcut PDF planı değiştirilmez.
@@ -72,7 +105,7 @@ Depodaki kaynak dosyalar ile E'deki dosyalar aynı içerikten kurulur:
 & 'E:\Borsapp-Manual\.venv\Scripts\python.exe' -B scripts\install_e_manual_bridge.py
 ```
 
-Komutlar güncel repo klasöründe çalışır. Kurucu yalnız `tools` içindeki iki
+Komutlar güncel repo klasöründe çalışır. Kurucu yalnız `tools` içindeki üç
 Python dosyasını, bu açıklamayı ve entegrasyon kaydını kurar. Önce yerel tarama
 kilitlerini alır, eski dosyaları `updates/manual-integration-*` altında yedekler
 ve hata olursa eski baytları geri yükler. Kaynak motor, kişisel ayarlar,

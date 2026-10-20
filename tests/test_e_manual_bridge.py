@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from scripts.atc_pivot_ladder import LEVEL_FIELDS, traditional_pivot_ladder
 from scripts.atc_support_resistance import build_support_resistance
 
 _SCRIPT = Path(__file__).parents[1] / "scripts/e_manual_bridge.py"
@@ -72,7 +73,8 @@ def fixture(*, partial=False, count=1):
 def enrich(frame, result, job, *, reader=None):
     reader = reader if reader is not None else Mock(return_value=frame)
     output = bridge.enrich_result(result, job, ROOT, archive_reader=reader,
-                                  support_builder=build_support_resistance)
+                                  support_builder=build_support_resistance,
+                                  pivot_builder=traditional_pivot_ladder)
     return output, reader
 
 
@@ -92,16 +94,29 @@ class EManualBridgeTests(unittest.TestCase):
         self.assertFalse(context["algorithm"]["changes_stop_tp"])
         reader.assert_called_once_with(ROOT, job["run_id"], result["observations"][0]["frame_archive"])
         self.assertEqual(output["support_resistance_context"]["snapshots_read"], 1)
+        ladder = output["details"][0]["pivot_ladder"]
+        expected = traditional_pivot_ladder(frame.bars[-1].high, frame.bars[-1].low, frame.bars[-1].close)
+        self.assertEqual({key: ladder[key] for key in LEVEL_FIELDS},
+                         {key: expected[key] for key in LEVEL_FIELDS})
+        self.assertEqual(ladder["formula_method"], "traditional")
+        self.assertEqual(ladder["reference_basis"], "last_completed_timeframe_bar")
+        self.assertEqual(ladder["reference_bar_end"], frame.bars[-1].close_time.isoformat())
+        self.assertEqual(ladder["source"], frame.source)
+        self.assertEqual(ladder["snapshot_id"], frame.snapshot_id)
 
     def test_all_eighteen_findings_share_one_verified_archive_read_and_calculation(self):
         frame, result, job = fixture(count=18)
         reader = Mock(return_value=frame)
         builder = Mock(side_effect=build_support_resistance)
-        output = bridge.enrich_result(result, job, ROOT, archive_reader=reader, support_builder=builder)
+        pivot_builder = Mock(side_effect=traditional_pivot_ladder)
+        output = bridge.enrich_result(result, job, ROOT, archive_reader=reader, support_builder=builder,
+                                     pivot_builder=pivot_builder)
         self.assertEqual(reader.call_count, 1)
         self.assertEqual(builder.call_count, 1)
+        self.assertEqual(pivot_builder.call_count, 1)
         self.assertEqual(len(output["details"]), 18)
         self.assertTrue(all(row["support_resistance"]["status"] == "ready" for row in output["details"]))
+        self.assertTrue(all(row["pivot_ladder"]["status"] == "ready" for row in output["details"]))
 
     def test_each_detail_identity_must_match_even_after_a_valid_cached_finding(self):
         changes = {
@@ -117,6 +132,8 @@ class EManualBridgeTests(unittest.TestCase):
                     output, _ = enrich(frame, result, job)
                     self.assertNotEqual(output["details"][bad_index]["support_resistance"]["status"], "ready")
                     self.assertEqual(output["details"][1 - bad_index]["support_resistance"]["status"], "ready")
+                    self.assertNotEqual(output["details"][bad_index]["pivot_ladder"]["status"], "ready")
+                    self.assertEqual(output["details"][1 - bad_index]["pivot_ladder"]["status"], "ready")
 
     def test_archive_frame_observation_and_detail_identity_mismatches_fail_closed(self):
         cases = [
@@ -142,6 +159,7 @@ class EManualBridgeTests(unittest.TestCase):
                     target[field] = invalid
                 output, _ = enrich(frame, result, job)
                 self.assertEqual(output["details"][0]["support_resistance"]["status"], "unavailable_data_quality")
+                self.assertEqual(output["details"][0]["pivot_ladder"]["status"], "unavailable_data_quality")
 
     def test_duplicate_observations_are_ambiguous_and_never_read_archive(self):
         frame, result, job = fixture()
@@ -149,6 +167,7 @@ class EManualBridgeTests(unittest.TestCase):
         output, reader = enrich(frame, result, job)
         reader.assert_not_called()
         self.assertEqual(output["details"][0]["support_resistance"]["status"], "unavailable_data_quality")
+        self.assertEqual(output["details"][0]["pivot_ladder"]["status"], "unavailable_data_quality")
 
     def test_archive_hash_read_failure_adds_only_unavailable_context(self):
         frame, result, job = fixture()
@@ -159,6 +178,7 @@ class EManualBridgeTests(unittest.TestCase):
         self.assertEqual(output["coverage"], original["coverage"])
         self.assertEqual(output["details"][0]["plan"], original["details"][0]["plan"])
         self.assertEqual(output["details"][0]["support_resistance"]["status"], "unavailable_data_quality")
+        self.assertEqual(output["details"][0]["pivot_ladder"]["status"], "unavailable_data_quality")
 
     def test_asof_requires_an_aware_timestamp_in_the_actual_archive_context(self):
         frame, result, job = fixture()
@@ -178,6 +198,78 @@ class EManualBridgeTests(unittest.TestCase):
         for key in ("supports", "resistances", "reference_price", "last_closed_bar_time"):
             self.assertEqual(before[key], after[key])
         self.assertEqual(after["excluded_open_or_future_bars"], 1)
+        self.assertEqual(expected["details"][0]["pivot_ladder"], actual["details"][0]["pivot_ladder"])
+        self.assertEqual(actual["details"][0]["pivot_ladder"]["reference_bar_end"],
+                         frame.bars[-2].close_time.isoformat())
+
+    def test_one_actual_closed_bar_is_enough_for_formula_ladder_not_confirmed_structure(self):
+        frame, result, job = fixture()
+        frame.bars = (frame.bars[-1],)
+        output, _ = enrich(frame, result, job)
+        self.assertEqual(output["details"][0]["support_resistance"]["status"], "insufficient_history")
+        self.assertEqual(output["details"][0]["pivot_ladder"]["status"], "ready")
+
+    def test_only_partial_bar_cannot_be_used_as_closed_pivot_reference(self):
+        frame, result, job = fixture(partial=True)
+        frame.bars = (frame.bars[-1],)
+        output, _ = enrich(frame, result, job)
+        ladder = output["details"][0]["pivot_ladder"]
+        self.assertEqual(ladder["status"], "unavailable_closed_reference")
+        self.assertIsNone(ladder["reference_bar_end"])
+        self.assertEqual(ladder["excluded_open_or_future_bars"], 1)
+        self.assertTrue(all(ladder[key] is None for key in LEVEL_FIELDS))
+
+    def test_future_bar_is_excluded_even_without_partial_marker(self):
+        frame, result, job = fixture()
+        as_of = (frame.bars[-1].open_time + timedelta(hours=1)).isoformat()
+        result["observations"][0]["observed_at"] = as_of
+        result["details"][0]["observed_at"] = as_of
+        output, _ = enrich(frame, result, job)
+        ladder = output["details"][0]["pivot_ladder"]
+        self.assertEqual(ladder["status"], "ready")
+        self.assertEqual(ladder["reference_bar_end"], frame.bars[-2].close_time.isoformat())
+        self.assertEqual(ladder["excluded_open_or_future_bars"], 1)
+
+    def test_intraday_reference_is_labelled_with_its_actual_timeframe(self):
+        frame, result, job = fixture()
+        frame.timeframe.value = job["timeframe"] = result["details"][0]["timeframe"] = "1h"
+        for index, bar in enumerate(frame.bars):
+            bar.open_time, bar.close_time = START + timedelta(hours=index), START + timedelta(hours=index + 1)
+        frame.through_bar_time = frame.bars[-1].close_time
+        observed = result["observations"][0]
+        observed.update(bar_open=frame.bars[-1].open_time.isoformat(),
+                        bar_end=frame.bars[-1].close_time.isoformat(),
+                        observed_at=(frame.bars[-1].close_time + timedelta(minutes=1)).isoformat())
+        result["details"][0].update(bar_open=observed["bar_open"], bar_time=observed["bar_end"],
+                                    observed_at=observed["observed_at"])
+        output, _ = enrich(frame, result, job)
+        item = output["details"][0]
+        self.assertEqual(item["pivot_ladder"]["timeframe"], "1h")
+        text = bridge.pivot_context_line(item)
+        self.assertIn("1h · son kapalı mum", text)
+        self.assertNotIn("günlük", text)
+        self.assertIn("S3", text)
+        self.assertIn("R3", text)
+
+    def test_flat_and_invalid_formula_prices_are_explained_without_padding(self):
+        for values, expected_status, explanation in (
+            ((100.0, 100.0, 100.0), "flat_session_coincident_levels", "seviyeler çakışır"),
+            ((100.0, 1.0, 1.0), "partial_nonpositive_levels", "uygulanamaz fiyat alanları boş"),
+        ):
+            with self.subTest(status=expected_status):
+                frame, result, job = fixture()
+                reference = frame.bars[-1]
+                reference.high, reference.low, reference.close = values
+                reference.open = reference.close
+                output, _ = enrich(frame, result, job)
+                item = output["details"][0]
+                self.assertEqual(item["pivot_ladder"]["status"], expected_status)
+                text = bridge.pivot_context_line(item)
+                self.assertIn(explanation, text)
+                if expected_status == "partial_nonpositive_levels":
+                    self.assertIsNone(item["pivot_ladder"]["S1"])
+                    self.assertIn("S1 —", text)
+                    self.assertNotIn("S1 -", text)
 
     def test_nearest_complete_short_scenario_and_context_are_formatted_without_remapping(self):
         _, result, _ = fixture()
