@@ -21,10 +21,13 @@ from market_intelligence.market_data.providers import FetchRequest
 IST = ZoneInfo("Europe/Istanbul")
 
 
-def data():
+def data(target=Timeframe.H2):
+    target = Timeframe(target)
+    first = "09:45" if target is Timeframe.M15 else "09:30" if target is Timeframe.M30 else "09:00"
+    final = "18:00" if target.minutes <= 60 else "17:00"
     return pd.DataFrame({"open": [10., 11.], "high": [13., 14.], "low": [9., 10.],
         "close": [12., 13.], "volume": [100., 200.]},
-        index=pd.DatetimeIndex(["2026-10-20 09:00", "2026-10-20 17:00"], tz=IST))
+        index=pd.DatetimeIndex([f"2026-10-20 {first}", f"2026-10-20 {final}"], tz=IST))
 
 
 class SdkStub:
@@ -56,7 +59,7 @@ class SdkStub:
         self._create_message("create_series", ["chart", "prices", "s1", "ser",
             self.override_resolution or self.TIMEFRAMES.get(interval, "1D"),
             self._calculate_bars(period, interval, None, None), ""])
-        return data() if self.include_volume else data().drop(columns=["volume"])
+        return data(interval) if self.include_volume else data(interval).drop(columns=["volume"])
 
     def close(self):
         self.closed = True
@@ -77,11 +80,12 @@ class NativeMultihourProviderTests(unittest.TestCase):
 
     def test_actual120_and240_resolution_messages_ohlcv_and_sdk_global_mapping_preserved(self):
         original = dict(SdkStub.TIMEFRAMES)
-        for target, resolution in ((Timeframe.H2, "120"), (Timeframe.H4, "240")):
+        for target, resolution in ((Timeframe.M15, "15"), (Timeframe.M30, "30"), (Timeframe.H1, "60"),
+                                   (Timeframe.H2, "120"), (Timeframe.H4, "240")):
             frame = self.provider().fetch_native_multihour(self.request(target))
             self.assertEqual(frame.timeframe, target)
             self.assertEqual(frame.price_basis, PriceBasis.SPLIT_ADJUSTED)
-            self.assertEqual(frame.bars[-1].timestamp, datetime(2026, 10, 20, 14, tzinfo=UTC))
+            self.assertEqual(frame.bars[-1].timestamp, datetime(2026, 10, 20, 15 if target.minutes <= 60 else 14, tzinfo=UTC))
             self.assertEqual((frame.bars[-1].open, frame.bars[-1].high, frame.bars[-1].low,
                 frame.bars[-1].close, frame.bars[-1].volume), (11, 14, 10, 13, 200))
             self.assertEqual([p[4:6] for m, p in SdkStub.instances[-1].messages if m == "create_series"], [[resolution, 600]])
@@ -91,7 +95,7 @@ class NativeMultihourProviderTests(unittest.TestCase):
 
     def test_wrong_resolution_price_basis_missing_volume_and_sdk_version_are_rejected(self):
         SdkStub.override_resolution = "1D"
-        with self.assertRaisesRegex(ValueError, "actual120/240|actual 120/240"):
+        with self.assertRaisesRegex(ValueError, "exact native resolution"):
             self.provider().fetch_native_multihour(self.request(Timeframe.H2))
         SdkStub.override_resolution = None
         SdkStub.override_adjustment = "none"
@@ -105,18 +109,20 @@ class NativeMultihourProviderTests(unittest.TestCase):
             self.provider("0.12.0").fetch_native_multihour(self.request(Timeframe.H2))
 
     def test_other_timeframes_and_boolean_bar_counts_are_rejected_before_sdk(self):
-        with self.assertRaisesRegex(ValueError, "explicit2h/4h|explicit 2h/4h"):
-            self.provider().fetch_native_multihour(self.request(Timeframe.H1))
+        with self.assertRaisesRegex(ValueError, "only explicit"):
+            self.provider().fetch_native_multihour(self.request(Timeframe.D1))
         request = FetchRequest("ATSYH", Timeframe.H2, True, self.request(Timeframe.H2).as_of)
         with self.assertRaisesRegex(ValueError, "bars"):
             self.provider().fetch_native_multihour(request)
         self.assertFalse(SdkStub.instances)
 
     def test_tv_native2h4h_preserve_actual_times_on_both_host_clocks_without_closed_filter(self):
-        for target, attr, resolution in ((Timeframe.H2, "in_2_hour", "120"), (Timeframe.H4, "in_4_hour", "240")):
+        for target, attr, resolution in ((Timeframe.M15, "in_15_minute", "15"),
+                (Timeframe.M30, "in_30_minute", "30"), (Timeframe.H1, "in_1_hour", "60"),
+                (Timeframe.H2, "in_2_hour", "120"), (Timeframe.H4, "in_4_hour", "240")):
             outputs = []
             for zone in ("UTC", "Europe/Istanbul"):
-                source = data()
+                source = data(target)
                 source.index = source.index.tz_convert(zone).tz_localize(None)
                 calls = []
                 stub = SimpleNamespace(get_hist=lambda calls=calls, source=source, **kw: (calls.append(kw), source)[1])
@@ -125,12 +131,24 @@ class NativeMultihourProviderTests(unittest.TestCase):
                 with patch.dict(sys.modules, {"tvDatafeed": module}):
                     frame = provider.fetch_native_multihour(self.request(target))
                 self.assertEqual(calls[0]["interval"], resolution)
-                self.assertEqual(frame.bars[-1].timestamp, datetime(2026, 10, 20, 14, tzinfo=UTC))
+                self.assertEqual(frame.bars[-1].timestamp, datetime(2026, 10, 20, 15 if target.minutes <= 60 else 14, tzinfo=UTC))
                 self.assertEqual(frame.price_basis, PriceBasis.SPLIT_ADJUSTED)
-                with self.assertRaisesRegex(ValueError, "explicit native-multihour"):
-                    provider.fetch(self.request(target))
+                if target in (Timeframe.H2, Timeframe.H4):
+                    with self.assertRaisesRegex(ValueError, "explicit native-multihour"):
+                        provider.fetch(self.request(target))
                 outputs.append(frame.bars)
             self.assertEqual(outputs[0], outputs[1])
+
+    def test_confirmed_hourly_fetch_remains_regular_only_while_explicit_ram_keeps_auctions(self):
+        source = pd.concat((data(Timeframe.H1).iloc[:1], data(Timeframe.H2).iloc[-1:], data(Timeframe.H1).iloc[-1:]))
+        stub = SimpleNamespace(get_hist=lambda **kw: source)
+        module = SimpleNamespace(Interval=SimpleNamespace(in_1_hour="60"), TvDatafeed=lambda: stub)
+        provider = TvDatafeedBistProvider(client=stub)
+        with patch.dict(sys.modules, {"tvDatafeed": module}):
+            confirmed = provider.fetch(self.request(Timeframe.H1))
+            ram = provider.fetch_native_multihour(self.request(Timeframe.H1))
+        self.assertEqual([bar.timestamp.astimezone(IST).hour for bar in confirmed.bars], [17])
+        self.assertEqual([bar.timestamp.astimezone(IST).hour for bar in ram.bars], [9, 17, 18])
 
     def test_tv_native_multihour_cannot_invent_volume_or_accept_duplicate_timestamps(self):
         for source, reason in ((data().drop(columns=["volume"]), "actual volume"),

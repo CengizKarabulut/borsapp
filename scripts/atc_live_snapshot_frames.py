@@ -378,7 +378,8 @@ def prepare_frame(
         return prepare_native_weekly(provider, member, observed_at=observed_at, clock=clock, bars=bars)
     if target is Timeframe.M45 and callable(getattr(provider, "fetch_native_grid", None)):
         return _prepare_native_45m(provider, member, observed_at=observed_at, clock=clock, bars=bars)
-    if target in (Timeframe.H2, Timeframe.H4) and callable(getattr(provider, "fetch_native_multihour", None)):
+    if target in (Timeframe.M15, Timeframe.M30, Timeframe.H1, Timeframe.H2, Timeframe.H4) and callable(
+            getattr(provider, "fetch_native_multihour", None)):
         from scripts.atc_live_multihour_frames import prepare_native_multihour
 
         return prepare_native_multihour(provider, member, timeframe=target,

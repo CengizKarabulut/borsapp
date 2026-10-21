@@ -1,4 +1,4 @@
-"""Guarded anonymous native 120/240-minute OHLCV for RAM snapshots only.
+"""Guarded anonymous native 15/30/60/120/240-minute RAM OHLCV.
 
 borsapy 0.11 lacks a 2h mapping and silently falls back to daily resolution for
 unknown intervals. This local subclass explicitly declares both resolutions,
@@ -21,7 +21,8 @@ from market_intelligence.market_data.providers import (
 )
 
 SUPPORTED_SDK_VERSIONS = frozenset({"0.11.0"})
-RESOLUTIONS = {Timeframe.H2: "120", Timeframe.H4: "240"}
+RESOLUTIONS = {Timeframe.M15: "15", Timeframe.M30: "30", Timeframe.H1: "60",
+               Timeframe.H2: "120", Timeframe.H4: "240"}
 
 
 class BorsapyNativeMultihourProvider(BorsapyProvider):
@@ -34,7 +35,7 @@ class BorsapyNativeMultihourProvider(BorsapyProvider):
 
     def fetch_native_multihour(self, request: FetchRequest) -> ProviderFrame:
         if request.timeframe not in RESOLUTIONS:
-            raise ValueError("Native-multihour access supports only explicit 2h/4h requests")
+            raise ValueError("Native-multihour access supports only explicit 15m/30m/1h/2h/4h requests")
         if type(request.bars) is not int or not 1 <= request.bars <= 5000:
             raise ValueError("Native-multihour bars must be between 1 and 5000")
         if request.as_of.tzinfo is None or request.as_of.utcoffset() is None:
@@ -61,7 +62,7 @@ class BorsapyNativeMultihourProvider(BorsapyProvider):
         requested_bars = request.bars
 
         class NativeMultihourClient(sdk_base):
-            TIMEFRAMES = {**sdk_base.TIMEFRAMES, "2h": "120", "4h": "240"}
+            TIMEFRAMES = {**sdk_base.TIMEFRAMES, **{tf.value: value for tf, value in RESOLUTIONS.items()}}
 
             def __init__(self):
                 super().__init__()
@@ -92,7 +93,7 @@ class BorsapyNativeMultihourProvider(BorsapyProvider):
                     self.verified_native_messages.add("split_adjusted_regular_symbol")
                 elif method == "create_series":
                     if len(params) < 6 or params[4] != resolution or params[5] != requested_bars:
-                        raise ValueError("Native-multihour SDK did not request the actual 120/240 resolution")
+                        raise ValueError("Native-multihour SDK did not request the exact native resolution")
                     self.verified_native_messages.add("resolution_native")
                 return super()._create_message(method, params)
 

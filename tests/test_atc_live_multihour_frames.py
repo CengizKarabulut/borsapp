@@ -78,6 +78,67 @@ class NativeMultihourFrameTests(unittest.TestCase):
             self.assertFalse(meta["nominal_end_is_exchange_confirmation"])
             self.assertEqual(vendor.requests[0].timeframe, target)
 
+    def test_native15_30_60_include_morning_and_closing_auction_rows_with_real_price_and_volume(self):
+        for target, first, previous, end_minute in (
+            (Timeframe.M15, (9, 45), (17, 45), 15),
+            (Timeframe.M30, (9, 30), (17, 30), 30),
+            (Timeframe.H1, (9, 0), (17, 0), 0),
+        ):
+            starts = [datetime(2026, 10, 20, *first, tzinfo=IST),
+                      datetime(2026, 10, 20, *previous, tzinfo=IST), datetime(2026, 10, 20, 18, tzinfo=IST)]
+            source = raw(target, starts=starts)
+            frame, meta = self.prepare(source)
+            self.assertEqual([bar.open_time for bar in frame.bars], starts)
+            self.assertEqual(len(frame.bars), 3)
+            self.assertEqual(frame.bars[-1].close, source.bars[-1].close)
+            self.assertEqual(frame.bars[-1].volume, source.bars[-1].volume)
+            self.assertEqual(frame.bars[-1].close_time.hour, 19 if target is Timeframe.H1 else 18)
+            self.assertEqual(frame.bars[-1].close_time.minute, end_minute)
+            self.assertTrue(meta["usable_latest"])
+            self.assertTrue(meta["closing_auction_candle_observed"])
+            self.assertEqual(meta["source_grid"], native.NATIVE_INTRADAY_GRIDS[target])
+            self.assertIsNone(meta["last_trade_at"])
+
+    def test_real_regular_close_without_auction_is_explicit_and_never_relabelled(self):
+        for target, first, previous in ((Timeframe.M15, (9, 45), (17, 45)),
+                (Timeframe.M30, (9, 30), (17, 30)), (Timeframe.H1, (9, 0), (17, 0))):
+            starts = [datetime(2026, 10, 20, *first, tzinfo=IST), datetime(2026, 10, 20, *previous, tzinfo=IST)]
+            source = raw(target, starts=starts)
+            frame, meta = self.prepare(source)
+            self.assertEqual(len(frame.bars), 2)
+            self.assertEqual(frame.bars[-1].open_time, starts[-1])
+            self.assertEqual(frame.bars[-1].close_time.hour, 18)
+            self.assertEqual(frame.bars[-1].volume, source.bars[-1].volume)
+            self.assertTrue(meta["usable_latest"])
+            self.assertFalse(meta["current_bucket"])
+            self.assertFalse(meta["closing_auction_candle_observed"])
+            self.assertEqual(meta["status"], "last_regular_close_without_auction")
+            self.assertEqual(meta["closing_observation_basis"], "last_regular_close_without_auction_candle")
+
+    def test_earlier_sparse_intraday_bar_is_not_promoted_to_final_regular_close(self):
+        for target in (Timeframe.M15, Timeframe.M30, Timeframe.H1):
+            source = raw(target, starts=[datetime(2026, 10, 20, 13, tzinfo=IST)])
+            _, meta = self.prepare(source)
+            self.assertFalse(meta["usable_latest"])
+            self.assertEqual(meta["status"], "stale_previous_bucket")
+
+    def test_native15_30_60_halfday_last12_30_row_and_full_nominal_end_preserved(self):
+        day = date(2026, 5, 26)
+        for target in (Timeframe.M15, Timeframe.M30, Timeframe.H1):
+            starts = [datetime(2026, 5, 26, 9, 45 if target is Timeframe.M15 else 30, tzinfo=IST),
+                      datetime(2026, 5, 26, 12, 30, tzinfo=IST), datetime(2026, 10, 20, 18, tzinfo=IST)]
+            with patch.object(native, "_nonregular_session_days", return_value=frozenset((day,))), patch.object(
+                    native, "_historical_halfdays", return_value={day: {"calendar_open": "2026-05-26T10:00:00+03:00", "calendar_close": "2026-05-26T12:30:00+03:00"}}):
+                frame, meta = self.prepare(raw(target, starts=starts))
+            self.assertEqual(frame.bars[-2].open_time, starts[-2])
+            self.assertEqual(frame.bars[-2].close_time, starts[-2] + timedelta(minutes=target.minutes))
+            self.assertEqual(meta["historical_nonregular_native_grid_policies"][0]["last_open"], "12:30")
+
+    def test_native15_30_60_regular_shifted_auction_grid_is_rejected(self):
+        for target, opened in ((Timeframe.M15, (9, 30)), (Timeframe.M30, (9, 45)), (Timeframe.H1, (9, 30))):
+            with self.assertRaisesRegex(ValueError, "shifted native"):
+                self.prepare(raw(target, starts=[datetime(2026, 10, 20, *opened, tzinfo=IST)]))
+
     def test_sparse_auction_history_is_not_replaced_by_fake_missing_native_bars(self):
         source = raw(starts=[datetime(2026, 10, 20, hour, tzinfo=IST) for hour in (9, 11, 13, 17)])
         frame, meta = self.prepare(source)

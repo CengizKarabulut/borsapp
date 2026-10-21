@@ -50,7 +50,8 @@ def make_packet(folder, tf, symbols, *, matches=45, now=NOW):
                 "last_bar_open": "2026-10-20T18:00:00+03:00",
                 "last_bar_close": "2026-10-20T18:45:00+03:00" if tf == "45m" else "2026-10-20T18:15:00+03:00",
                 "last_actual_native_open": "2026-10-20T18:00:00+03:00",
-                "source_grid": report.NATIVE_45M_GRID if tf == "45m" else "fixture_native_grid"}})
+                "source_grid": report.NATIVE_45M_GRID if tf == "45m" else
+                    report.NATIVE_MULTIHOUR_GRIDS.get(tf, "fixture_native_grid")}})
     packet = {"version": live.VERSION, "timeframe": tf, "symbol_count": 630,
         "provisional": True, "confirmed_store_writes": 0, "orders_sent": 0,
         "counts": {"usable": 630}, "observation_start": (now - timedelta(minutes=2)).isoformat(),
@@ -213,6 +214,8 @@ class LatestKnownIntersectionTests(unittest.TestCase):
 
     def test_derived_multihour_grid_is_not_silently_mixed_with_native_grid(self):
         make_packet(self.packets / "2h", "2h", self.symbols)
+        self.mutate("2h", lambda data: [row["metadata"].update(source_grid="legacy_h1_assembly")
+            for row in data["rows"]])
         self.set_sources(("15m", "1h", "2h"))
         value = self.prepare()
         self.assertEqual(value["inputs"]["2h"]["reason"], "native_multihour_source_grid_required")
