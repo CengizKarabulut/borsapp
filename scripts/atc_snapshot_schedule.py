@@ -15,11 +15,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Europe/Istanbul")
-SUPPORTED_TIMEFRAMES = ("15m", "30m", "45m", "1h", "2h", "4h", "1d")
+SUPPORTED_TIMEFRAMES = ("15m", "30m", "45m", "1h", "2h", "4h", "1d", "1wk")
 MINUTES = {"15m": 15, "30m": 30, "45m": 45, "1h": 60, "2h": 120, "4h": 240}
 CHAT = -1004439315048
 TOPICS = {"15m": 6, "30m": 11, "45m": 9, "1h": 28326,
-          "2h": 10, "4h": 28327, "1d": 28328}
+          "2h": 10, "4h": 28327, "1d": 28328, "1wk": 28329}
 LEDGER_SCHEMA = "atc-scheduled-delivery-v1"
 
 
@@ -88,6 +88,10 @@ def _slots(calendar, day: date, timeframe: str) -> list[tuple[datetime, datetime
         return []
     if timeframe == "1d":
         return [(closed, _scheduled_at(closed, timeframe))]
+    if timeframe == "1wk":
+        monday = day - timedelta(days=day.weekday())
+        week = calendar.sessions(monday, monday + timedelta(days=6))
+        return [(closed, _scheduled_at(closed, timeframe))] if week and day == max(week) else []
     target = opened + timedelta(minutes=MINUTES[timeframe])
     result = []
     while target <= closed:
@@ -118,7 +122,7 @@ def validate_delivery_state(state: object) -> dict:
         raise ValueError("scheduled_delivery_slot_identity_mismatch")
     if target.time() < time(10) or target.time() > time(18):
         raise ValueError("scheduled_delivery_target_outside_session")
-    if tf == "1d":
+    if tf in ("1d", "1wk"):
         valid_target = target.time() == time(18)
     else:
         elapsed = (target - datetime.combine(target.date(), time(10), IST)).total_seconds()
@@ -157,7 +161,7 @@ def load_delivered(directory: Path) -> dict[str, dict]:
 
 
 def plan(now: datetime, delivered=None, force_all: bool = False, calendar=None) -> dict:
-    """Return newest due slots; ``force_all`` makes seven non-watermarking previews.
+    """Return newest due slots; ``force_all`` makes eight non-watermarking previews.
 
     ``target_close`` is a logical interval endpoint, never an observation claim.
     A manual current-period endpoint may lie in the future and is marked
@@ -208,13 +212,13 @@ def plan(now: datetime, delivered=None, force_all: bool = False, calendar=None) 
                      if watermark is None or target > watermark]
         if force_all:
             if opened <= now < closed:
-                if tf == "1d":
+                if tf in ("1d", "1wk"):
                     target = closed
                 else:
                     duration = timedelta(minutes=MINUTES[tf])
                     target = min(opened + (int((now - opened) // duration) + 1) * duration, closed)
             else:
-                target = closed if tf == "1d" else _slots(calendar, latest_session, tf)[-1][0]
+                target = closed if tf in ("1d", "1wk") else _slots(calendar, latest_session, tf)[-1][0]
             scheduled = _scheduled_at(target, tf)
             missed = 0
         elif remaining:

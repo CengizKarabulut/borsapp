@@ -18,12 +18,17 @@ from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 
-from market_intelligence.application.scan_intersections import cross_timeframe_intersections
+from market_intelligence.application.scan_intersections import (
+    cross_timeframe_intersections,
+    timeframe_intersections,
+)
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scanning.display_codes import SCANNER_ORDER, scanner_code_from_id
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts import atc_live_snapshot as live
+from scripts.atc_live_multihour_frames import NATIVE_MULTIHOUR_GRIDS
 from scripts.atc_live_snapshot_frames import NATIVE_45M_GRID
+from scripts.atc_live_weekly_frames import NATIVE_WEEKLY_GRID, calendar_week_identity
 from scripts.atc_structure_report import atomic_json, canonical
 from scripts.atc_timeframe_visuals import _font
 from scripts.atc_universe_seed import load_pinned
@@ -33,7 +38,7 @@ TOPIC = 28330
 REPOSITORY = "CengizKarabulut/borsapp"
 WORKFLOW = ".github/workflows/atc-scheduled-snapshots.yml"
 CADENCE_MINUTES = {"15m": 15, "30m": 30, "45m": 45, "1h": 60,
-                   "2h": 120, "4h": 240, "1d": 1440}
+                   "2h": 120, "4h": 240, "1d": 1440, "1wk": 10080}
 PAGE_SIZE = 20
 BASE_FILES = ("intersections.json", "intersections.txt", "intersections.csv")
 
@@ -115,6 +120,10 @@ def validate_packet(folder, tf, source, *, now, session, pinned, bindings, hashe
             continue
         if tf == "45m" and meta.get("source_grid") != NATIVE_45M_GRID:
             raise ValueError("native_45m_source_grid_required")
+        if tf == "1wk" and meta.get("source_grid") != NATIVE_WEEKLY_GRID:
+            raise ValueError("native_weekly_source_grid_required")
+        if tf in NATIVE_MULTIHOUR_GRIDS and meta.get("source_grid") != NATIVE_MULTIHOUR_GRIDS[tf]:
+            raise ValueError("native_multihour_source_grid_required")
         scans = row.get("evaluations", [])
         if (len(scans) != 18 or {scan.get("scanner_id") for scan in scans} != set(bindings)
                 or {scan.get("number") for scan in scans} != set(range(1, 19))):
@@ -139,7 +148,9 @@ def validate_packet(folder, tf, source, *, now, session, pinned, bindings, hashe
             continue
         observed = live.aware(datetime.fromisoformat(meta["received_at"]))
         actual_open = live.aware(datetime.fromisoformat(meta["last_actual_native_open"]))
-        if not start <= observed <= end or actual_open.date() != session:
+        same_cohort = (calendar_week_identity(actual_open) == calendar_week_identity(session)
+                       if tf == "1wk" else actual_open.date() == session)
+        if not start <= observed <= end or not same_cohort:
             raise ValueError("source_symbol_observation_identity_changed")
         for scan in scans:
             if scan["status"] != "match":
@@ -159,6 +170,23 @@ def _codes(scanners):
     return ",".join(scanner_code_from_id(value) for value in scanners)
 
 
+def current_intersections(by_tf):
+    scores = {}
+    for tf, details in by_tf.items():
+        for item in timeframe_intersections(details, limit=None):
+            if not item["direction_tie"]:
+                scores.setdefault((item["symbol"], item["direction"]), {})[tf] = item["scanners"]
+    ranked = cross_timeframe_intersections(by_tf, limit=None)
+    result = []
+    for item in ranked:
+        opposite = "bearish" if item["direction"] == "bullish" else "bullish"
+        frames = scores.get((item["symbol"], opposite), {})
+        opposing_score = (len(frames), len({scanner for names in frames.values() for scanner in names}))
+        if opposing_score != (item["timeframe_count"], item["count"]):
+            result.append(item)
+    return result
+
+
 def _frame_codes(item):
     return "; ".join(tf + ":" + _codes(part["scanners"])
                      for tf, part in item["timeframes"].items())
@@ -175,6 +203,8 @@ def render_text(report):
                          f"yaş sınırı {lane['maximum_age_minutes']} dk")
         else:
             lines.append(tf + ": hariç · " + lane["reason"])
+    if report["inputs"].get("1wk", {}).get("status") == "included":
+        lines.append("Haftalık uygunluk aynı takvim haftasıdır; mum başlangıcı son işlem zamanı veya anlık veri kanıtı değildir.")
     if len([lane for lane in report["inputs"].values() if lane["status"] == "included"]) < 2:
         lines.append("Kesişim hesabı için yeterli güncel zaman dilimi yok.")
     elif not report["intersections"]:
@@ -271,7 +301,7 @@ def prepare_report(packets_dir, sources_manifest, output_dir, *, now=None, bindi
             known = str(error)
             reason = known if re.fullmatch(r"[a-z][a-z0-9_]{2,90}", known) else "invalid_source_packet"
             inputs[tf] = {"status": "excluded", "reason": reason}
-    ranked = cross_timeframe_intersections(by_tf, limit=None) if len(by_tf) >= 2 else []
+    ranked = current_intersections(by_tf) if len(by_tf) >= 2 else []
     report = {"version": VERSION, "prepared_at": now.isoformat(), "session": session.isoformat(),
         "provisional": True, "source_state_semantics": "latest_known_with_per_timeframe_observation_age",
         "criteria": {"same_direction_rules_per_timeframe": 2, "same_direction_timeframes": 2,

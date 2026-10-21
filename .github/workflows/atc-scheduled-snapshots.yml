@@ -125,6 +125,7 @@ jobs:
           TELEGRAM_TOPIC_2H: ${{ vars.TELEGRAM_TOPIC_2H || secrets.TELEGRAM_TOPIC_2H }}
           TELEGRAM_TOPIC_4H: ${{ vars.TELEGRAM_TOPIC_4H || secrets.TELEGRAM_TOPIC_4H }}
           TELEGRAM_TOPIC_1D: ${{ vars.TELEGRAM_TOPIC_1D || secrets.TELEGRAM_TOPIC_1D }}
+          TELEGRAM_TOPIC_1W: ${{ vars.TELEGRAM_TOPIC_1W || vars.TELEGRAM_TOPIC_1WK || secrets.TELEGRAM_TOPIC_1W || secrets.TELEGRAM_TOPIC_1WK }}
         run: python -m scripts.atc_live_snapshot --publish-from runtime_artifacts/live
       - name: Record this slot only after all Telegram parts were acknowledged
         if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.delivery == 'publish') }}

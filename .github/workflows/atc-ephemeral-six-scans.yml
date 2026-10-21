@@ -12,13 +12,8 @@ on:
         type: choice
         default: due
         options: [due, all]
-  schedule:
-    # The latest-candle intraday schedule lives in atc-scheduled-snapshots.yml.
-    # Keep this strict confirmed-candle EOD/Friday-weekly and Kesisim path.
-    - cron: "30 15 * * 1-5"
-  push:
-    branches: [main, feat/atc-automatic-ephemeral-eight-tfs-20261016]
-    paths: [.github/workflows/atc-ephemeral-six-scans.yml]
+  # Confirmed-only diagnostics remain manual. Automatic latest-candle daily,
+  # weekly and intersections are owned by atc-scheduled-snapshots.yml.
 
 permissions:
   contents: read

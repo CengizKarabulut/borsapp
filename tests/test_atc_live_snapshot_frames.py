@@ -339,7 +339,7 @@ class LatestActualFrameTests(unittest.TestCase):
                     MEMBER, "15m", now=NOW)
 
     def test_weekly_and_naive_clock_and_other_instrument_explicitly_rejected(self):
-        with self.assertRaisesRegex(ValueError, "weekly unsupported"):
+        with self.assertRaisesRegex(ValueError, "explicit native-weekly"):
             live.prepare_frame(Vendor(raw_frame()), MEMBER, "1wk", now=NOW)
         with self.assertRaisesRegex(ValueError, "timezone-aware"):
             live.prepare_frame(Vendor(raw_frame()), MEMBER, "15m", now=NOW.replace(tzinfo=None))
@@ -377,6 +377,7 @@ class Native45ActualFrameTests(unittest.TestCase):
         self.assertEqual(meta["native_bar_time_basis"], "provider_nominal_interval_not_last_trade")
         self.assertTrue(meta["usable_latest"])
         self.assertTrue(meta["current_bucket"])
+        self.assertTrue(meta["auction_observed"])
         self.assertTrue(meta["latest_target_complete"])
         self.assertFalse(meta["session_truncated_bucket"])
         self.assertFalse(meta["persisted"])
@@ -422,6 +423,49 @@ class Native45ActualFrameTests(unittest.TestCase):
         self.assertTrue(boundary["usable_latest"])
         self.assertEqual(boundary["latest_native_close_age_seconds"], 1800)
         self.assertFalse(beyond["usable_latest"])
+
+    def test_actual_regular_closing_bar_without_auction_is_usable_afterhours_and_preopen(self):
+        starts = [NOW.replace(hour=16, minute=30), NOW.replace(hour=17, minute=15)]
+        raw = self.raw(starts=starts)
+        for observed in (NOW.replace(hour=18, minute=10), NOW.replace(hour=21),
+                         NOW.replace(day=21, hour=9, minute=30)):
+            with self.subTest(observed=observed):
+                frame, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=observed)
+                self.assertTrue(meta["usable_latest"])
+                self.assertFalse(meta["current_bucket"])
+                self.assertFalse(meta["current_native_bucket"])
+                self.assertFalse(meta["target_bucket_present"])
+                self.assertFalse(meta["auction_observed"])
+                self.assertEqual(meta["status"], "last_regular_close_no_auction_candle")
+                self.assertEqual([bar.open_time for bar in frame.bars], starts)
+                self.assertEqual(frame.bars[-1].close_time, NOW.replace(hour=18, minute=0))
+                self.assertEqual([bar.volume for bar in frame.bars], [bar.volume for bar in raw.bars])
+                self.assertEqual([bar.close for bar in frame.bars], [bar.close for bar in raw.bars])
+                self.assertIsNone(meta["actual_bar_is_open"])
+                self.assertIsNone(meta["last_trade_at"])
+                self.assertEqual(meta["actual_bar_confirmation"], "unknown")
+
+    def test_missing_auction_does_not_promote_earlier_or_previous_session_bars(self):
+        for latest in (NOW.replace(hour=16, minute=30),
+                       NOW.replace(day=19, hour=17, minute=15)):
+            with self.subTest(latest=latest):
+                raw = self.raw(starts=[latest])
+                frame, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=21))
+                self.assertFalse(meta["usable_latest"])
+                self.assertFalse(meta["auction_observed"])
+                self.assertTrue(meta["status"].startswith("stale_"))
+                self.assertEqual(frame.bars[-1].open_time, latest)
+
+    def test_missing_auction_during_session_keeps_existing_age_policy(self):
+        raw = self.raw(starts=[NOW.replace(hour=17, minute=15)])
+        _, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=18, minute=9))
+        self.assertTrue(meta["usable_latest"])
+        self.assertFalse(meta["current_bucket"])
+        self.assertEqual(meta["status"], "stale_previous_bucket")
+        self.assertEqual(meta["latest_native_close_age_seconds"], 9 * 60)
+        old = self.raw(starts=[NOW.replace(hour=16, minute=30)])
+        _, stale = live.prepare_frame(NativeVendor(old), MEMBER, "45m", now=NOW.replace(hour=18, minute=9))
+        self.assertFalse(stale["usable_latest"])
 
     def test_nominal_auction_interval_does_not_claim_actual_trading_is_open(self):
         raw = self.raw(starts=[NOW.replace(hour=18, minute=0)])
@@ -507,6 +551,22 @@ class Native45ActualFrameTests(unittest.TestCase):
         self.assertTrue(meta["historical_nonregular_close_times_nominal"])
         self.assertEqual(meta["historical_nonregular_native_grid_policies"][0]["session"], "2026-05-26")
         self.assertTrue(meta["usable_latest"])
+
+    def test_march_short_session_retains_sparse_isbtr_history_without_calling_it_current(self):
+        day = date(2026, 3, 19)
+        starts = [datetime(2026, 3, 19, 9, 30, tzinfo=IST),
+                  datetime(2026, 3, 19, 11, 45, tzinfo=IST), NOW.replace(hour=13, minute=30)]
+        raw = self.raw(starts=starts)
+        with patch.object(live, "_session_days", return_value=SESSIONS | {day}), \
+                patch.object(live, "_nonregular_session_days", return_value=frozenset((day,))):
+            frame, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=21))
+        self.assertEqual([bar.open_time for bar in frame.bars], starts)
+        self.assertEqual([bar.volume for bar in frame.bars], [bar.volume for bar in raw.bars])
+        self.assertEqual([bar.close for bar in frame.bars], [bar.close for bar in raw.bars])
+        self.assertEqual(meta["historical_nonregular_native_grid_policies"][0]["session"], "2026-03-19")
+        self.assertFalse(meta["usable_latest"])
+        self.assertFalse(meta["current_bucket"])
+        self.assertEqual(meta["status"], "stale_previous_bucket")
 
     def test_short_grid_requires_calendar_certification_and_dated_policy(self):
         stamp = datetime(2026, 5, 26, 9, 30, tzinfo=IST)

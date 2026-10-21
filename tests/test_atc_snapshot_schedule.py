@@ -111,11 +111,11 @@ class SnapshotScheduleTests(unittest.TestCase):
         self.assertNotIn("1d", early)
         self.assertEqual(early["15m"]["target_close"], clock(hour=17, minute=45).isoformat())
         final = self.run_plan(clock(hour=18, minute=30), delivered=self.baseline())
-        self.assertEqual(tuple(final["timeframes"]), SUPPORTED_TIMEFRAMES)
+        self.assertEqual(tuple(final["timeframes"]), SUPPORTED_TIMEFRAMES[:-1])
         for entry in entries(final).values():
             expected = clock(hour=18, minute=0)
             self.assertEqual(entry["target_close"], expected.isoformat())
-        ledger = {tf: acknowledged(item) for tf, item in entries(final).items()}
+        ledger = {**self.baseline(), **{tf: acknowledged(item) for tf, item in entries(final).items()}}
         self.assertEqual(self.run_plan(clock(hour=23, minute=40), delivered=ledger)["entries"], [])
 
     def test_45m_closing_auction_pass_follows_acknowledged_1730_slot(self):
@@ -147,13 +147,24 @@ class SnapshotScheduleTests(unittest.TestCase):
         self.assertEqual(result["entries"], [])
         self.assertIn("12:30", result["unsupported"]["close"])
 
-    def test_manual_all_is_seven_previews_never_a_delivery_watermark(self):
+    def test_manual_all_is_eight_previews_never_a_delivery_watermark(self):
         result = self.run_plan(clock(hour=10, minute=5), force_all=True)
         self.assertEqual(tuple(result["timeframes"]), SUPPORTED_TIMEFRAMES)
         self.assertTrue(all(item["manual_only"] is True for item in result["entries"]))
         for item in result["entries"]:
             with self.assertRaisesRegex(ValueError, "manual_preview"):
                 validate_delivery_state(acknowledged(item))
+
+    def test_weekly_is_due_on_last_real_session_and_holiday_week(self):
+        previous = self.run_plan(clock(day=16, hour=18, minute=30))
+        ledger = {tf: acknowledged(item) for tf, item in entries(previous).items()}
+        friday = entries(self.run_plan(clock(day=23, hour=18, minute=30), delivered=ledger))
+        self.assertIn("1wk", friday)
+        self.assertEqual(friday["1wk"]["target_close"], clock(day=23, hour=18, minute=0).isoformat())
+        thursday = plan(clock(day=22, hour=18, minute=30), delivered=ledger,
+            calendar=Calendar(holidays=[date(2026, 10, 23)]))
+        self.assertEqual(entries(thursday)["1wk"]["session"], "2026-10-22")
+        self.assertNotIn("1wk", entries(self.run_plan(clock(day=21, hour=18, minute=30), delivered=ledger)))
 
     def test_naive_clock_and_future_watermark_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "timezone_aware"):

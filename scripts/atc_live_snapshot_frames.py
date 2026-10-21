@@ -28,11 +28,14 @@ QUALITY = "PROVISIONAL_WHAT_IF_NOT_PERSISTED"
 NATIVE_45M_GRID = "tradingview_native_45m_including_auctions"
 # Actual provider-native grid observed on this exchange-calendar-certified
 # shortened session. It is historical input only, not a guessed regular grid.
-NATIVE_45M_HISTORICAL_SHORT_GRIDS = {date(2026, 5, 26): ((9, 30), (12, 30))}
+NATIVE_45M_HISTORICAL_SHORT_GRIDS = {
+    date(2026, 3, 19): ((9, 30), (12, 30)),
+    date(2026, 5, 26): ((9, 30), (12, 30)),
+}
 MAX_LATEST_NATIVE_AGE_MINUTES = 30
 SUPPORTED_TIMEFRAMES = (
     Timeframe.M15, Timeframe.M30, Timeframe.M45, Timeframe.H1,
-    Timeframe.H2, Timeframe.H4, Timeframe.D1,
+    Timeframe.H2, Timeframe.H4, Timeframe.D1, Timeframe.W1,
 )
 
 
@@ -279,9 +282,23 @@ def _prepare_native_45m(provider, member, *, observed_at, clock, bars):
     auction_end = received_at.replace(hour=18, minute=10, second=0, microsecond=0)
     during_session = received_at.date() in sessions and first_today <= received_at < auction_end
     native_age = max(0.0, (received_at - latest.close_time).total_seconds())
+    # Some instruments have no actual 18:00 auction candle. Once the auction
+    # window is over, their genuine 17:15-18:00 regular closing bar remains a
+    # usable last observation. Preserve its exact times and OHLCV; do not
+    # create, relabel or claim observation of an auction candle. Intraday age
+    # limits are unchanged, and earlier sparse candles do not qualify.
+    auction_open = expected_open.replace(hour=18, minute=0, second=0, microsecond=0)
+    auction_observed = any(bar.open_time == auction_open for bar in selected)
+    last_regular_close_no_auction = (
+        not during_session and not auction_observed
+        and latest.open_time == auction_open - timedelta(minutes=45)
+        and latest.close_time == auction_open and received_at >= auction_open
+    )
     usable = latest.open_time.date() == expected_open.date() and (
-        native_age <= MAX_LATEST_NATIVE_AGE_MINUTES * 60 if during_session else current)
+        native_age <= MAX_LATEST_NATIVE_AGE_MINUTES * 60 if during_session
+        else current or last_regular_close_no_auction)
     status = ("stale_previous_session" if latest.open_time.date() < expected_open.date()
+              else "last_regular_close_no_auction_candle" if last_regular_close_no_auction
               else "stale_previous_bucket" if not current
               else "live_open" if nominal_open or raw.last_bar_is_partial else "latest_closed")
     identity = stable_hash({"kind": "ATC_UNPERSISTED_NATIVE_45M_WHAT_IF_V1",
@@ -295,6 +312,7 @@ def _prepare_native_45m(provider, member, *, observed_at, clock, bars):
     metadata = {
         "quality": QUALITY, "status": status, "current_bucket": current,
         "usable_latest": usable, "source_grid": NATIVE_45M_GRID,
+        "auction_observed": auction_observed,
         "native_bar_time_basis": "provider_nominal_interval_not_last_trade",
         "actual_bar_is_open": None, "actual_bar_confirmation": "unknown",
         "nominally_open": nominal_open, "temporally_open": nominal_open,
@@ -345,7 +363,7 @@ def prepare_frame(
     """
     target = parse_timeframe(timeframe) if isinstance(timeframe, str) else timeframe
     if target not in SUPPORTED_TIMEFRAMES:
-        raise ValueError("Live snapshot supports 15m/30m/45m/1h/2h/4h/1d; weekly unsupported")
+        raise ValueError("Live snapshot supports 15m/30m/45m/1h/2h/4h/1d/1wk")
     if not 1 <= bars <= 1250:
         raise ValueError("Requested target bars must be between 1 and 1250")
     if member.market != "BIST":
@@ -354,8 +372,17 @@ def prepare_frame(
         (lambda: now) if now is not None else lambda: datetime.now(ISTANBUL)
     )
     observed_at = _aware(clock())
+    if target is Timeframe.W1:
+        from scripts.atc_live_weekly_frames import prepare_native_weekly
+
+        return prepare_native_weekly(provider, member, observed_at=observed_at, clock=clock, bars=bars)
     if target is Timeframe.M45 and callable(getattr(provider, "fetch_native_grid", None)):
         return _prepare_native_45m(provider, member, observed_at=observed_at, clock=clock, bars=bars)
+    if target in (Timeframe.H2, Timeframe.H4) and callable(getattr(provider, "fetch_native_multihour", None)):
+        from scripts.atc_live_multihour_frames import prepare_native_multihour
+
+        return prepare_native_multihour(provider, member, timeframe=target,
+            observed_at=observed_at, clock=clock, bars=bars)
     schedule = BistSessionSchedule()
     native = BASE_TIMEFRAME[target]
     # Let current mutable native data survive the provider's closed-only filter.
