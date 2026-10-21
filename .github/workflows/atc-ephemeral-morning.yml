@@ -47,6 +47,7 @@ jobs:
             runtime_artifacts/structure/report.csv
             runtime_artifacts/structure/summary.txt
             runtime_artifacts/structure/summary.png
+            runtime_artifacts/structure/levels-*.png
             runtime_artifacts/structure/manifest.json
             runtime_artifacts/structure/delivery.json
           retention-days: 2
