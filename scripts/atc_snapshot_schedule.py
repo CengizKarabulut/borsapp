@@ -42,7 +42,11 @@ class _XistCalendar:
         import exchange_calendars
 
         self.calendar = exchange_calendars.get_calendar(
-            "XIST", start=start.isoformat(), end=(end + timedelta(days=7)).isoformat(),
+            # Weekly slots inspect the full earliest week, including dates
+            # before a midweek watermark. Extra margin also keeps holiday
+            # Mondays inside the calendar's actual first-session bounds.
+            "XIST", start=(start - timedelta(days=14)).isoformat(),
+            end=(end + timedelta(days=14)).isoformat(),
         )
 
     def sessions(self, start: date, end: date) -> tuple[date, ...]:

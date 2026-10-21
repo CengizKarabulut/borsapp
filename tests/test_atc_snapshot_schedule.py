@@ -176,6 +176,15 @@ class SnapshotScheduleTests(unittest.TestCase):
         utc = datetime.fromisoformat("2026-10-20T08:07:00+00:00")
         self.assertEqual(self.run_plan(utc), self.run_plan(clock()))
 
+    def test_production_calendar_covers_complete_weeks_before_midweek_window(self):
+        # The real calendar previously started on Sep30; weekly lookup of
+        # Sep28 raised DateOutOfBounds despite every fake-calendar test passing.
+        actual = plan(datetime(2026, 10, 21, 8, 30, tzinfo=IST), force_all=True)
+        self.assertEqual(tuple(actual["timeframes"]), SUPPORTED_TIMEFRAMES)
+        self.assertEqual(actual["session"], "2026-10-20")
+        holiday_week = plan(datetime(2026, 10, 30, 18, 30, tzinfo=IST))
+        self.assertEqual(entries(holiday_week)["1wk"]["session"], "2026-10-30")
+
 
 class DeliveryStateTests(unittest.TestCase):
     def setUp(self):
