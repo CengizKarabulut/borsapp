@@ -1,0 +1,15 @@
+{
+  "schema": "atc-official-market-events-v1",
+  "events": [
+    {
+      "symbol": "RALYH",
+      "status": "official_halt",
+      "from_session": "2026-10-20",
+      "through_session": "2026-10-20",
+      "resume_session": "2026-10-21",
+      "published_at": "2026-10-19T19:59:17+03:00",
+      "source_url": "https://www.kap.org.tr/tr/Bildirim/1684170",
+      "reason": "Borsa İstanbul kararıyla işlem sırası kapalı; 21 Ekim'de Yakın İzleme Pazarı'nda yeniden işlem."
+    }
+  ]
+}

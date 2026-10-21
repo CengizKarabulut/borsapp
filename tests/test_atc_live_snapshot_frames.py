@@ -46,6 +46,15 @@ class Vendor:
         return self.frame
 
 
+class NativeVendor(Vendor):
+    def fetch(self, request):
+        raise AssertionError("Native45 must not fetch or derive from15m")
+
+    def fetch_native_grid(self, request):
+        self.requests.append(request)
+        return self.frame
+
+
 class LatestActualFrameTests(unittest.TestCase):
     def setUp(self):
         self.calendar = patch.object(live, "_session_days", return_value=SESSIONS)
@@ -336,6 +345,181 @@ class LatestActualFrameTests(unittest.TestCase):
             live.prepare_frame(Vendor(raw_frame()), MEMBER, "15m", now=NOW.replace(tzinfo=None))
         with self.assertRaisesRegex(ValueError, "different instrument"):
             live.prepare_frame(Vendor(replace(raw_frame(), provider_symbol="OTHER")), MEMBER, "15m", now=NOW)
+
+
+class Native45ActualFrameTests(unittest.TestCase):
+    def setUp(self):
+        self.calendar = patch.object(live, "_session_days", return_value=SESSIONS)
+        self.calendar.start()
+        self.addCleanup(self.calendar.stop)
+        self.nonregular = patch.object(live, "_nonregular_session_days", return_value=frozenset())
+        self.nonregular.start()
+        self.addCleanup(self.nonregular.stop)
+
+    def raw(self, *, starts=None, partial=False):
+        starts = starts if starts is not None else [
+            NOW.replace(hour=9, minute=45) + timedelta(minutes=45 * index)
+            for index in range(12)]
+        return raw_frame(Timeframe.M45, starts=starts, partial=partial, source="actual-native-fixture")
+
+    def test_dense_native_grid_preserves_auctions_and_nominal_1845_end(self):
+        vendor = NativeVendor(self.raw())
+        frame, meta = live.prepare_frame(vendor, MEMBER, "45m", now=NOW.replace(hour=21))
+        self.assertEqual(vendor.requests[0].timeframe, Timeframe.M45)
+        self.assertEqual(len(frame.bars), 12)
+        self.assertEqual(frame.bars[0].open_time, NOW.replace(hour=9, minute=45))
+        self.assertEqual(frame.bars[-1].open_time, NOW.replace(hour=18, minute=0))
+        self.assertEqual(frame.bars[-1].close_time, NOW.replace(hour=18, minute=45))
+        self.assertEqual(frame.bars[-1].volume, vendor.frame.bars[-1].volume)
+        self.assertEqual(frame.bars[-1].close, vendor.frame.bars[-1].close)
+        self.assertEqual(meta["source_grid"], live.NATIVE_45M_GRID)
+        self.assertEqual(meta["native_timeframe"], "45m")
+        self.assertEqual(meta["native_bar_time_basis"], "provider_nominal_interval_not_last_trade")
+        self.assertTrue(meta["usable_latest"])
+        self.assertTrue(meta["current_bucket"])
+        self.assertTrue(meta["latest_target_complete"])
+        self.assertFalse(meta["session_truncated_bucket"])
+        self.assertFalse(meta["persisted"])
+        self.assertFalse(frame.is_partial)
+        self.assertEqual(frame.quality, live.QUALITY)
+        self.assertIsNone(meta["actual_bar_is_open"])
+        self.assertIsNone(meta["last_trade_at"])
+        self.assertIsNone(meta["price_delay_seconds"])
+
+    def test_sparse_actual_native_bars_are_kept_without_filling_empty_periods(self):
+        starts = [NOW.replace(hour=9, minute=45), NOW.replace(hour=12, minute=45),
+                  NOW.replace(hour=13, minute=30), NOW.replace(hour=17, minute=15),
+                  NOW.replace(hour=18, minute=0)]
+        raw = self.raw(starts=starts)
+        frame, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=21))
+        self.assertEqual([bar.open_time for bar in frame.bars], starts)
+        self.assertEqual([bar.volume for bar in frame.bars], [bar.volume for bar in raw.bars])
+        self.assertEqual([bar.close for bar in frame.bars], [bar.close for bar in raw.bars])
+        self.assertEqual(meta["dropped_incomplete_history_buckets"], 0)
+        self.assertTrue(meta["usable_latest"])
+
+    def test_stale_sparse_snapshot_is_returned_for_calculation_not_called_fresh(self):
+        raw = self.raw(starts=[NOW.replace(hour=12, minute=45), NOW.replace(hour=13, minute=30)])
+        frame, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=17, minute=10))
+        self.assertEqual(len(frame.bars), 2)
+        self.assertEqual(meta["status"], "stale_previous_bucket")
+        self.assertFalse(meta["usable_latest"])
+        self.assertFalse(meta["current_bucket"])
+        self.assertEqual(frame.bars[-1].close, raw.bars[-1].close)
+
+    def test_prior_day_halted_or_untraded_snapshot_does_not_create_today_bar(self):
+        raw = self.raw(starts=[datetime(2026, 10, 19, 18, 0, tzinfo=IST)])
+        frame, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=21))
+        self.assertEqual(len(frame.bars), 1)
+        self.assertEqual(frame.bars[-1].open_time.date(), date(2026, 10, 19))
+        self.assertEqual(meta["status"], "stale_previous_session")
+        self.assertFalse(meta["usable_latest"])
+
+    def test_native_freshness_boundary_remains_30_minutes(self):
+        raw = self.raw(starts=[NOW.replace(hour=13, minute=30)])
+        _, boundary = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=14, minute=45))
+        _, beyond = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=14, minute=45, second=1))
+        self.assertTrue(boundary["usable_latest"])
+        self.assertEqual(boundary["latest_native_close_age_seconds"], 1800)
+        self.assertFalse(beyond["usable_latest"])
+
+    def test_nominal_auction_interval_does_not_claim_actual_trading_is_open(self):
+        raw = self.raw(starts=[NOW.replace(hour=18, minute=0)])
+        _, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=18, minute=20))
+        self.assertTrue(meta["nominally_open"])
+        self.assertTrue(meta["temporally_open"])
+        self.assertFalse(meta["latest_target_complete"])
+        self.assertIsNone(meta["actual_bar_is_open"])
+        self.assertEqual(meta["actual_bar_confirmation"], "unknown")
+
+    def test_before_open_and_weekend_use_previous_session_native_auction(self):
+        raw = self.raw(starts=[datetime(2026, 10, 19, 18, 0, tzinfo=IST)])
+        _, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=9, minute=30))
+        self.assertTrue(meta["current_bucket"])
+        self.assertTrue(meta["usable_latest"])
+        friday = self.raw(starts=[datetime(2026, 10, 16, 18, 0, tzinfo=IST)])
+        _, weekend = live.prepare_frame(NativeVendor(friday), MEMBER, "45m",
+                                       now=datetime(2026, 10, 17, 12, 0, tzinfo=IST))
+        self.assertTrue(weekend["current_bucket"])
+        self.assertTrue(weekend["usable_latest"])
+
+    def test_native_grid_rejects_shifted_10am_derived_grid_and_outside_opens(self):
+        for stamp in (NOW.replace(hour=10, minute=0), NOW.replace(hour=9, minute=0),
+                      NOW.replace(hour=18, minute=45), NOW.replace(hour=12, minute=46)):
+            with self.subTest(stamp=stamp), self.assertRaisesRegex(ValueError, "shifted native"):
+                live.prepare_frame(NativeVendor(self.raw(starts=[stamp])), MEMBER, "45m", now=NOW.replace(hour=21))
+
+    def test_aware_utc_input_and_close_stamps_preserve_native_opens(self):
+        starts = [NOW.replace(hour=13, minute=30).astimezone(ZoneInfo("UTC"))]
+        raw = self.raw(starts=starts)
+        raw = replace(raw, timestamp_kind=TimestampKind.CLOSE,
+                      bars=tuple(replace(bar, timestamp=bar.timestamp + timedelta(minutes=45)) for bar in raw.bars))
+        frame, _ = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=14))
+        self.assertEqual(frame.bars[-1].open_time, NOW.replace(hour=13, minute=30))
+
+    def test_native_frame_identity_and_nonempty_history_are_required(self):
+        raw = self.raw(starts=[NOW.replace(hour=9, minute=45)])
+        for changed, message in ((replace(raw, timeframe=Timeframe.M15), "different timeframe"),
+                                 (replace(raw, provider_symbol="OTHER"), "different instrument"),
+                                 (SimpleNamespace(**{**vars(raw), "bars": ()}), "No authentic")):
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                live.prepare_frame(NativeVendor(changed), MEMBER, "45m", now=NOW)
+
+    def test_naive_future_non_session_duplicate_and_unordered_native_bars_fail_closed(self):
+        raw = self.raw(starts=[NOW.replace(hour=9, minute=45), NOW.replace(hour=10, minute=30)])
+        cases = (
+            replace(raw, bars=(replace(raw.bars[0], timestamp=raw.bars[0].timestamp.replace(tzinfo=None)),)),
+            self.raw(starts=[NOW.replace(hour=12, minute=0)]),
+            self.raw(starts=[datetime(2026, 10, 18, 9, 45, tzinfo=IST)]),
+            replace(raw, bars=(raw.bars[0], raw.bars[0])),
+            replace(raw, bars=tuple(reversed(raw.bars))),
+        )
+        for changed in cases:
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                live.prepare_frame(NativeVendor(changed), MEMBER, "45m", now=NOW)
+
+    def test_native_ohlcv_positive_finite_and_consistent_geometry_required(self):
+        raw = self.raw(starts=[NOW.replace(hour=9, minute=45)])
+        for values in ({"close": float("nan")}, {"high": float("inf")}, {"low": -1},
+                       {"open": True}, {"volume": -1}, {"high": 1}):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                changed = replace(raw, bars=(replace(raw.bars[0], **values),))
+                live.prepare_frame(NativeVendor(changed), MEMBER, "45m", now=NOW)
+
+    def test_native_latest_halfday_remains_explicitly_unsupported(self):
+        with patch.object(live, "_nonregular_session_days", return_value=frozenset((DAY,))):
+            with self.assertRaisesRegex(ValueError, "half-day/nonregular"):
+                live.prepare_frame(NativeVendor(self.raw(starts=[NOW.replace(hour=9, minute=45)])),
+                                   MEMBER, "45m", now=NOW)
+
+    def test_certified_historical_short_session_preserves_actual_0930_native_grid(self):
+        day = date(2026, 5, 26)
+        starts = [datetime(2026, 5, 26, 9, 30, tzinfo=IST),
+                  datetime(2026, 5, 26, 11, 45, tzinfo=IST),
+                  datetime(2026, 5, 26, 12, 30, tzinfo=IST), NOW.replace(hour=18, minute=0)]
+        raw = self.raw(starts=starts)
+        with patch.object(live, "_session_days", return_value=SESSIONS | {day}), \
+                patch.object(live, "_nonregular_session_days", return_value=frozenset((day,))):
+            frame, meta = live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=21))
+        self.assertEqual([bar.open_time for bar in frame.bars], starts)
+        self.assertEqual(frame.bars[2].close_time, datetime(2026, 5, 26, 13, 15, tzinfo=IST))
+        self.assertEqual([bar.volume for bar in frame.bars], [bar.volume for bar in raw.bars])
+        self.assertTrue(meta["historical_nonregular_close_times_nominal"])
+        self.assertEqual(meta["historical_nonregular_native_grid_policies"][0]["session"], "2026-05-26")
+        self.assertTrue(meta["usable_latest"])
+
+    def test_short_grid_requires_calendar_certification_and_dated_policy(self):
+        stamp = datetime(2026, 5, 26, 9, 30, tzinfo=IST)
+        raw = self.raw(starts=[stamp, NOW.replace(hour=18, minute=0)])
+        with patch.object(live, "_session_days", return_value=SESSIONS | {stamp.date()}):
+            with self.assertRaisesRegex(ValueError, "shifted native"):
+                live.prepare_frame(NativeVendor(raw), MEMBER, "45m", now=NOW.replace(hour=21))
+        other = datetime(2026, 5, 25, 9, 30, tzinfo=IST)
+        with patch.object(live, "_session_days", return_value=SESSIONS | {other.date()}), \
+                patch.object(live, "_nonregular_session_days", return_value=frozenset((other.date(),))):
+            with self.assertRaisesRegex(ValueError, "Unsupported historical"):
+                live.prepare_frame(NativeVendor(self.raw(starts=[other, NOW.replace(hour=18, minute=0)])),
+                                   MEMBER, "45m", now=NOW.replace(hour=21))
 
 
 if __name__ == "__main__":

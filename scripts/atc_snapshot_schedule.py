@@ -93,6 +93,11 @@ def _slots(calendar, day: date, timeframe: str) -> list[tuple[datetime, datetime
     while target <= closed:
         result.append((target, _scheduled_at(target, timeframe)))
         target += timedelta(minutes=MINUTES[timeframe])
+    # A 45-minute cadence does not divide the regular eight-hour session.
+    # Still observe the real closing auction in the final pass. This is a
+    # logical snapshot slot, never a relabeling of the native 09:45 grid.
+    if timeframe == "45m" and result[-1][0] != closed:
+        result.append((closed, _scheduled_at(closed, timeframe)))
     return result
 
 
@@ -117,7 +122,8 @@ def validate_delivery_state(state: object) -> dict:
         valid_target = target.time() == time(18)
     else:
         elapsed = (target - datetime.combine(target.date(), time(10), IST)).total_seconds()
-        valid_target = elapsed > 0 and elapsed % (60 * MINUTES[tf]) == 0
+        valid_target = (elapsed > 0 and elapsed % (60 * MINUTES[tf]) == 0
+                        or tf == "45m" and target.time() == time(18))
     if not valid_target:
         raise ValueError("scheduled_delivery_target_not_on_timeframe_anchor")
     packet = state.get("packet_sha256")

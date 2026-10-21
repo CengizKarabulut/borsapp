@@ -16,7 +16,7 @@ teslim edildiği doğrulanmamış en son dönemi seçer.
 | --- | --- | --- |
 | 15 dakika | 10:22–17:52 arasında 15 dakikada bir; son kontrol 18:30 | 15 dakika |
 | 30 dakika | 10:37–17:37 arasında 30 dakikada bir; son kontrol 18:30 | 30 dakika |
-| 45 dakika | 10:52, 11:37, 12:22, 13:07, 13:52, 14:37, 15:22, 16:07, 16:52, 17:37 | 45 dakika |
+| 45 dakika | 10:52, 11:37, 12:22, 13:07, 13:52, 14:37, 15:22, 16:07, 16:52, 17:37; son kontrol 18:30 | 45 dakika |
 | 1 saat | 11:07–17:07 arasında saatte bir; son kontrol 18:30 | 1 saat |
 | 2 saat | 12:07, 14:07, 16:07 ve 18:30 | 2 saat |
 | 4 saat | 14:07 ve 18:30 | 4 saat |
@@ -33,6 +33,12 @@ da belirtilir. Anlık fiyat akışı veya TradingView alarmı hızı vaat edilme
 Tablo normal 10:00–18:00 seansı içindir. Kısa/yarım işlem seansında canlı
 RAM taramasının bu sürümü desteklenmeyen seans durumunu açıkça kaydeder ve
 normal saatleri o güne uydurup veri üretmez.
+
+Windows bilgisayarı ve kullanıcı oturumu açıkken aynı `main` iş akışını
+bu kontrol saatlerinde çağıran yerel yedek de kullanılabilir. Kurulum ve
+sınırları [yerel tetikleme belgesinde](WINDOWS_SNAPSHOT_DISPATCH_BACKUP.md)
+yer alır. Bu, hesaplama süresini kaldırmaz; GitHub cron gecikmesine karşı
+ikinci tetikleme yoludur. Sabah destek/direnç raporu ayrı 08:35 görevinde kalır.
 
 Son gerçek açık mum varsa o anki OHLCV değerleri **kapanmış gibi, yalnız
 bellekte** değerlendirilir. Sonuç **CANLI / TEYİTSİZ** niteliğindedir ve mum
@@ -62,6 +68,30 @@ eski uyarılardan bir bildirim kuyruğu oluşmaz. Seçilen dönem, gecikme ve
 gerçek veri kapsamı Actions çalışma özetinde ve `scheduled-slot.json` içinde
 incelenebilir. Takvim zamanı ile sağlayıcının gerçek mum zamanı farklı
 alanlardır.
+
+45 dakikalık gerçek kaynak mumları TradingView'in **09:45, 10:30, …,
+17:15, 18:00** diziliminden doğrudan okunur; 15 dakikalık seyrek işlemlerden
+eksik mum tamamlanmaz. Yukarıdaki saatler bu mumların zaman etiketi değildir.
+18:00 kaynak mumunun nominal bitişi 18:45 olarak korunur; bu, son işlemin
+18:45'te yapıldığı veya mumun kaynaktan teyit edildiği iddiası değildir.
+Bilinen geçmiş yarım seanslar ayrıca tarihlenir. Resmî işlem durmasında
+son gerçek geçmiş mum hesaplanabilir; güncel sinyal veya kesişim oyu sayılmaz.
+
+## Gün içi Kesişim görselleri
+
+Otomatik tarama grubunun ardından, mevcut **Kesişim** konusuna kısa metin,
+**eşleşen hisselerin tamamını içeren sayfalı görseller** ve tam CSV gönderilir.
+Her görselde en fazla 20 hisse vardır; 45 hisse varsa üç görsel oluşur.
+Kesişim yoksa bunu belirten metin ve boş sonuç CSV'si gelir.
+
+Aynı yönde en az iki farklı tarama bulunan en az iki zaman dilimi gerekir.
+Mum kapanış saatlerinin eşit olması gerekmez. Her dilimin son teslim edilmiş,
+aynı gerçek işlem seansına ait durumu kullanılır; gözlem yaşı dilim süresi
++ 30 dakikayı aşamaz. Kaynağı eski, hatalı veya işlem sırası kapalı hisseler
+güncel oy vermez; eksik zaman dilimleri metinde görünür. Açık mum sonucu
+**CANLI / TEYİTSİZ** olarak kalır. Farklı planların Stop/TP seviyeleri
+birleştirilmez. Aynı kaynak paketleri tekrar görülürse tamamlanmış teslim
+makbuzu ile yinelenen gönderim atlanır.
 
 Gün içindeki eski sıkı kapanış taraması ile saatlik günlük önizlemenin cron
 tetiklemeleri kaldırılmıştır. Aynı gün içi yayını üç ayrı workflow yapmaz.

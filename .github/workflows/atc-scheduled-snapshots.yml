@@ -152,3 +152,56 @@ jobs:
             runtime_artifacts/live/scheduled-slot.json
           retention-days: 2
           if-no-files-found: warn
+
+  latest-intersections:
+    needs: [choose-snapshots, live-snapshot]
+    if: ${{ always() && needs.choose-snapshots.result == 'success' && needs.choose-snapshots.outputs.matrix != '' && needs.choose-snapshots.outputs.matrix != '[]' && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.delivery == 'publish') }}
+    name: All latest-state intersection stocks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install read-only intersection and Telegram runtime
+        run: python -m pip install --editable '.[runtime,atcdata]'
+      - name: Restore acknowledged main packets and previous intersection acknowledgement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.atc_live_packet_restore --repository "$GITHUB_REPOSITORY" --output-dir runtime_artifacts/inputs
+      - name: Prepare latest known same-session intersections and all image pages
+        run: python -m scripts.atc_live_intersections --prepare --packets-dir runtime_artifacts/inputs --sources-manifest runtime_artifacts/inputs/source-runs.json --output-dir runtime_artifacts/intersections
+      - name: Show actual included sources and intersection coverage
+        run: cat runtime_artifacts/intersections/intersections.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Send text and every intersection image page to the existing topic
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TOPIC_INTERSECTIONS: '28330'
+        shell: bash
+        run: |
+          args=()
+          if [ -f runtime_artifacts/inputs/previous-intersection-receipt.json ]; then
+            args+=(--previous-receipt runtime_artifacts/inputs/previous-intersection-receipt.json)
+          fi
+          python -m scripts.atc_live_intersections --publish-from runtime_artifacts/intersections "${args[@]}"
+      - name: Retain intersection delivery acknowledgement for duplicate prevention
+        if: ${{ always() && hashFiles('runtime_artifacts/intersections/publication-receipt.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-scheduled-intersection-delivery
+          path: runtime_artifacts/intersections/publication-receipt.json
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Retain all intersection images, full list and source provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-scheduled-intersections
+          path: |
+            runtime_artifacts/intersections/*
+            runtime_artifacts/inputs/source-runs.json
+          retention-days: 7
+          if-no-files-found: warn

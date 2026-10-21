@@ -237,7 +237,7 @@ class LivePreparedPacketTests(unittest.TestCase):
             packet = live.prepare_report(folder, timeframe="45m", symbols=self.symbols[:3],
                 reader=reader, clock=lambda: NOW)
         self.assertEqual(packet["counts"], {"usable": 2, "current": 1, "stale": 0,
-            "missing": 1, "incomplete_latest": 1})
+            "halted": 0, "calculated": 2, "missing": 1, "incomplete_latest": 1})
         self.assertIn("Eksik son aralık: 1", (folder / "live-snapshot.txt").read_text(encoding="utf-8"))
         rows = list(csv.DictReader(io.StringIO((folder / "live-snapshot.csv").read_text(encoding="utf-8-sig"))))
         self.assertEqual(len(rows), 3 * 18)

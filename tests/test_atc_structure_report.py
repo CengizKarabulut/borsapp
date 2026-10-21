@@ -53,6 +53,60 @@ def vendor(bars, *, source="test_vendor", symbol="ASELS"):
 
 
 class ClosedReportSourceTests(unittest.TestCase):
+    def test_same_bist_aliases_allow_real_secondary_provider_fallback(self):
+        for alias in ("BIST:ASELS", "ASELS.IS", "BIST:ASELS.IS"):
+            with self.subTest(alias=alias):
+                first = vendor(sample_bars(), source="unavailable")
+                first.fetch.side_effect = RuntimeError("unavailable")
+                backup = vendor(sample_bars(), source="tvdatafeed", symbol=alias)
+                row = report.read_structure("ASELS", previous=PREVIOUS, now=NOW,
+                    providers=(first, backup))
+                self.assertEqual(row["status"], "fresh_closed_source")
+                self.assertEqual(row["symbol"], "ASELS")
+                self.assertEqual(row["source"], "tvdatafeed")
+                first.fetch.assert_called_once()
+                backup.fetch.assert_called_once()
+
+    def test_provider_alias_cannot_change_exchange_or_instrument(self):
+        for alias in ("NYSE:ASELS", "NASDAQ:ASELS.IS", "BIST:THYAO", "BIST:BIST:ASELS"):
+            with self.subTest(alias=alias):
+                row = report.read_structure("ASELS", previous=PREVIOUS, now=NOW,
+                    providers=(vendor(sample_bars(), symbol=alias),))
+                self.assertEqual(row["status"], "source_unavailable")
+
+    def test_dated_official_halt_keeps_exact_pre_halt_real_reference_without_fresh_label(self):
+        before_halt = date(2026, 10, 19)
+        expected = date(2026, 10, 20)
+        source = vendor(sample_bars(previous=before_halt), symbol="RALYH")
+        row = report.read_structure("RALYH", previous=expected,
+            now=datetime(2026, 10, 21, 8, 35, tzinfo=IST), providers=(source,))
+        self.assertEqual(row["status"], "official_halt_reference")
+        self.assertEqual(row["session"], "2026-10-20")
+        self.assertEqual(row["reference_session"], "2026-10-19")
+        self.assertEqual(row["market_status"]["source_url"], "https://www.kap.org.tr/tr/Bildirim/1684170")
+        self.assertEqual(row["market_status"]["resume_session"], "2026-10-21")
+        self.assertEqual(row["reference_ohlc"]["close"], source.fetch.return_value.bars[-1].close)
+        self.assertEqual(row["pivot_ladder"]["status"], "ready")
+
+    def test_halt_notice_does_not_authorize_arbitrary_older_data_or_unrelated_symbol(self):
+        for symbol, prior in (("RALYH", date(2026, 10, 16)), ("ASELS", date(2026, 10, 19))):
+            with self.subTest(symbol=symbol):
+                row = report.read_structure(symbol, previous=date(2026, 10, 20),
+                    now=datetime(2026, 10, 21, 8, 35, tzinfo=IST),
+                    providers=(vendor(sample_bars(previous=prior), symbol=symbol),))
+                self.assertEqual(row["status"], "source_unavailable")
+                self.assertIsNone(row["reference_session"])
+
+    def test_halt_reference_exception_expires_and_rejects_candles_on_halted_session(self):
+        for expected, prior, now in (
+            (date(2026, 10, 21), date(2026, 10, 19), datetime(2026, 10, 22, 8, 35, tzinfo=IST)),
+            (date(2026, 10, 20), date(2026, 10, 20), datetime(2026, 10, 21, 8, 35, tzinfo=IST)),
+        ):
+            with self.subTest(expected=expected, prior=prior):
+                row = report.read_structure("RALYH", previous=expected, now=now,
+                    providers=(vendor(sample_bars(previous=prior), symbol="RALYH"),))
+                self.assertEqual(row["status"], "source_unavailable")
+
     def test_three_formula_levels_exist_independently_of_confirmed_swing_count(self):
         bars = sample_bars()
         row = report.read_structure("ASELS", previous=PREVIOUS, now=NOW,
@@ -204,6 +258,37 @@ class PreparedPublicationTests(unittest.TestCase):
         self.assertEqual(result["counts"]["fresh"], 2)
         self.assertEqual(result["source_retry_attempts"], 1)
 
+    def test_valid_official_halt_is_separate_from_missing_and_never_retried(self):
+        expected = date(2026, 10, 20)
+        now = datetime(2026, 10, 21, 8, 35, tzinfo=IST)
+        sources = {symbol: vendor(sample_bars(previous=prior), symbol=symbol)
+            for symbol, prior in (("RALYH", date(2026, 10, 19)), ("ASELS", expected))}
+
+        def reader(symbol, **options):
+            return report.read_structure(symbol, providers=(sources[symbol],), **options)
+
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(report, "expected_session", return_value=expected), \
+                patch.object(report, "render_png", return_value=b"test-png"):
+            result = report.prepare_report(folder, symbols=["ASELS", "RALYH"], now=now,
+                reader=reader, retries=2, retry_delay=0)
+            self.assertEqual(result["counts"]["fresh"], 1)
+            self.assertEqual(result["counts"]["halted"], 1)
+            self.assertEqual(result["counts"]["missing"], 0)
+            self.assertEqual(result["source_retry_attempts"], 0)
+            self.assertTrue(all(source.fetch.call_count == 1 for source in sources.values()))
+            rows = list(csv.DictReader(io.StringIO((Path(folder) / "report.csv").read_text(encoding="utf-8-sig"))))
+            halted = next(row for row in rows if row["Hisse"] == "RALYH")
+            self.assertEqual(halted["KapanisTarihi"], "2026-10-19")
+            self.assertEqual(halted["ReferansKapanisTarihi"], "2026-10-19")
+            self.assertEqual(halted["BeklenenKapanisTarihi"], "2026-10-20")
+            self.assertEqual(halted["PiyasaDurumu"], "official_halt")
+            self.assertEqual(halted["ResmiBildirim"], "https://www.kap.org.tr/tr/Bildirim/1684170")
+            self.assertIn("Resmî işlem durması 1", (Path(folder) / "summary.txt").read_text(encoding="utf-8"))
+            manifest = json.loads((Path(folder) / "manifest.json").read_bytes())
+            self.assertIn("atc_market_status.py", manifest["implementation_files"])
+            self.assertIn("config/atc_market_events.json", manifest["implementation_files"])
+
     def test_publish_uses_exact_prepared_files_and_does_not_refetch(self):
         transport = Mock()
         transport.send.side_effect = [101, 102, 103]
@@ -268,6 +353,29 @@ class PreparedPublicationTests(unittest.TestCase):
         report.atomic_json(self.folder / "manifest.json", manifest)
         with self.assertRaisesRegex(ValueError, "implementation_changed"):
             report.publish_report(self.folder, now=NOW, transport=Mock(), environ=ENV)
+
+    def test_changed_official_notice_config_requires_new_preparation_before_sending(self):
+        manifest = json.loads((self.folder / "manifest.json").read_bytes())
+        manifest["implementation_files"]["config/atc_market_events.json"] = "0" * 64
+        report.atomic_json(self.folder / "manifest.json", manifest)
+        sender = Mock()
+        with self.assertRaisesRegex(ValueError, "implementation_changed"):
+            report.publish_report(self.folder, now=NOW, transport=sender, environ=ENV)
+        sender.send.assert_not_called()
+
+    def test_halted_references_never_increase_90_percent_fresh_publication_coverage(self):
+        value = json.loads((self.folder / "report.json").read_bytes())
+        for row in value["rows"][:64]:
+            row["status"] = "official_halt_reference"
+        value["counts"].update(fresh=566, halted=64, missing=0)
+        report.atomic_json(self.folder / "report.json", value)
+        manifest = json.loads((self.folder / "manifest.json").read_bytes())
+        manifest["files"]["report.json"] = sha256((self.folder / "report.json").read_bytes()).hexdigest()
+        report.atomic_json(self.folder / "manifest.json", manifest)
+        sender = Mock()
+        with self.assertRaisesRegex(ValueError, "coverage_below_90"):
+            report.publish_report(self.folder, now=NOW, transport=sender, environ=ENV)
+        sender.send.assert_not_called()
 
 
 if __name__ == "__main__":

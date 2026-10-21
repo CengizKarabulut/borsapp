@@ -15,7 +15,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import datetime
+from datetime import date, datetime
 from hashlib import sha256
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -26,6 +26,7 @@ from market_intelligence.market_data.canonicalizer import Canonicalizer
 from market_intelligence.market_data.providers import FetchRequest
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_ephemeral_morning import vendor_chain
+from scripts.atc_market_status import market_event_for
 from scripts.atc_pivot_ladder import traditional_pivot_ladder
 from scripts.atc_support_resistance import build_support_resistance
 from scripts.atc_telegram_briefings import last_closed_session, pivot_levels
@@ -37,7 +38,15 @@ CHAT = -1004439315048
 TOPIC = 8
 FILES = ("report.json", "report.csv", "summary.txt", "summary.png")
 MIN_COVERAGE = 0.90
-IMPLEMENTATION_FILES = ("atc_structure_report.py", "atc_support_resistance.py", "atc_telegram_briefings.py", "atc_pivot_ladder.py")
+IMPLEMENTATION_FILES = ("atc_structure_report.py", "atc_support_resistance.py", "atc_telegram_briefings.py",
+                        "atc_pivot_ladder.py", "atc_market_status.py")
+
+
+def implementation_hashes():
+    root = Path(__file__).resolve().parents[1]
+    return {**{name: sha256((root / "scripts" / name).read_bytes()).hexdigest()
+               for name in IMPLEMENTATION_FILES},
+            "config/atc_market_events.json": sha256((root / "config/atc_market_events.json").read_bytes()).hexdigest()}
 
 
 def canonical(value):
@@ -63,13 +72,31 @@ def expected_session(now):
     return last_closed_session(ExchangeCalendarsXist(), now.date())
 
 
+def _bist_symbol(value):
+    if not isinstance(value, str):
+        return None
+    symbol = value.strip().upper()
+    if ":" in symbol:
+        exchange, symbol = symbol.split(":", 1)
+        if exchange != "BIST" or ":" in symbol:
+            return None
+    symbol = symbol.removesuffix(".IS")
+    return symbol or None
+
+
 def read_structure(symbol, *, previous, now, providers=None):
     """Keep all OHLC, structural pivots and floor pivots within one provider."""
     now = aware(now)
+    expected_symbol = _bist_symbol(symbol)
+    if expected_symbol is None:
+        raise ValueError("valid_bist_symbol_required")
     builder = Canonicalizer()
     _, cutoff = builder.schedule.session_bounds(previous)
     if cutoff > now:
         raise ValueError("previous_session_must_be_closed")
+    event = market_event_for(symbol, previous, observed_at=now)
+    pre_halt_session = last_closed_session(ExchangeCalendarsXist(),
+        date.fromisoformat(event["from_session"])) if event else None
     errors = []
     for vendor in providers if providers is not None else vendor_chain():
         source = getattr(vendor, "name", type(vendor).__name__)
@@ -77,13 +104,21 @@ def read_structure(symbol, *, previous, now, providers=None):
             raw = vendor.fetch(FetchRequest(
                 provider_symbol=symbol, timeframe=Timeframe.D1, bars=150, as_of=cutoff,
             ))
-            if raw.provider_symbol != symbol or raw.timeframe is not Timeframe.D1:
+            if _bist_symbol(raw.provider_symbol) != expected_symbol or raw.timeframe is not Timeframe.D1:
                 raise ValueError("provider_identity_changed")
             frame = builder.build(instrument_id="atc-report:BIST:" + symbol,
                 symbol_at_snapshot=symbol, market="BIST", provider_frame=raw,
                 target_timeframe=Timeframe.D1, series_revision=0)
             closed = tuple(bar for bar in frame.bars if bar.close_time <= cutoff)
-            if not closed or closed[-1].open_time.astimezone(IST).date() != previous:
+            if not closed:
+                raise ValueError("exact_previous_session_missing")
+            reference_session = closed[-1].open_time.astimezone(IST).date()
+            if event:
+                # A dated full-session halt permits the previous real close,
+                # never an invented empty candle or arbitrary older data.
+                if reference_session != pre_halt_session:
+                    raise ValueError("exact_pre_halt_reference_session_missing")
+            elif reference_session != previous:
                 raise ValueError("exact_previous_session_missing")
             if any(not all(math.isfinite(v) and v > 0 for v in
                            (bar.open, bar.high, bar.low, bar.close)) for bar in closed):
@@ -106,8 +141,9 @@ def read_structure(symbol, *, previous, now, providers=None):
             except ValueError:
                 floor = {"status": "unavailable_invalid_price_geometry"}
             turnover = bar.close * bar.volume
-            return {"symbol": symbol, "status": "fresh_closed_source",
+            return {"symbol": symbol, "status": "official_halt_reference" if event else "fresh_closed_source",
                 "session": previous.isoformat(), "as_of": cutoff.isoformat(),
+                "reference_session": reference_session.isoformat(), "market_status": event,
                 "received_at": now.isoformat(), "source": frame.source,
                 "price_basis": frame.price_basis.value, "snapshot_id": frame.snapshot_id,
                 "parent_snapshot_id": parent_snapshot,
@@ -119,6 +155,7 @@ def read_structure(symbol, *, previous, now, providers=None):
             # No provider text, token, cookie or private account data in logs/files.
             errors.append({"source": source, "code": type(error).__name__})
     return {"symbol": symbol, "status": "source_unavailable", "session": previous.isoformat(),
+            "reference_session": None, "market_status": event,
             "source_errors": errors, "structure": {"status": "unavailable_source"},
             "classic_pivot": {"status": "unavailable_source"},
             "pivot_ladder": {"status": "unavailable_source", "method": "traditional_previous_session_hlc"}}
@@ -150,6 +187,14 @@ def render_summary(report):
         "Ana tablo: önceki kapalı seans H/L/C ile geleneksel pivot S1–S2–S3 / R1–R2–R3.",
         "Geçmişten teyitli D/R ayrı CSV sütunlarında; bu alanlarda 0–3 seviye bulunabilir.",
         "Görselde önceki seans kapanış × hacme göre ilk 20; tüm 630 hisse CSV'de."]
+    lines.append(f"Resmî işlem durması {counts.get('halted', 0)} · son gerçek kapanış referansı güncel mum sayılmaz.")
+    halted_rows = [row for row in report["rows"] if row["status"] == "official_halt_reference"]
+    for row in halted_rows[:3]:
+        event = row["market_status"]
+        lines.append(f"#{row['symbol']} · {row['session']} işlem sırası kapalı · referans {row['reference_session']} · "
+            f"yeniden işlem {event['resume_session']} · {event['source_url']}")
+    if len(halted_rows) > 3:
+        lines.append("Diğer resmî durma kayıtları ve gerçek referans tarihleri tam CSV'de.")
     for row in ranked(report["rows"])[:8]:
         ladder = row["pivot_ladder"]
         lines.append(f"#{row['symbol']} · K {price(row.get('close'))} · "
@@ -171,7 +216,8 @@ def csv_report(report):
         "KisaGecmis", "GozlemKesimi", "Snapshot", "DestekTeyitZamanlari", "DirencTeyitZamanlari",
         "PivotDestek1", "PivotDestek2", "PivotDestek3", "PivotDirenc1", "PivotDirenc2", "PivotDirenc3",
         "PivotYontemi", "PivotKademeDurumu", "PivotGecersizAlanlar", "YapisalDestekAdet", "YapisalDirencAdet",
-        "YapisalDestekAciklamasi", "YapisalDirencAciklamasi", "ReferansYuksek", "ReferansDusuk"))
+        "YapisalDestekAciklamasi", "YapisalDirencAciklamasi", "ReferansYuksek", "ReferansDusuk",
+        "BeklenenKapanisTarihi", "ReferansKapanisTarihi", "PiyasaDurumu", "ResmiBildirim", "YenidenIslemTarihi"))
     for row in report["rows"]:
         context, floor = row["structure"], row["classic_pivot"]
         supports, resistances = levels(row, "supports"), levels(row, "resistances")
@@ -180,7 +226,8 @@ def csv_report(report):
             if status != "ready":
                 return status
             return "uc_teyitli_seviye_var" if len(values) == 3 else "bu_yonde_uc_teyitli_donus_bulunmadi"
-        writer.writerow((row["symbol"], row["session"], price(row.get("close")), row["status"],
+        event = row.get("market_status") or {}
+        writer.writerow((row["symbol"], row.get("reference_session") or row["session"], price(row.get("close")), row["status"],
             row.get("source", ""), row.get("price_basis", ""),
             *(price(floor.get(key)) for key in ("S2", "S1", "P", "R1", "R2")), floor["status"],
             *(price(values[i] if len(values) > i else None)
@@ -192,7 +239,9 @@ def csv_report(report):
             *(price(ladder.get(key)) for key in ("S1", "S2", "S3", "R1", "R2", "R3")),
             ladder["method"], ladder["status"], "/".join(ladder.get("invalid_fields", [])),
             len(supports), len(resistances), structural_note(supports), structural_note(resistances),
-            price(row.get("reference_ohlc", {}).get("high")), price(row.get("reference_ohlc", {}).get("low")) ))
+            price(row.get("reference_ohlc", {}).get("high")), price(row.get("reference_ohlc", {}).get("low")),
+            row["session"], row.get("reference_session") or "", event.get("status", ""),
+            event.get("source_url", ""), event.get("resume_session", "")))
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
@@ -207,6 +256,8 @@ def render_png(report):
     draw.text((35, 30), "ATC | 3 DESTEK / 3 DİRENÇ + GELENEKSEL PİVOT", fill="white", font=_font(27, bold=True))
     draw.text((35, 120), f"{report['previous_session']} kapanışı · "
         f"{report['counts']['fresh']}/630 veri · Kapanış × hacimde ilk 20", fill="#112E4A", font=_font(22))
+    draw.text((35, 150), f"Resmî işlem durması: {report['counts'].get('halted', 0)} · "
+        "son gerçek kapanış referansı CSV'de; güncel kapanış değildir.", fill="#52697F", font=_font(17))
     columns = ((35, "HİSSE"), (240, "KAPANIŞ"), (440, "S1"), (640, "S2"),
         (840, "S3"), (1040, "R1"), (1240, "R2"), (1440, "R3"), (1640, "PİVOT"))
     for x, title in columns:
@@ -249,7 +300,7 @@ def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read
     attempts = dict.fromkeys(selected, 1)
     by_symbol = {row["symbol"]: row for row in rows}
     for _ in range(retries):
-        pending = [symbol for symbol in selected if by_symbol[symbol]["status"] != "fresh_closed_source"]
+        pending = [symbol for symbol in selected if by_symbol[symbol]["status"] == "source_unavailable"]
         if not pending:
             break
         time.sleep(retry_delay)
@@ -263,13 +314,15 @@ def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read
     rows = [{**by_symbol[symbol], "source_attempts": attempts[symbol]} for symbol in selected]
     rows.sort(key=lambda row: row["symbol"])
     counts = {"fresh": sum(row["status"] == "fresh_closed_source" for row in rows),
-        "missing": sum(row["status"] != "fresh_closed_source" for row in rows),
+        "missing": sum(row["status"] == "source_unavailable" for row in rows),
+        "halted": sum(row["status"] == "official_halt_reference" for row in rows),
         "structure_ready": sum(row["structure"]["status"] == "ready" for row in rows),
         "short_history": sum(row["structure"].get("history_is_shorter_than_requested", False) for row in rows),
         "invalid_classic": sum(row["classic_pivot"]["status"] == "unavailable_invalid_price_geometry" for row in rows),
         "ladder_ready": sum(row["pivot_ladder"]["status"] in {"ready", "flat_session_coincident_levels"} for row in rows),
         "flat_ladder": sum(row["pivot_ladder"]["status"] == "flat_session_coincident_levels" for row in rows),
-        "invalid_ladder": sum(row["status"] == "fresh_closed_source" and row["pivot_ladder"]["status"] not in {"ready", "flat_session_coincident_levels"} for row in rows)}
+        "invalid_ladder": sum(row["status"] in {"fresh_closed_source", "official_halt_reference"}
+            and row["pivot_ladder"]["status"] not in {"ready", "flat_session_coincident_levels"} for row in rows)}
     report = {"version": VERSION, "prepared_at": now.isoformat(), "previous_session": previous.isoformat(),
         "expected_symbols": 630, "symbol_count": len(rows), "counts": counts, "rows": rows,
         "support_method": "confirmed_120_3_3_pivots", "classic_method": "previous_session_HLC_floor",
@@ -283,7 +336,7 @@ def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read
     (output_dir / "summary.txt").write_text(render_summary(report), encoding="utf-8")
     (output_dir / "summary.png").write_bytes(render_png(report))
     manifest = {"version": VERSION,
-        "implementation_files": {name: sha256((Path(__file__).parent / name).read_bytes()).hexdigest() for name in IMPLEMENTATION_FILES},
+        "implementation_files": implementation_hashes(),
         "files": {name: sha256((output_dir / name).read_bytes()).hexdigest() for name in FILES}}
     atomic_json(output_dir / "manifest.json", manifest)
     return report
@@ -298,10 +351,7 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
     manifest = json.loads(manifest_raw)
     if manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(FILES):
         raise ValueError("prepared_manifest_contract_changed")
-    if manifest.get("implementation_files") != {
-        name: sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
-        for name in IMPLEMENTATION_FILES
-    }:
+    if manifest.get("implementation_files") != implementation_hashes():
         raise ValueError("report_implementation_changed_reprepare_required")
     for name in FILES:
         path = folder / name
