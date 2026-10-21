@@ -43,6 +43,12 @@ from market_intelligence.features.trend import (
 from market_intelligence.features.volatility import WilderAtr14Provider
 from market_intelligence.features.volume import RelativeVolume20Provider
 from market_intelligence.market_data.adapters.borsapy_native_grid import BorsapyNative45Provider
+from market_intelligence.market_data.adapters.borsapy_native_multihour import (
+    BorsapyNativeMultihourProvider,
+)
+from market_intelligence.market_data.adapters.borsapy_native_weekly import (
+    BorsapyNativeWeeklyProvider,
+)
 from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistProvider
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scanning.contracts import ScanContext
@@ -66,7 +72,7 @@ IST = ZoneInfo("Europe/Istanbul")
 VERSION = "atc-unpersisted-latest-candle-v1"
 CHAT = -1004439315048
 TOPICS = {"15m": 6, "30m": 11, "45m": 9, "1h": 28326,
-          "2h": 10, "4h": 28327, "1d": 28328}
+          "2h": 10, "4h": 28327, "1d": 28328, "1wk": 28329}
 FILES = ("live-snapshot.json", "live-snapshot.csv", "live-snapshot.txt", "live-snapshot.png")
 MAX_AGE = timedelta(minutes=30)
 MIN_COVERAGE = 0.90
@@ -74,6 +80,10 @@ MIN_COVERAGE = 0.90
 # may be exposed. Provider exception text can contain URLs or credentials.
 SAFE_SOURCE_ERROR_REASONS = frozenset({
     "Latest derived candle has missing native OHLCV; no gap filling",
+    "Unsupported historical shortened-session native 45m grid",
+    "Latest expected BIST session is a half-day/nonregular session; live adapter unsupported",
+    "Provider supplied a shifted native 45m candle",
+    "source_bar_conflicts_with_official_halt",
 })
 
 
@@ -152,6 +162,10 @@ def live_vendor_chain(timeframe):
     # Never silently mix the two grids or accept borsapy's unknown-interval daily fallback.
     if parse_timeframe(timeframe) is Timeframe.M45:
         return (BorsapyNative45Provider(), TvDatafeedBistProvider())
+    if parse_timeframe(timeframe) is Timeframe.W1:
+        return (BorsapyNativeWeeklyProvider(), TvDatafeedBistProvider())
+    if parse_timeframe(timeframe) in (Timeframe.H2, Timeframe.H4):
+        return (BorsapyNativeMultihourProvider(), TvDatafeedBistProvider())
     return vendor_chain()
 
 
@@ -164,7 +178,9 @@ def read_symbol(symbol, *, timeframe, bindings, calendar_version, clock=None, pr
     for provider in providers if providers is not None else live_vendor_chain(timeframe):
         try:
             frame, meta = prepare_frame(provider, member, timeframe, now=clock, bars=600)
-            expected_session = aware(datetime.fromisoformat(meta["expected_bucket_open"])).date()
+            expected_session = (datetime.fromisoformat(meta["expected_market_session"]).date()
+                if meta.get("expected_market_session") else
+                aware(datetime.fromisoformat(meta["expected_bucket_open"])).date())
             event = market_event_for(symbol, expected_session,
                 observed_at=aware(datetime.fromisoformat(meta["received_at"])))
             if event:
@@ -228,6 +244,8 @@ def render_summary(report):
             + (" …" if len(unique) > 3 else ""))
     if not grouped:
         lines.append("Kullanılabilir son mumlarda eşleşme bulunmadı.")
+    if report["timeframe"] == "1wk":
+        lines.append("Haftalık kaynak uygunluğu aynı takvim haftasıdır; mum başlangıcı son işlem zamanı değildir. Anlık fiyat güncelliği doğrulanmadı.")
     for row in report["rows"]:
         if row.get("market_event"):
             lines.append(f"#{row['symbol']}: resmî işlem durması; son gerçek mum "
@@ -252,7 +270,7 @@ def csv_report(report):
         "KullanimYasSiniriDakika", "AtlananEksikGecmisAralik", "GecmisKisaSeansTarihleri",
         "GecmisKisaSeansKapanisSaatiNominal", "SonHedefAralikTam", "GozlenenOnEkSonu", "KaynakHatalari",
         "PiyasaDurumu", "PiyasaDurumuTarihi", "PiyasaDurumuKaynagi", "KaynakMumDizilimi",
-        "MumSaatiTemeli", "YerelMumTeyidi"))
+        "MumSaatiTemeli", "YerelMumTeyidi", "BeklenenPiyasaSeansi", "KaynakHafta", "GuncellikOlcutu"))
     for row in report["rows"]:
         meta = row.get("metadata", {})
         scans = row["evaluations"] or [{"number": n, "status": "unknown", "findings": [],
@@ -283,7 +301,8 @@ def csv_report(report):
                     (row.get("market_event") or {}).get("from_session", ""),
                     (row.get("market_event") or {}).get("source_url", ""),
                     meta.get("source_grid", ""), meta.get("native_bar_time_basis", ""),
-                    meta.get("actual_bar_confirmation", "")))
+                    meta.get("actual_bar_confirmation", ""), meta.get("expected_market_session", ""),
+                    meta.get("source_week", ""), meta.get("freshness_basis", "")))
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 

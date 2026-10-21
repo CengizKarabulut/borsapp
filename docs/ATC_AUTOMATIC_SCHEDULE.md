@@ -21,7 +21,7 @@ teslim edildiği doğrulanmamış en son dönemi seçer.
 | 2 saat | 12:07, 14:07, 16:07 ve 18:30 | 2 saat |
 | 4 saat | 14:07 ve 18:30 | 4 saat |
 | Günlük | Yalnız 18:30 günlük kapanış kontrolü | Günlük |
-| Haftalık | Haftanın son işlem günündeki ayrı, teyitli kapanış işi | Haftalık |
+| Haftalık | Haftanın son gerçek işlem gününde 18:30; ayrı native haftalık RAM görüntüsü | Haftalık |
 
 Bu aralıklar **hedef tarama sıklığıdır; bildirim teslim saati garantisi
 değildir**. GitHub iş kuyruğu, 630 hissenin veri indirme/hesaplama süresi ve
@@ -77,6 +77,20 @@ eksik mum tamamlanmaz. Yukarıdaki saatler bu mumların zaman etiketi değildir.
 Bilinen geçmiş yarım seanslar ayrıca tarihlenir. Resmî işlem durmasında
 son gerçek geçmiş mum hesaplanabilir; güncel sinyal veya kesişim oyu sayılmaz.
 
+2 ve 4 saatlik taramalar da doğrudan gerçek `120` / `240` dakika
+kaynağını kullanır. Kaynak gridi 09:00'dan başlar; 17:00 mumunun nominal
+bitişi sırasıyla 19:00 / 21:00 olarak korunur. Bu saatler borsanın o saate
+kadar işlem yaptığı anlamına gelmez. Seyrek saatlik mumlar birleştirilmez,
+eksik fiyat/hacim üretilmez. Geçmiş yarım seansların kaynak gridi ayrıca
+gerçek takvim ve korunmuş 09:30 etiketleriyle kontrol edilir.
+
+Haftalık OHLCV de kaynağın gerçek `1W` mumundan okunur. Kaynak zaman etiketi
+tatil haftasında pazartesi veya başka bir gün olabilir; değiştirilmez ve
+borsanın gerçek açılış zamanı olarak yorumlanmaz. Nominal yedi günlük bitiş,
+teyitli borsa kapanışı değildir.
+Haftalık uygunluk aynı takvim haftasına aittir; son işlemin kaç saniye önce
+yapıldığını göstermez. Bu tarama da **CANLI / TEYİTSİZ** olarak gönderilir.
+
 ## Gün içi Kesişim görselleri
 
 Otomatik tarama grubunun ardından, mevcut **Kesişim** konusuna kısa metin,
@@ -96,17 +110,17 @@ makbuzu ile yinelenen gönderim atlanır.
 Gün içindeki eski sıkı kapanış taraması ile saatlik günlük önizlemenin cron
 tetiklemeleri kaldırılmıştır. Aynı gün içi yayını üç ayrı workflow yapmaz.
 Eski **ATC six timeframe real scan in FREE isolated PostgreSQL runner**
-yalnız 18:30 kapanış işini ve manuel taramayı korur: teyitli sonuçlar,
-haftanın son seansında haftalık tarama ve EOD Kesişim ayrı kalır. Bu sıkı
-yolun kaynak eksikliği bütün yayını durdurabilir; canlı denemenin başarılı
-olması teyitli kapanış/Kesişim işinin de başarılı olduğu anlamına gelmez.
+yalnız manuel teyitli tanılama için korunur. 630/630 kapalı kaynak koşuluna
+takılan bu eski yol otomatik günlük/haftalık yayını artık engellemez.
+Otomatik sekiz dilim ve Kesişim aynı güncel RAM iş akışından gelir;
+bu sonuçların niteliği teyitli kapanış olarak değiştirilmez.
 
 ## Destek, direnç ve klasik pivot
 
 **ATC 630 morning support resistance and pivot report**, hafta içi
 **08:35**'te hazırlanır ve mevcut **Raporlar** konusuna gönderilir. BIST
 tatil/hafta sonu aralığında önceki gerçek işlem seansının kapanışı kullanılır.
-Bu günlük rapor, gün içi yedi zaman diliminin tarama sıklığıyla değişmez.
+Bu günlük rapor, sekiz zaman diliminin tarama sıklığıyla değişmez.
 
 - CSV/JSON **630 kodun tamamını** içerir. Kısa görsel, önceki kapanış × hacme
   göre ilk 20 hisseyi gösterir; yalnız 20 hisse tarandığı anlamına gelmez.
@@ -137,7 +151,7 @@ edilmiş Stop/TP araştırması, günlük destek/direnç raporundan ayrıdır.
 
 1. GitHub → Actions → **ATC automatic latest candle snapshots** →
    **Run workflow** → `main` seçin.
-2. `scope=all`, `delivery=preview`: desteklenen yedi canlı zaman dilimi
+2. `scope=all`, `delivery=preview`: desteklenen sekiz canlı zaman dilimi
    dosya hazırlar, Telegram'a mesaj göndermez. Artifacts ve çalışma
    özetinden gerçek veri zamanlarını kontrol edin.
 3. Yeni bir manuel gönderim için `scope=all`, `delivery=publish` seçin.

@@ -163,11 +163,60 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         self.assertFalse(names & set(self.symbols[:4]))
         self.assertEqual(len(names), 41)
 
+    def test_equal_opposing_timeframe_and_rule_counts_do_not_choose_direction_by_name(self):
+        def details(direction, count=2):
+            return [{"symbol": "ASELS", "scanner": name, "direction": direction,
+                     "plan": {"scenarios": []}} for name in report.SCANNER_ORDER[:count]]
+        by_tf = {"15m": details("bullish"), "30m": details("bullish"),
+                 "1h": details("bearish"), "4h": details("bearish")}
+        self.assertEqual(report.current_intersections(by_tf), [])
+        by_tf["2h"] = details("bullish")
+        self.assertEqual(report.current_intersections(by_tf)[0]["direction"], "bullish")
+
     def test_valid_native_45m_packet_uses_same_rule_agreement(self):
         self.set_sources(("45m", "1h"))
         value = self.prepare()
         self.assertEqual(len(value["intersections"]), 45)
         self.assertEqual(value["inputs"]["45m"]["status"], "included")
+
+    def test_native_weekly_packet_matches_calendar_week_not_same_day(self):
+        make_packet(self.packets / "1wk", "1wk", self.symbols)
+        self.mutate("1wk", lambda data: [row["metadata"].update(
+            source_grid=report.NATIVE_WEEKLY_GRID,
+            last_actual_native_open="2026-10-19T09:00:00+03:00") for row in data["rows"]])
+        self.set_sources(("1wk", "1h"))
+        value = self.prepare()
+        self.assertEqual(value["inputs"]["1wk"]["status"], "included")
+        self.assertEqual(len(value["intersections"]), 45)
+        self.assertIn("Haftalık uygunluk", report.render_text(value))
+
+    def test_previous_calendar_week_cannot_vote_as_current_week(self):
+        make_packet(self.packets / "1wk", "1wk", self.symbols)
+        self.mutate("1wk", lambda data: [row["metadata"].update(
+            source_grid=report.NATIVE_WEEKLY_GRID,
+            last_actual_native_open="2026-10-12T09:00:00+03:00") for row in data["rows"]])
+        self.set_sources(("15m", "1h", "1wk"))
+        value = self.prepare()
+        self.assertEqual(value["inputs"]["1wk"]["status"], "excluded")
+        self.assertEqual(len(value["intersections"]), 45)
+
+    def test_native_multihour_packet_does_not_require_hourly_constituents(self):
+        make_packet(self.packets / "4h", "4h", self.symbols)
+        self.mutate("4h", lambda data: [row["metadata"].update(
+            source_grid=report.NATIVE_MULTIHOUR_GRIDS["4h"],
+            last_actual_native_open="2026-10-20T17:00:00+03:00",
+            last_bar_close="2026-10-20T21:00:00+03:00") for row in data["rows"]])
+        self.set_sources(("4h", "1h"))
+        value = self.prepare()
+        self.assertEqual(value["inputs"]["4h"]["status"], "included")
+        self.assertEqual(len(value["intersections"]), 45)
+
+    def test_derived_multihour_grid_is_not_silently_mixed_with_native_grid(self):
+        make_packet(self.packets / "2h", "2h", self.symbols)
+        self.set_sources(("15m", "1h", "2h"))
+        value = self.prepare()
+        self.assertEqual(value["inputs"]["2h"]["reason"], "native_multihour_source_grid_required")
+        self.assertEqual(len(value["intersections"]), 45)
 
     def test_legacy_45m_grid_is_excluded_without_blocking_other_two_lanes(self):
         self.set_sources(("15m", "1h", "45m"))

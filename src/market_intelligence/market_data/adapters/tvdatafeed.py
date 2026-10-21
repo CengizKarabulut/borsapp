@@ -24,6 +24,7 @@ from market_intelligence.market_data.providers import (
 class TvDatafeedBistProvider(BorsapyProvider):
     name = "tvdatafeed"
     native_grid_contract = "tradingview_native_45m_including_auctions"
+    native_weekly_contract = "tradingview_native_calendar_week"
 
     _INTERVALS = {
         Timeframe.M5: "in_5_minute",
@@ -31,7 +32,10 @@ class TvDatafeedBistProvider(BorsapyProvider):
         Timeframe.M30: "in_30_minute",
         Timeframe.M45: "in_45_minute",
         Timeframe.H1: "in_1_hour",
+        Timeframe.H2: "in_2_hour",
+        Timeframe.H4: "in_4_hour",
         Timeframe.D1: "in_daily",
+        Timeframe.W1: "in_weekly",
     }
 
     def __init__(self, *, client=None, naive_timestamp_timezone: str | None = None):
@@ -46,6 +50,10 @@ class TvDatafeedBistProvider(BorsapyProvider):
     def fetch(self, request: FetchRequest) -> ProviderFrame:
         if request.timeframe is Timeframe.M45:
             raise ValueError("Native 45m requires explicit native-grid RAM access")
+        if request.timeframe is Timeframe.W1:
+            raise ValueError("Native W1 requires explicit native-weekly RAM access")
+        if request.timeframe in (Timeframe.H2, Timeframe.H4):
+            raise ValueError("Native 2h/4h requires explicit native-multihour RAM access")
         symbol, frame = self._download(request)
         bars = self._completed_regular_bars(frame, request)
         if not bars:
@@ -67,6 +75,38 @@ class TvDatafeedBistProvider(BorsapyProvider):
         bars = sorted(self._convert(frame), key=lambda bar: bar.timestamp)
         if not bars or len({bar.timestamp for bar in bars}) != len(bars):
             raise ValueError("Native-grid candles must have unique actual timestamps")
+        return self._provider_frame(request, symbol, bars[-request.bars:])
+
+    def fetch_native_weekly(self, request: FetchRequest) -> ProviderFrame:
+        """Preserve actual mutable W1 OHLCV and provider weekly start labels.
+
+        The weekly label is not a last-trade timestamp. Only the separate RAM
+        weekly adapter may evaluate its calendar-week cohort eligibility.
+        """
+        if request.timeframe is not Timeframe.W1:
+            raise ValueError("Native-weekly access supports only explicit W1 requests")
+        if type(request.bars) is not int or not 1 <= request.bars <= 5000:
+            raise ValueError("Native-weekly bars must be between 1 and 5000")
+        symbol, frame = self._download(request, native_grid=True)
+        if "volume" not in self._column_lookup(frame):
+            raise ValueError("Native-weekly source must supply actual volume")
+        bars = sorted(self._convert(frame), key=lambda bar: bar.timestamp)
+        if not bars or len({bar.timestamp for bar in bars}) != len(bars):
+            raise ValueError("Native-weekly candles must have unique actual timestamps")
+        return self._provider_frame(request, symbol, bars[-request.bars:])
+
+    def fetch_native_multihour(self, request: FetchRequest) -> ProviderFrame:
+        """Preserve authentic native 120/240 minute bars and auction-inclusive ends."""
+        if request.timeframe not in (Timeframe.H2, Timeframe.H4):
+            raise ValueError("Native-multihour access supports only explicit 2h/4h requests")
+        if type(request.bars) is not int or not 1 <= request.bars <= 5000:
+            raise ValueError("Native-multihour bars must be between 1 and 5000")
+        symbol, frame = self._download(request, native_grid=True)
+        if "volume" not in self._column_lookup(frame):
+            raise ValueError("Native-multihour source must supply actual volume")
+        bars = sorted(self._convert(frame), key=lambda bar: bar.timestamp)
+        if not bars or len({bar.timestamp for bar in bars}) != len(bars):
+            raise ValueError("Native-multihour candles must have unique actual timestamps")
         return self._provider_frame(request, symbol, bars[-request.bars:])
 
     def _download(self, request: FetchRequest, *, native_grid=False):

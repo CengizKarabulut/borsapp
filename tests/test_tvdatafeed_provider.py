@@ -183,6 +183,50 @@ class ThirdProviderTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "not configured"):
             chain.fetch_from_source("fake", request)
 
+    def test_native_weekly_keeps_current_week_prices_and_actual_host_clock_without_daily_filter(self):
+        outputs = []
+        for zone, stamp in (("UTC", "2026-10-19 06:00:00"), ("Europe/Istanbul", "2026-10-19 09:00:00")):
+            data = candles().iloc[:1].copy()
+            data.index = pd.DatetimeIndex([stamp])
+            original = data.copy(deep=True)
+            stub = TvStub(data)
+            module = SimpleNamespace(Interval=SimpleNamespace(in_weekly="1W"), TvDatafeed=lambda stub=stub: stub)
+            request = FetchRequest("ASELS", Timeframe.W1, 600, datetime(2026, 10, 21, 12, tzinfo=ISTANBUL))
+            provider = TvDatafeedBistProvider(client=stub, naive_timestamp_timezone=zone)
+            with patch.dict(sys.modules, {"tvDatafeed": module}):
+                frame = provider.fetch_native_weekly(request)
+            self.assertEqual(stub.requests[0]["interval"], "1W")
+            self.assertEqual(frame.timeframe, Timeframe.W1)
+            self.assertEqual(frame.price_basis, PriceBasis.SPLIT_ADJUSTED)
+            self.assertEqual(frame.bars[0].timestamp, datetime(2026, 10, 19, 6, tzinfo=UTC))
+            self.assertEqual(frame.bars[0].close, 11)
+            pd.testing.assert_frame_equal(data, original)
+            with self.assertRaisesRegex(ValueError, "explicit native-weekly"):
+                provider.fetch(request)
+            outputs.append(frame.bars)
+        self.assertEqual(outputs[0], outputs[1])
+
+    def test_native_weekly_wrong_resolution_and_duplicate_stamps_are_rejected(self):
+        request = FetchRequest("ASELS", Timeframe.D1, 10, datetime(2026, 10, 21, 12, tzinfo=ISTANBUL))
+        with self.assertRaisesRegex(ValueError, "explicit W1"):
+            TvDatafeedBistProvider().fetch_native_weekly(request)
+        data = candles()
+        data.index = pd.DatetimeIndex(["2026-10-19 09:00:00"] * 2)
+        stub = TvStub(data)
+        module = SimpleNamespace(Interval=SimpleNamespace(in_weekly="1W"), TvDatafeed=lambda: stub)
+        with patch.dict(sys.modules, {"tvDatafeed": module}), self.assertRaisesRegex(ValueError, "unique actual"):
+            TvDatafeedBistProvider(client=stub, naive_timestamp_timezone="Europe/Istanbul").fetch_native_weekly(
+                FetchRequest("ASELS", Timeframe.W1, 10, request.as_of))
+
+    def test_native_weekly_missing_actual_volume_is_not_silently_zero_filled(self):
+        data = candles().iloc[:1].drop(columns=["volume"])
+        data.index = pd.DatetimeIndex(["2026-10-19 09:00:00"])
+        stub = TvStub(data)
+        module = SimpleNamespace(Interval=SimpleNamespace(in_weekly="1W"), TvDatafeed=lambda: stub)
+        with patch.dict(sys.modules, {"tvDatafeed": module}), self.assertRaisesRegex(ValueError, "actual volume"):
+            TvDatafeedBistProvider(client=stub, naive_timestamp_timezone="Europe/Istanbul").fetch_native_weekly(
+                FetchRequest("ASELS", Timeframe.W1, 10, datetime(2026, 10, 21, 12, tzinfo=ISTANBUL)))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -44,6 +44,18 @@ class LiveSourceRecoveryTests(unittest.TestCase):
         self.assertEqual(report["counts"]["missing"], 0)
         self.assertEqual(report["counts"]["calculated"], 2)
 
+    def test_weekly_production_requires_explicit_native_access(self):
+        with patch.object(live, "vendor_chain", side_effect=AssertionError("derived source forbidden")):
+            providers = live.live_vendor_chain("1wk")
+        self.assertTrue(all(callable(provider.fetch_native_weekly) for provider in providers))
+
+    def test_multihour_production_never_falls_back_to_hourly_assembly(self):
+        for timeframe in ("2h", "4h"):
+            with self.subTest(timeframe=timeframe), patch.object(live, "vendor_chain",
+                    side_effect=AssertionError("hourly assembly forbidden")):
+                providers = live.live_vendor_chain(timeframe)
+            self.assertTrue(all(callable(provider.fetch_native_multihour) for provider in providers))
+
     def test_official_halt_keeps_last_real_source_and_excludes_current_signal(self):
         meta = synthetic_reader("RALYH")["metadata"]
         meta.update(expected_bucket_open="2026-10-20T18:00:00+03:00", received_at=NOW.isoformat())
