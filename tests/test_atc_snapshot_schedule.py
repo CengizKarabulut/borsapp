@@ -112,11 +112,22 @@ class SnapshotScheduleTests(unittest.TestCase):
         self.assertEqual(early["15m"]["target_close"], clock(hour=17, minute=45).isoformat())
         final = self.run_plan(clock(hour=18, minute=30), delivered=self.baseline())
         self.assertEqual(tuple(final["timeframes"]), SUPPORTED_TIMEFRAMES)
-        for tf, entry in entries(final).items():
-            expected = clock(hour=17, minute=30) if tf == "45m" else clock(hour=18, minute=0)
+        for entry in entries(final).values():
+            expected = clock(hour=18, minute=0)
             self.assertEqual(entry["target_close"], expected.isoformat())
         ledger = {tf: acknowledged(item) for tf, item in entries(final).items()}
         self.assertEqual(self.run_plan(clock(hour=23, minute=40), delivered=ledger)["entries"], [])
+
+    def test_45m_closing_auction_pass_follows_acknowledged_1730_slot(self):
+        old = entries(self.run_plan(clock(hour=17, minute=52), delivered=self.baseline()))["45m"]
+        self.assertEqual(old["target_close"], clock(hour=17, minute=30).isoformat())
+        state = acknowledged(old)
+        self.assertIs(validate_delivery_state(state), state)
+        ledger = {**self.baseline(), "45m": state}
+        self.assertNotIn("45m", entries(self.run_plan(clock(hour=18, minute=29), delivered=ledger)))
+        final = entries(self.run_plan(clock(hour=18, minute=30), delivered=ledger))["45m"]
+        self.assertEqual(final["target_close"], clock(hour=18, minute=0).isoformat())
+        self.assertEqual(validate_delivery_state(acknowledged(final))["receipt"]["status"], "sent")
 
     def test_weekend_holiday_and_nextday_premarket_use_previous_real_session(self):
         for now in [clock(day=17, hour=12), clock(day=19, hour=9)]:

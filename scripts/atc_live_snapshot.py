@@ -20,7 +20,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from market_intelligence.core.enums import EvaluationStatus
-from market_intelligence.core.timeframes import parse_timeframe
+from market_intelligence.core.timeframes import Timeframe, parse_timeframe
 from market_intelligence.delivery.telegram.http_transport import HttpxTelegramTransport
 from market_intelligence.features.atc_native import AtcNativePacketProvider
 from market_intelligence.features.decision import DecisionPanelV645Provider
@@ -42,6 +42,8 @@ from market_intelligence.features.trend import (
 )
 from market_intelligence.features.volatility import WilderAtr14Provider
 from market_intelligence.features.volume import RelativeVolume20Provider
+from market_intelligence.market_data.adapters.borsapy_native_grid import BorsapyNative45Provider
+from market_intelligence.market_data.adapters.tvdatafeed import TvDatafeedBistProvider
 from market_intelligence.scanning.catalog import load_scanner_catalog
 from market_intelligence.scanning.contracts import ScanContext
 from market_intelligence.scanning.display_codes import (
@@ -54,6 +56,7 @@ from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_ephemeral_morning import vendor_chain
 from scripts.atc_export_dashboard import status_label
 from scripts.atc_live_snapshot_frames import prepare_frame
+from scripts.atc_market_status import market_event_for
 from scripts.atc_saved_scan_plans import validate_reference_plan
 from scripts.atc_structure_report import atomic_json, canonical
 from scripts.atc_timeframe_visuals import _font
@@ -105,7 +108,8 @@ def implementation_hashes():
     root = Path(__file__).resolve().parents[1]
     files = [*sorted((root / "src/market_intelligence").rglob("*.py")),
         *sorted((root / "scripts").glob("*.py")),
-        root / "config/scanners.toml", root / "config/atc_630_symbols.txt"]
+        root / "config/scanners.toml", root / "config/atc_630_symbols.txt",
+        root / "config/atc_market_events.json"]
     return {path.relative_to(root).as_posix(): sha256(path.read_bytes()).hexdigest()
             for path in files}
 
@@ -143,18 +147,35 @@ def evaluate_frame(frame, metadata, *, bindings, calendar_version):
     return evaluations
 
 
+def live_vendor_chain(timeframe):
+    # Native 45m has a different auction-inclusive grid from 15m aggregation.
+    # Never silently mix the two grids or accept borsapy's unknown-interval daily fallback.
+    if parse_timeframe(timeframe) is Timeframe.M45:
+        return (BorsapyNative45Provider(), TvDatafeedBistProvider())
+    return vendor_chain()
+
+
 def read_symbol(symbol, *, timeframe, bindings, calendar_version, clock=None, providers=None):
     clock = clock or (lambda: datetime.now(IST))
+    timeframe = parse_timeframe(timeframe)
     errors, best = [], None
     member = SimpleNamespace(instrument_id="atc-live:BIST:" + symbol,
         symbol=symbol, provider_symbol=symbol, market="BIST")
-    for provider in providers if providers is not None else vendor_chain():
+    for provider in providers if providers is not None else live_vendor_chain(timeframe):
         try:
             frame, meta = prepare_frame(provider, member, timeframe, now=clock, bars=600)
+            expected_session = aware(datetime.fromisoformat(meta["expected_bucket_open"])).date()
+            event = market_event_for(symbol, expected_session,
+                observed_at=aware(datetime.fromisoformat(meta["received_at"])))
+            if event:
+                if frame.bars[-1].open_time.astimezone(IST).date().isoformat() >= event["from_session"]:
+                    raise ValueError("source_bar_conflicts_with_official_halt")
+                meta = {**meta, "current_bucket": False, "usable_latest": False,
+                        "status": "official_halt_last_real_source", "actual_bar_is_open": None}
             row = {"symbol": symbol, "status": "available", "source": frame.source,
                 "price_basis": frame.price_basis.value, "snapshot_id": frame.snapshot_id,
                 "history_bars": len(frame.bars), "close": frame.bars[-1].close,
-                "metadata": meta}
+                "metadata": meta, "market_event": event}
             if best is None:
                 best = (row, frame)
             if meta.get("usable_latest"):
@@ -194,7 +215,7 @@ def render_summary(report):
     lines = [f"ATC | {report['timeframe']} | CANLI / TEYİTSİZ",
         f"Gözlem: {report['observation_start']} → {report['observation_end']}",
         f"Kapsam {report['symbol_count']}/630 · kullanılabilir son mum {counts['usable']} · güncel aralık {counts['current']} · "
-        f"eski mum {counts['stale']} · veri yok {counts['missing']}",
+        f"eski mum {counts['stale']} · resmî işlem durması {counts.get('halted', 0)} · veri yok {counts['missing']}",
         f"Eksik son aralık: {counts.get('incomplete_latest', 0)} · yalnız gözlenen kesintisiz kaynak bölümü kullanıldı.",
         "Son gerçek mum o an kapansaydı: koşullar ve referans Stop/TP değişebilir."]
     grouped = {}
@@ -207,6 +228,10 @@ def render_summary(report):
             + (" …" if len(unique) > 3 else ""))
     if not grouped:
         lines.append("Kullanılabilir son mumlarda eşleşme bulunmadı.")
+    for row in report["rows"]:
+        if row.get("market_event"):
+            lines.append(f"#{row['symbol']}: resmî işlem durması; son gerçek mum "
+                f"{row['metadata'].get('last_bar_open', '')}. Güncel sinyal sayılmadı.")
     lines.extend(["Görsel ilk 20 eşleşme; tüm hisseler ve 18 tarama CSV'de.",
         "Fiyat/hacim kaynağının anlık olduğu doğrulanmadı. GitHub taraması tek anlık akış değildir.",
         "18: geçmiş yeterlilik kaydı yoksa HESAPLANAMADI. CANLI / TEYİTSİZ · YTD"])
@@ -225,7 +250,9 @@ def csv_report(report):
         "Kaynak", "FiyatBazi", "Snapshot", "Hata", "Teyit", "SonMumDurumu",
         "SonKaynakMumBaslangici", "SonKaynakMumSonu", "KaynakMumBitisYasiSaniye",
         "KullanimYasSiniriDakika", "AtlananEksikGecmisAralik", "GecmisKisaSeansTarihleri",
-        "GecmisKisaSeansKapanisSaatiNominal", "SonHedefAralikTam", "GozlenenOnEkSonu", "KaynakHatalari"))
+        "GecmisKisaSeansKapanisSaatiNominal", "SonHedefAralikTam", "GozlenenOnEkSonu", "KaynakHatalari",
+        "PiyasaDurumu", "PiyasaDurumuTarihi", "PiyasaDurumuKaynagi", "KaynakMumDizilimi",
+        "MumSaatiTemeli", "YerelMumTeyidi"))
     for row in report["rows"]:
         meta = row.get("metadata", {})
         scans = row["evaluations"] or [{"number": n, "status": "unknown", "findings": [],
@@ -251,7 +278,12 @@ def csv_report(report):
                     meta.get("latest_target_complete", ""), meta.get("observed_prefix_end", ""),
                     canonical([{**{key: error[key] for key in ("source", "code") if key in error},
                                 **({"reason": error["reason"]} if error.get("reason") in SAFE_SOURCE_ERROR_REASONS else {})}
-                               for error in row.get("source_errors", [])])))
+                               for error in row.get("source_errors", [])]),
+                    (row.get("market_event") or {}).get("status", ""),
+                    (row.get("market_event") or {}).get("from_session", ""),
+                    (row.get("market_event") or {}).get("source_url", ""),
+                    meta.get("source_grid", ""), meta.get("native_bar_time_basis", ""),
+                    meta.get("actual_bar_confirmation", "")))
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
@@ -292,11 +324,13 @@ def render_png(report):
     return output.getvalue()
 
 
-def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=read_symbol, clock=None):
+def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=read_symbol, clock=None,
+                   retry_rounds=2):
     clock = clock or (lambda: datetime.now(IST))
     started = aware(clock())
     tf = parse_timeframe(timeframe)
-    if tf.value not in TOPICS or type(workers) is not int or not 1 <= workers <= 6:
+    if (tf.value not in TOPICS or type(workers) is not int or not 1 <= workers <= 6
+            or type(retry_rounds) is not int or not 0 <= retry_rounds <= 2):
         raise ValueError("supported_timeframe_and_1_to_6_workers_required")
     pinned = load_pinned(Path("config/atc_630_symbols.txt"))
     selected = list(symbols if symbols is not None else pinned)
@@ -311,6 +345,13 @@ def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=r
         return reader(symbol, timeframe=tf, bindings=bindings, calendar_version=calendar.version, clock=clock)
     with ThreadPoolExecutor(max_workers=workers) as executor:
         rows = list(executor.map(read, selected))
+        for _ in range(retry_rounds):
+            missing = [index for index, row in enumerate(rows) if row["status"] == "source_unavailable"]
+            if not missing:
+                break
+            retried = list(executor.map(read, (selected[index] for index in missing)))
+            for index, result in zip(missing, retried, strict=True):
+                rows[index] = result
     if [row["symbol"] for row in rows] != selected:
         raise ValueError("result_symbol_identity_changed")
     finished = aware(clock())
@@ -319,12 +360,14 @@ def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=r
     counts = Counter(row["status"] for row in rows)
     current = sum(row.get("metadata", {}).get("current_bucket", False) for row in rows)
     usable = sum(row.get("metadata", {}).get("usable_latest", False) for row in rows)
+    halted = sum(row["status"] == "available" and bool(row.get("market_event")) for row in rows)
     incomplete_latest = sum(row.get("metadata", {}).get("status") == "incomplete_latest_native_prefix"
                             for row in rows)
     report = {"version": VERSION, "timeframe": tf.value, "started_at": started.isoformat(),
         "finished_at": finished.isoformat(), "observation_start": min(observations, default=started).isoformat(),
         "observation_end": max(observations, default=finished).isoformat(), "symbol_count": len(rows),
-        "counts": {"usable": usable, "current": current, "stale": counts["available"] - usable,
+        "counts": {"usable": usable, "current": current, "stale": counts["available"] - usable - halted,
+                   "halted": halted, "calculated": counts["available"],
                    "missing": counts["source_unavailable"], "incomplete_latest": incomplete_latest},
         "rows": sorted(rows, key=lambda row: row["symbol"]),
         "provisional": True, "confirmed_store_writes": 0, "orders_sent": 0,

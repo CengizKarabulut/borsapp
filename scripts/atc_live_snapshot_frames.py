@@ -7,10 +7,12 @@ bar is invented.  The returned frame is ONLY for RAM formula evaluation; its
 """
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from functools import lru_cache
+from numbers import Real
 from zoneinfo import ZoneInfo
 
 from market_intelligence.application.ingestion import BASE_TIMEFRAME
@@ -23,6 +25,10 @@ from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
 QUALITY = "PROVISIONAL_WHAT_IF_NOT_PERSISTED"
+NATIVE_45M_GRID = "tradingview_native_45m_including_auctions"
+# Actual provider-native grid observed on this exchange-calendar-certified
+# shortened session. It is historical input only, not a guessed regular grid.
+NATIVE_45M_HISTORICAL_SHORT_GRIDS = {date(2026, 5, 26): ((9, 30), (12, 30))}
 MAX_LATEST_NATIVE_AGE_MINUTES = 30
 SUPPORTED_TIMEFRAMES = (
     Timeframe.M15, Timeframe.M30, Timeframe.M45, Timeframe.H1,
@@ -187,6 +193,144 @@ def _aggregate(base, *, source, target, received_at, schedule):
     return tuple(result), dropped, last_truncated, latest_incomplete_prefix
 
 
+def _native_45m_expected(now, sessions):
+    """TradingView's actual 09:45 + 45m grid includes the 18:00 auction row."""
+    first = now.replace(hour=9, minute=45, second=0, microsecond=0)
+    if now.date() in sessions and now >= first:
+        final = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        cursor = min(now, final)
+        opened = first + ((cursor - first) // timedelta(minutes=45)) * timedelta(minutes=45)
+    else:
+        previous = [day for day in sessions if day < now.date()]
+        if not previous:
+            raise ValueError("No previous BIST session in calendar")
+        opened = datetime.combine(max(previous), datetime.min.time(), ISTANBUL).replace(hour=18)
+    return opened, opened + timedelta(minutes=45)
+
+
+def _prepare_native_45m(provider, member, *, observed_at, clock, bars):
+    """Preserve provider-native 45m OHLCV, including genuine sparse auction bars.
+
+    Missing native intervals are not reconstructed from smaller candles. Opens
+    and nominal ends are preserved on TradingView's actual 09:45 grid. An 18:00
+    auction bar has a nominal 18:45 end; that does NOT assert trading continued
+    to 18:45 or identify its last trade. Only unpersisted formula evaluation may
+    consume this frame; no exchange-confirmed candle status is inferred.
+    """
+    initial_sessions = _session_days(observed_at.year - 1, observed_at.year + 1)
+    _, cutoff = _native_45m_expected(observed_at, initial_sessions)
+    request = FetchRequest(provider_symbol=member.provider_symbol, timeframe=Timeframe.M45,
+                           bars=min(5000, bars + 1), as_of=cutoff)
+    raw = provider.fetch_native_grid(request)
+    received_at = _aware(clock())
+    if received_at < observed_at:
+        raise ValueError("Clock moved backwards while fetching data")
+    if raw.timeframe is not Timeframe.M45:
+        raise ValueError("Native provider returned a different timeframe")
+    if _symbol(raw.provider_symbol) != _symbol(member.provider_symbol):
+        raise ValueError("Native provider returned a different instrument")
+    if not raw.bars:
+        raise ValueError("No authentic observed native candles")
+    first_year = min(item.timestamp.year for item in raw.bars)
+    sessions = _session_days(first_year, received_at.year + 1)
+    nonregular = _nonregular_session_days(first_year, received_at.year + 1)
+    expected_open, expected_close = _native_45m_expected(received_at, sessions)
+    if expected_open.date() in nonregular:
+        raise ValueError("Latest expected BIST session is a half-day/nonregular session; live adapter unsupported")
+    native = []
+    short_grid_dates = set()
+    previous_open = None
+    for item in raw.bars:
+        stamp = item.timestamp
+        if stamp.tzinfo is None or stamp.utcoffset() is None:
+            raise ValueError("Native grid requires timezone-aware candle timestamps")
+        stamp = stamp.astimezone(ISTANBUL)
+        opened = stamp if raw.timestamp_kind is TimestampKind.OPEN else stamp - timedelta(minutes=45)
+        if opened > received_at:
+            raise ValueError("Provider supplied a candle that starts after receipt")
+        if opened.date() not in sessions:
+            raise ValueError("Provider supplied a candle on a non-session date")
+        grid_first, grid_final = (9, 45), (18, 0)
+        if opened.date() in nonregular:
+            short_grid = NATIVE_45M_HISTORICAL_SHORT_GRIDS.get(opened.date())
+            if short_grid is None or opened.date() >= received_at.date():
+                raise ValueError("Unsupported historical shortened-session native 45m grid")
+            grid_first, grid_final = short_grid
+            short_grid_dates.add(opened.date())
+        first = opened.replace(hour=grid_first[0], minute=grid_first[1], second=0, microsecond=0)
+        final = opened.replace(hour=grid_final[0], minute=grid_final[1], second=0, microsecond=0)
+        if not first <= opened <= final or (opened - first) % timedelta(minutes=45):
+            raise ValueError("Provider supplied a shifted native 45m candle")
+        if previous_open is not None and opened <= previous_open:
+            raise ValueError("Provider supplied duplicate or unordered native candle timestamps")
+        previous_open = opened
+        values = (item.open, item.high, item.low, item.close, item.volume)
+        if any(isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value)
+               for value in values) or min(values[:4]) <= 0:
+            raise ValueError("Native OHLCV values must be finite with positive OHLC prices")
+        native.append(CanonicalBar(open_time=opened, close_time=opened + timedelta(minutes=45),
+            open=float(item.open), high=float(item.high), low=float(item.low),
+            close=float(item.close), volume=float(item.volume)))
+    selected = tuple(native[-bars:])
+    latest = selected[-1]
+    current = latest.open_time == expected_open and latest.close_time == expected_close
+    nominal_open = latest.open_time <= received_at < latest.close_time
+    first_today = received_at.replace(hour=9, minute=45, second=0, microsecond=0)
+    auction_end = received_at.replace(hour=18, minute=10, second=0, microsecond=0)
+    during_session = received_at.date() in sessions and first_today <= received_at < auction_end
+    native_age = max(0.0, (received_at - latest.close_time).total_seconds())
+    usable = latest.open_time.date() == expected_open.date() and (
+        native_age <= MAX_LATEST_NATIVE_AGE_MINUTES * 60 if during_session else current)
+    status = ("stale_previous_session" if latest.open_time.date() < expected_open.date()
+              else "stale_previous_bucket" if not current
+              else "live_open" if nominal_open or raw.last_bar_is_partial else "latest_closed")
+    identity = stable_hash({"kind": "ATC_UNPERSISTED_NATIVE_45M_WHAT_IF_V1",
+        "source_grid": NATIVE_45M_GRID, "instrument_id": member.instrument_id,
+        "symbol": member.symbol, "timeframe": Timeframe.M45, "source": raw.provider,
+        "price_basis": raw.price_basis, "received_at": received_at,
+        "bars": selected, "quality": QUALITY})
+    frame = CanonicalFrame(instrument_id=member.instrument_id, symbol_at_snapshot=member.symbol,
+        market=member.market, timeframe=Timeframe.M45, snapshot_id=identity, series_revision=0,
+        price_basis=raw.price_basis, source=raw.provider, bars=selected, is_partial=False, quality=QUALITY)
+    metadata = {
+        "quality": QUALITY, "status": status, "current_bucket": current,
+        "usable_latest": usable, "source_grid": NATIVE_45M_GRID,
+        "native_bar_time_basis": "provider_nominal_interval_not_last_trade",
+        "actual_bar_is_open": None, "actual_bar_confirmation": "unknown",
+        "nominally_open": nominal_open, "temporally_open": nominal_open,
+        "provider_partial_flag": raw.last_bar_is_partial,
+        "observed_at": observed_at.isoformat(), "received_at": received_at.isoformat(),
+        "request_cutoff": cutoff.isoformat(), "native_timeframe": Timeframe.M45.value,
+        "last_bar_open": latest.open_time.isoformat(), "last_bar_close": latest.close_time.isoformat(),
+        "latest_target_complete": received_at >= latest.close_time and not raw.last_bar_is_partial,
+        "observed_prefix_end": latest.close_time.isoformat(),
+        "expected_bucket_open": expected_open.isoformat(), "expected_bucket_close": expected_close.isoformat(),
+        "expected_native_open": expected_open.isoformat(), "current_native_bucket": current,
+        "target_bucket_present": current,
+        "last_actual_native_open": latest.open_time.isoformat(),
+        "last_actual_native_close": latest.close_time.isoformat(),
+        "latest_native_age_limit_minutes": MAX_LATEST_NATIVE_AGE_MINUTES,
+        "latest_native_close_age_seconds": native_age, "stale_bar_close_age_seconds": native_age,
+        "last_trade_at": None, "price_delay_seconds": None,
+        "bar_elapsed_seconds": max(0.0, (received_at - latest.open_time).total_seconds()),
+        "history_bars": len(selected), "dropped_incomplete_history_buckets": 0,
+        "session_truncated_bucket": False, "source": raw.provider,
+        "price_basis": raw.price_basis.value, "persisted": False,
+        "calendar_version": ExchangeCalendarsXist().version,
+        "session_schedule": "BIST provider-native 45m 09:45-18:00 opens including auctions; nominal ends are not last-trade times",
+        "nonregular_history_dates": sorted({bar.open_time.date().isoformat() for bar in selected
+                                             if bar.open_time.date() in nonregular}),
+        "historical_nonregular_close_times_nominal": any(bar.open_time.date() in nonregular for bar in selected),
+        "historical_nonregular_native_grid_policies": [
+            {"session": day.isoformat(), "anchor": "09:30", "last_open": "12:30",
+             "policy": "verified_provider_native_45m_grid_on_calendar_short_session",
+             "calendar_version": ExchangeCalendarsXist().version,
+             "nominal_ends_are_not_last_trade_times": True}
+            for day in sorted(short_grid_dates)],
+    }
+    return frame, metadata
+
+
 def prepare_frame(
     provider, member, timeframe: Timeframe | str,
     now: datetime | Callable[[], datetime] | None = None, bars: int = 600,
@@ -210,6 +354,8 @@ def prepare_frame(
         (lambda: now) if now is not None else lambda: datetime.now(ISTANBUL)
     )
     observed_at = _aware(clock())
+    if target is Timeframe.M45 and callable(getattr(provider, "fetch_native_grid", None)):
+        return _prepare_native_45m(provider, member, observed_at=observed_at, clock=clock, bars=bars)
     schedule = BistSessionSchedule()
     native = BASE_TIMEFRAME[target]
     # Let current mutable native data survive the provider's closed-only filter.
