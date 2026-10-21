@@ -34,6 +34,12 @@ Tablo normal 10:00–18:00 seansı içindir. Kısa/yarım işlem seansında canl
 RAM taramasının bu sürümü desteklenmeyen seans durumunu açıkça kaydeder ve
 normal saatleri o güne uydurup veri üretmez.
 
+Windows bilgisayarı ve kullanıcı oturumu açıkken aynı `main` iş akışını
+bu kontrol saatlerinde çağıran yerel yedek de kullanılabilir. Kurulum ve
+sınırları [yerel tetikleme belgesinde](WINDOWS_SNAPSHOT_DISPATCH_BACKUP.md)
+yer alır. Bu, hesaplama süresini kaldırmaz; GitHub cron gecikmesine karşı
+ikinci tetikleme yoludur. Sabah destek/direnç raporu ayrı 08:35 görevinde kalır.
+
 Son gerçek açık mum varsa o anki OHLCV değerleri **kapanmış gibi, yalnız
 bellekte** değerlendirilir. Sonuç **CANLI / TEYİTSİZ** niteliğindedir ve mum
 değiştikçe değişebilir. Kaynak açık mumu vermiyorsa bu gizlenmez; gerçek son
