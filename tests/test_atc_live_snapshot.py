@@ -71,6 +71,10 @@ class LivePreparedPacketTests(unittest.TestCase):
     def change_report(self, change):
         data = json.loads((self.folder / "live-snapshot.json").read_bytes())
         change(data)
+        try:
+            data["direction_groups"] = live.direction_metadata(data)
+        except ValueError:
+            pass  # Deliberately malformed-universe test retains its own invalidity.
         live.atomic_json(self.folder / "live-snapshot.json", data)
         manifest = json.loads((self.folder / "prepared-packet.json").read_bytes())
         manifest["files"]["live-snapshot.json"] = sha256(
@@ -109,7 +113,8 @@ class LivePreparedPacketTests(unittest.TestCase):
                 patch.object(live, "prepare_report", side_effect=AssertionError("must not recompute")):
             receipt = self.send(sender=sender)
         self.assertEqual(receipt["status"], "sent")
-        self.assertEqual(receipt["acknowledged"], {"text": 101, "photo": 102, "csv": 103})
+        self.assertEqual(receipt["acknowledged"], {"text": 101, "csv": 102})
+        self.assertEqual(receipt["expected_acknowledgements"], ["text", "csv"])
         for call in sender.send.call_args_list:
             self.assertEqual(call.kwargs["chat_id"], live.CHAT)
             self.assertEqual(call.kwargs["message_thread_id"], 6)
@@ -128,15 +133,62 @@ class LivePreparedPacketTests(unittest.TestCase):
         retry.send.side_effect = [102, 103]
         result = self.send(sender=retry)
         self.assertEqual(result["status"], "sent")
-        self.assertEqual(retry.send.call_count, 2)
+        self.assertEqual(retry.send.call_count, 1)
         self.assertTrue(all(call.kwargs["payload"].get("_method") in
             {"sendPhoto", "sendDocument"} for call in retry.send.call_args_list))
+
+    def test_both_directions_and_same_timeframe_intersections_require_every_image_ack(self):
+        selected = set(self.symbols[:3])
+        def reader(symbol, **_):
+            row = synthetic_reader(symbol)
+            if symbol in selected:
+                for index, direction in enumerate(("bullish", "bullish", "bearish", "bearish")):
+                    row["evaluations"][index].update(status="match", findings=[{"direction": direction}])
+            return row
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            value = live.prepare_report(folder, reader=reader, clock=lambda: NOW)
+            self.assertEqual(len(live.packet_pages(value)), 4)
+            first = Mock()
+            first.send.side_effect = [101, 102, RuntimeError("interrupted")]
+            with self.assertRaises(RuntimeError):
+                live.publish_report(folder, now=NOW, transport=first, environ=ENV)
+            receipt = json.loads((folder / "publication-receipt.json").read_bytes())
+            self.assertEqual(set(receipt["acknowledged"]), {"text", "photo-tf-15m-LONG-001"})
+            retry = Mock()
+            retry.send.side_effect = range(103, 120)
+            done = live.publish_report(folder, now=NOW, transport=retry, environ=ENV)
+            self.assertEqual(retry.send.call_count, 4)
+            self.assertEqual(set(done["acknowledged"]), set(live.acknowledgement_keys(value)))
+            self.assertEqual([len(page["symbols"]) for page in live.packet_pages(value)], [3] * 4)
+            repeat = Mock()
+            live.publish_report(folder, now=NOW, transport=repeat, environ=ENV)
+            repeat.send.assert_not_called()
 
     def test_tampered_csv_is_rejected_before_transport(self):
         with (self.folder / "live-snapshot.csv").open("ab") as out:
             out.write(b"changed")
         sender = Mock()
         with self.assertRaisesRegex(ValueError, "prepared_file_hash_changed"):
+            self.send(sender=sender)
+        sender.send.assert_not_called()
+
+    def test_same_message_id_cannot_acknowledge_two_different_parts(self):
+        sender = Mock(send=Mock(return_value=101))
+        with self.assertRaisesRegex(ValueError, "acknowledgement_required"):
+            self.send(sender=sender)
+        receipt = json.loads((self.folder / "publication-receipt.json").read_bytes())
+        self.assertEqual(receipt["acknowledged"], {"text": 101})
+        self.assertNotEqual(receipt.get("status"), "sent")
+
+    def test_duplicated_saved_message_id_is_rejected_without_any_resend(self):
+        self.send()
+        path = self.folder / "publication-receipt.json"
+        value = json.loads(path.read_bytes())
+        value["acknowledged"]["csv"] = value["acknowledged"]["text"]
+        live.atomic_json(path, value)
+        sender = Mock()
+        with self.assertRaisesRegex(ValueError, "receipt_identity_changed"):
             self.send(sender=sender)
         sender.send.assert_not_called()
 

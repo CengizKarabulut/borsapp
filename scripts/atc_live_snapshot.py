@@ -61,7 +61,17 @@ from market_intelligence.scanning.pipeline import ScanPipeline
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts.atc_ephemeral_morning import vendor_chain
 from scripts.atc_export_dashboard import status_label
+from scripts.atc_live_packet_contract import (
+    FILES,
+    VERSION,
+    acknowledgement_keys,
+    direction_metadata,
+    packet_files,
+    packet_pages,
+    verify_acknowledgements,
+)
 from scripts.atc_live_snapshot_frames import prepare_frame
+from scripts.atc_live_timeframe_pages import build_timeframe_pages
 from scripts.atc_market_status import market_event_for
 from scripts.atc_saved_scan_plans import validate_reference_plan
 from scripts.atc_structure_report import atomic_json, canonical
@@ -69,11 +79,9 @@ from scripts.atc_timeframe_visuals import _font
 from scripts.atc_universe_seed import load_pinned
 
 IST = ZoneInfo("Europe/Istanbul")
-VERSION = "atc-unpersisted-latest-candle-v1"
 CHAT = -1004439315048
 TOPICS = {"15m": 6, "30m": 11, "45m": 9, "1h": 28326,
           "2h": 10, "4h": 28327, "1d": 28328, "1wk": 28329}
-FILES = ("live-snapshot.json", "live-snapshot.csv", "live-snapshot.txt", "live-snapshot.png")
 MAX_AGE = timedelta(minutes=30)
 MIN_COVERAGE = 0.90
 # Only fixed validation messages defined by this application's frame adapter
@@ -251,7 +259,14 @@ def render_summary(report):
         if row.get("market_event"):
             lines.append(f"#{row['symbol']}: resmî işlem durması; son gerçek mum "
                 f"{row['metadata'].get('last_bar_open', '')}. Güncel sinyal sayılmadı.")
-    lines.extend(["Görsel ilk 20 eşleşme; tüm hisseler ve 18 tarama CSV'de.",
+    for group in report.get("direction_groups", []):
+        title = "Tarama sonuçları" if group["minimum_scanners"] == 1 else "Aynı zaman diliminde tarama kesişimleri"
+        counts = group["directions"]
+        lines.append(title + ": " + " · ".join(
+            f"{counts[direction]['label']} {counts[direction]['stock_count']}/{counts[direction]['total_stock_count']}"
+            for direction in ("bullish", "bearish")))
+    lines.extend(["LONG ve SHORT ayrı görsellerde; her grupta en çok 20 hisse, tüm sonuçlar CSV'de.",
+        "Sıra: farklı tarama sayısı, ardından hisse kodu. Başarı olasılığı değildir.",
         "Fiyat/hacim kaynağının anlık olduğu doğrulanmadı. GitHub taraması tek anlık akış değildir.",
         "18: geçmiş yeterlilik kaydı yoksa HESAPLANAMADI. CANLI / TEYİTSİZ · YTD"])
     text = "\n".join(lines)
@@ -392,14 +407,18 @@ def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=r
         "rows": sorted(rows, key=lambda row: row["symbol"]),
         "provisional": True, "confirmed_store_writes": 0, "orders_sent": 0,
         "feed_latency_verified": False, "calibration_used": False}
+    report["direction_groups"] = direction_metadata(report)
     folder.mkdir(parents=True, exist_ok=True)
     atomic_json(folder / FILES[0], report)
     (folder / FILES[1]).write_bytes(csv_report(report))
     (folder / FILES[2]).write_text(render_summary(report), encoding="utf-8")
-    (folder / FILES[3]).write_bytes(render_png(report))
+    for minimum in (1, 2):
+        _, images = build_timeframe_pages(report, minimum_scanners=minimum, max_stocks_per_direction=20)
+        for name, content in images.items():
+            (folder / name).write_bytes(content)
     atomic_json(folder / "prepared-packet.json", {"version": VERSION,
         "implementation_files": implementation_hashes(),
-        "files": {name: sha256((folder / name).read_bytes()).hexdigest() for name in FILES}})
+        "files": {name: sha256((folder / name).read_bytes()).hexdigest() for name in packet_files(report)}})
     return report
 
 
@@ -408,14 +427,22 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
     now = aware(now or datetime.now(IST))
     raw = (folder / "prepared-packet.json").read_bytes()
     manifest = json.loads(raw)
-    if (manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(FILES)
+    report_path = folder / FILES[0]
+    if report_path.is_symlink():
+        raise ValueError("prepared_file_hash_changed")
+    report = json.loads(report_path.read_bytes())
+    rows = report.get("rows", [])
+    if (report.get("version") != VERSION or report.get("symbol_count") != 630 or len(rows) != 630
+            or {row["symbol"] for row in rows} != set(load_pinned(Path("config/atc_630_symbols.txt")))
+            or not report.get("provisional") or report.get("confirmed_store_writes") != 0):
+        raise ValueError("complete_pinned_provisional_packet_required")
+    if (manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(packet_files(report))
             or manifest.get("implementation_files") != implementation_hashes()):
         raise ValueError("implementation_changed_reprepare_required")
-    for name in FILES:
+    for name in packet_files(report):
         path = folder / name
         if path.is_symlink() or sha256(path.read_bytes()).hexdigest() != manifest["files"][name]:
             raise ValueError("prepared_file_hash_changed")
-    report = json.loads((folder / FILES[0]).read_bytes())
     tf = report.get("timeframe")
     topic = TOPICS.get(tf)
     if int(env.get("TELEGRAM_CHAT_ID", "0")) != CHAT or topic is None:
@@ -423,11 +450,6 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
     from market_intelligence.delivery.telegram.timeframe_topics import timeframe_topic_ids
     if timeframe_topic_ids(env).get(parse_timeframe(tf)) != topic:
         raise ValueError("existing_timeframe_destination_required")
-    rows = report.get("rows", [])
-    if (report.get("version") != VERSION or report.get("symbol_count") != 630 or len(rows) != 630
-            or {row["symbol"] for row in rows} != set(load_pinned(Path("config/atc_630_symbols.txt")))
-            or not report.get("provisional") or report.get("confirmed_store_writes") != 0):
-        raise ValueError("complete_pinned_provisional_packet_required")
     start = aware(datetime.fromisoformat(report["observation_start"]))
     end = aware(datetime.fromisoformat(report["observation_end"]))
     if not start <= end <= now or now - start > MAX_AGE:
@@ -439,26 +461,44 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
     receipt_path = folder / "publication-receipt.json"
     receipt = json.loads(receipt_path.read_bytes()) if receipt_path.exists() else {
         "packet_sha256": packet_hash, "chat_id": CHAT, "topic_id": topic, "acknowledged": {}}
+    expected_acks = acknowledgement_keys(report)
     if (receipt.get("packet_sha256") != packet_hash or receipt.get("chat_id") != CHAT
-            or receipt.get("topic_id") != topic or any(key not in ("text", "photo", "csv")
-                or type(value) is not int or value <= 0 for key, value in receipt["acknowledged"].items())):
+            or receipt.get("topic_id") != topic or any(key not in expected_acks
+                or type(value) is not int or value <= 0 for key, value in receipt["acknowledged"].items())
+            or len(set(receipt["acknowledged"].values())) != len(receipt["acknowledged"])
+            or receipt_path.exists() and (receipt.get("packet_version") != VERSION
+                or receipt.get("expected_acknowledgements") != expected_acks)):
         raise ValueError("delivery_receipt_identity_changed")
     sender = transport if transport is not None else HttpxTelegramTransport(env["TELEGRAM_BOT_TOKEN"])
     payloads = {
         "text": {"text": (folder / FILES[2]).read_text(encoding="utf-8")},
-        "photo": {"_method": "sendPhoto", "photo_base64": base64.b64encode((folder / FILES[3]).read_bytes()).decode("ascii"),
-            "filename": f"ATC_{tf}_CANLI_TEYITSIZ.png", "caption": "CANLI / TEYİTSİZ · ilk 20 eşleşme · tüm sonuçlar CSV'de · emir değildir."},
+        **{"photo-" + page["filename"].removesuffix(".png"): {
+            "_method": "sendPhoto",
+            "photo_base64": base64.b64encode((folder / page["filename"]).read_bytes()).decode("ascii"),
+            "filename": page["filename"],
+            "caption": f"{tf} · {'Aynı dilimde tarama kesişimi' if page['filename'].startswith('same-tf-') else 'Tarama sonuçları'} · "
+                f"{'LONG' if '-LONG-' in page['filename'] else 'SHORT'} · {page['stock_count']} hisse · "
+                "En çok 20; tamamı CSV'de · CANLI / TEYİTSİZ."}
+           for page in packet_pages(report)},
         "csv": {"_method": "sendDocument", "document_base64": base64.b64encode((folder / FILES[1]).read_bytes()).decode("ascii"),
             "filename": f"ATC_630_{tf}_CANLI_TEYITSIZ.csv", "caption": "630 hisse × 18 tarama · son gerçek mum anlık görüntüsü · eksikler ayrı · CANLI / TEYİTSİZ."}}
+    receipt.update(packet_version=VERSION, expected_acknowledgements=expected_acks)
+    sent = 0
     for key, payload in payloads.items():
         if key in receipt["acknowledged"]:
             continue
+        if transport is None and sent:
+            import time
+            time.sleep(3.2)
         message_id = sender.send(chat_id=CHAT, message_thread_id=topic, payload=payload)
-        if type(message_id) is not int or message_id <= 0:
+        if (type(message_id) is not int or message_id <= 0
+                or message_id in receipt["acknowledged"].values()):
             raise ValueError("telegram_acknowledgement_required")
         receipt["acknowledged"][key] = message_id
+        sent += 1
         receipt["updated_at"] = datetime.now(IST).isoformat()
         atomic_json(receipt_path, receipt)
+    verify_acknowledgements(report, receipt)
     receipt["status"] = "sent"
     atomic_json(receipt_path, receipt)
     return receipt

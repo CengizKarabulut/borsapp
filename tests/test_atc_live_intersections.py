@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw
 
 from scripts import atc_live_intersections as report
 from scripts import atc_live_snapshot as live
+from scripts.atc_live_packet_contract import acknowledgement_keys, direction_metadata, packet_files
 from scripts.atc_structure_report import atomic_json
 from scripts.atc_universe_seed import load_pinned
 
@@ -43,7 +44,7 @@ def make_packet(folder, tf, symbols, *, matches=45, now=NOW):
             "findings": [{"direction": "bullish", "plan": {"entry": 100, "stop": 90}}]
                         if index < matches and number in (1, 2) else []}
             for number, binding in enumerate(BINDINGS, 1)]
-        rows.append({"symbol": symbol, "status": "available", "source": "fixture_vendor",
+        rows.append({"symbol": symbol, "status": "available", "source": "fixture_vendor", "close": 100.0,
             "evaluations": scans, "metadata": {"usable_latest": True,
                 "observed_at": (now - timedelta(minutes=2)).isoformat(),
                 "received_at": (now - timedelta(minutes=1)).isoformat(),
@@ -64,12 +65,26 @@ def make_packet(folder, tf, symbols, *, matches=45, now=NOW):
 
 
 def reseal(folder, tf):
+    data = json.loads((folder / "live-snapshot.json").read_bytes())
+    data["direction_groups"] = direction_metadata(data)
+    atomic_json(folder / "live-snapshot.json", data)
+    names = packet_files(data)
+    image = io.BytesIO()
+    Image.new("RGB", (2, 2), "white").save(image, format="PNG")
+    for old in (*folder.glob("tf-*.png"), *folder.glob("same-tf-*.png")):
+        if old.name not in names:
+            old.unlink()
+    for name in names:
+        if name.endswith(".png"):
+            (folder / name).write_bytes(image.getvalue())
     manifest = {"version": live.VERSION, "implementation_files": HASHES,
-        "files": {name: sha256((folder / name).read_bytes()).hexdigest() for name in live.FILES}}
+        "files": {name: sha256((folder / name).read_bytes()).hexdigest() for name in names}}
     atomic_json(folder / "prepared-packet.json", manifest)
+    expected = acknowledgement_keys(data)
     atomic_json(folder / "publication-receipt.json", {"status": "sent", "chat_id": live.CHAT,
         "topic_id": live.TOPICS[tf], "packet_sha256": sha256((folder / "prepared-packet.json").read_bytes()).hexdigest(),
-        "acknowledged": {"text": 101, "photo": 102, "csv": 103}})
+        "packet_version": live.VERSION, "expected_acknowledgements": expected,
+        "acknowledged": {key: 101 + index for index, key in enumerate(expected)}})
 
 
 class LatestKnownIntersectionTests(unittest.TestCase):
@@ -113,7 +128,7 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         return report.prepare_report(self.packets, self.sources, output or self.out,
                                      now=now, bindings=BINDINGS, hashes=HASHES)
 
-    def test_all_45_qualifying_stocks_appear_on_three_images_and_complete_csv(self):
+    def test_direction_image_caps_at_20_but_csv_retains_all_45_qualifying_stocks(self):
         drawn = []
         original = ImageDraw.ImageDraw.text
         def record(draw, xy, text, *args, **kwargs):
@@ -123,10 +138,15 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         with patch.object(ImageDraw.ImageDraw, "text", record):
             value = self.prepare()
         self.assertEqual(len(value["intersections"]), 45)
-        self.assertEqual(value["image_pages"], 3)
-        self.assertCountEqual(drawn, self.symbols[:45])
+        self.assertEqual(value["image_pages"], 1)
+        group = value["image_groups"][0]
+        self.assertEqual(group["direction"], "bullish")
+        self.assertEqual(group["total_stock_count"], 45)
+        self.assertEqual(group["stock_count"], 20)
+        self.assertEqual(group["omitted_stock_count"], 25)
+        self.assertCountEqual(drawn, [item["symbol"] for item in value["intersections"][:20]])
         files = sorted(self.out.glob("intersections-*.png"))
-        self.assertEqual(len(files), 3)
+        self.assertEqual(len(files), 1)
         for path in files:
             with Image.open(path) as image:
                 self.assertEqual(image.width, 1840)
@@ -253,11 +273,12 @@ class LatestKnownIntersectionTests(unittest.TestCase):
     def test_source_packet_tampering_and_incomplete_ack_are_excluded(self):
         (self.packets / "15m/live-snapshot.csv").write_bytes(b"changed")
         receipt = json.loads((self.packets / "1h/publication-receipt.json").read_bytes())
-        del receipt["acknowledged"]["photo"]
+        photo = next(key for key in receipt["acknowledged"] if key.startswith("photo-"))
+        del receipt["acknowledged"][photo]
         atomic_json(self.packets / "1h/publication-receipt.json", receipt)
         value = self.prepare()
         self.assertEqual(value["inputs"]["15m"]["reason"], "source_packet_file_hash_changed")
-        self.assertEqual(value["inputs"]["1h"]["reason"], "acknowledged_source_packet_required")
+        self.assertEqual(value["inputs"]["1h"]["reason"], "all_direction_page_acknowledgements_required")
 
     def test_untrusted_source_run_is_excluded(self):
         value = json.loads(self.sources.read_bytes())
@@ -302,7 +323,18 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         self.assertIn("kesişim bulunmadı", transport.send.call_args_list[0].kwargs["payload"]["text"])
 
     def test_partial_page_failure_resumes_only_unsent_pages_and_csv(self):
-        self.prepare()
+        def bearish(data):
+            for row in data["rows"][:3]:
+                for scan in row["evaluations"]:
+                    for finding in scan["findings"]:
+                        finding["direction"] = "bearish"
+        for tf in ("15m", "1h"):
+            self.mutate(tf, bearish)
+        value = self.prepare()
+        self.assertEqual([(lane["label"], lane["total_stock_count"], lane["stock_count"])
+                          for lane in value["image_groups"]], [("LONG", 42, 20), ("SHORT", 3, 3)])
+        self.assertEqual(len(value["intersections"]), 45)
+        self.assertEqual(value["image_pages"], 2)
         first = Mock()
         first.send.side_effect = [101, 102, RuntimeError("network")]
         with self.assertRaises(RuntimeError):
@@ -310,11 +342,13 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         partial = json.loads((self.out / "publication-receipt.json").read_bytes())
         self.assertEqual(partial["acknowledged"], {"text": 101, "photo-001": 102})
         resumed = Mock()
-        resumed.send.side_effect = [103, 104, 105]
+        resumed.send.side_effect = [103, 104]
         receipt = report.publish_report(self.out, now=NOW, environ=ENV, transport=resumed)
-        self.assertEqual(resumed.send.call_count, 3)
-        self.assertEqual(set(receipt["acknowledged"]), {"text", "photo-001", "photo-002", "photo-003", "csv"})
-        self.assertEqual(receipt["expected_acknowledgements"], ["text", "photo-001", "photo-002", "photo-003", "csv"])
+        self.assertEqual(resumed.send.call_count, 2)
+        self.assertEqual(set(receipt["acknowledged"]), {"text", "photo-001", "photo-002", "csv"})
+        self.assertEqual(receipt["expected_acknowledgements"], ["text", "photo-001", "photo-002", "csv"])
+        self.assertEqual(resumed.send.call_args_list[0].kwargs["payload"]["filename"], "intersections-002.png")
+        self.assertEqual(resumed.send.call_args_list[1].kwargs["payload"]["_method"], "sendDocument")
         again = Mock()
         report.publish_report(self.out, now=NOW, environ=ENV, transport=again)
         again.send.assert_not_called()
@@ -355,11 +389,11 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         sender.send.side_effect = range(201, 206)
         sent = report.publish_report(next_folder, now=NOW, environ=ENV, transport=sender, previous_receipt=previous)
         self.assertEqual(sent["status"], "sent")
-        self.assertEqual(sender.send.call_count, 5)
+        self.assertEqual(sender.send.call_count, 3)
 
     def test_changed_page_stops_before_telegram_and_wrong_destination_is_rejected(self):
         self.prepare()
-        (self.out / "intersections-002.png").write_bytes(b"changed")
+        (self.out / "intersections-001.png").write_bytes(b"changed")
         transport = Mock()
         with self.assertRaisesRegex(ValueError, "file_hash_changed"):
             report.publish_report(self.out, now=NOW, environ=ENV, transport=transport)

@@ -13,6 +13,7 @@ from unittest.mock import patch
 import httpx
 
 from scripts import atc_schedule_receipts as receipts
+from scripts.atc_live_packet_contract import direction_metadata
 from scripts.atc_snapshot_schedule import SUPPORTED_TIMEFRAMES, plan
 from tests.test_atc_snapshot_schedule import Calendar, acknowledged, clock, entries
 
@@ -175,7 +176,8 @@ class RecordReceiptTests(unittest.TestCase):
         self.folder.mkdir()
         self.slot = entries(plan(clock(), calendar=Calendar()))["15m"]
         report = {"version": receipts.PACKET_VERSION, "timeframe": "15m", "provisional": True,
-                  "confirmed_store_writes": 0, "observation_end": clock().isoformat()}
+                  "rows": [], "confirmed_store_writes": 0, "observation_end": clock().isoformat()}
+        report["direction_groups"] = direction_metadata(report)
         for name in receipts.PACKET_FILES:
             content = json.dumps(report).encode() if name.endswith(".json") else b"prepared content"
             (self.folder / name).write_bytes(content)
@@ -186,10 +188,12 @@ class RecordReceiptTests(unittest.TestCase):
         packet_hash = sha256((self.folder / "prepared-packet.json").read_bytes()).hexdigest()
         receipt = acknowledged(self.slot)["receipt"]
         receipt["packet_sha256"] = packet_hash
+        receipt.update(packet_version=receipts.PACKET_VERSION,
+                       expected_acknowledgements=["text", "csv"], acknowledged={"text": 1, "csv": 3})
         (self.folder / "publication-receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
         self.output = self.root / "state"
 
-    def test_stamping_changes_only_sidecar_and_record_requires_exact_three_acks(self):
+    def test_stamping_changes_only_sidecar_and_record_requires_all_declared_acks(self):
         before = {path.name: path.read_bytes() for path in self.folder.iterdir()}
         receipts.stamp_packet(self.folder, self.slot)
         self.assertTrue(all((self.folder / name).read_bytes() == content for name, content in before.items()))
@@ -197,7 +201,7 @@ class RecordReceiptTests(unittest.TestCase):
         self.assertEqual(result["status"], "acknowledged_delivery_recorded")
         state = json.loads((self.output / "15m.json").read_bytes())
         self.assertEqual(state["slot_key"], self.slot["slot_key"])
-        self.assertEqual(state["receipt"]["acknowledged"], {"text": 1, "photo": 2, "csv": 3})
+        self.assertEqual(state["receipt"]["acknowledged"], {"text": 1, "csv": 3})
 
     def test_report_bytes_changed_after_stamp_cannot_advance_ledger(self):
         receipts.stamp_packet(self.folder, self.slot)
@@ -211,7 +215,7 @@ class RecordReceiptTests(unittest.TestCase):
         path = self.folder / "publication-receipt.json"
         original = json.loads(path.read_bytes())
         for change in [lambda r: r.update(packet_sha256="f" * 64),
-                       lambda r: r["acknowledged"].pop("photo"),
+                       lambda r: r["acknowledged"].pop("csv"),
                        lambda r: r.update(topic_id=28328)]:
             with self.subTest(change=change):
                 receipt = copy.deepcopy(original)

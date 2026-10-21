@@ -100,17 +100,33 @@ teyitli borsa kapanışı değildir.
 Haftalık uygunluk aynı takvim haftasına aittir; son işlemin kaç saniye önce
 yapıldığını göstermez. Bu tarama da **CANLI / TEYİTSİZ** olarak gönderilir.
 
-## Gün içi Kesişim görselleri
+## LONG / SHORT tarama ve kesişim görselleri
+
+Her zaman diliminin kendi konusuna dört ayrı grup hazırlanabilir:
+normal **LONG**, normal **SHORT**, **aynı zaman diliminde tarama kesişimi LONG**
+ve **aynı zaman diliminde tarama kesişimi SHORT**. Normal grupta en az bir,
+aynı-dilim kesişiminde en az iki **farklı tarama kimliği** aynı yönde
+eşleşmelidir. İkinci bir zaman diliminin sinyali beklenmez. Bir hisse kendi
+tarama kanıtlarıyla iki yönde de bulunabilir; bu durum gizlenmez.
+
+Her grupta **en çok 20 hisse** vardır. Önce eşleşen farklı tarama sayısı,
+eşitlikte hisse kodu sıralaması kullanılır. Bu sayım başarı/getiri puanı
+değildir. 1–19 hisse varsa da görsel gelir; boş grup için boş görsel üretilmez.
+Gösterilen/toplam hisse sayısı ve CSV'de kalan sayı açıkça yazılır.
+630 hissenin tüm 18 tarama sonucu CSV/JSON'da korunur. Her görselin kendi
+teslim kimliği doğrulanmadan dönem tamamlandı sayılmaz.
 
 Otomatik tarama grubunun ardından, mevcut **Kesişim** konusuna kısa metin,
-**eşleşen hisselerin tamamını içeren sayfalı görseller** ve tam CSV gönderilir.
-Her görselde en fazla 20 hisse vardır; 45 hisse varsa üç görsel oluşur.
+ayrı **LONG** ve **SHORT** görselleri ve tam CSV gönderilir. Bu ayrı raporda da
+her yönde en fazla 20 hisse gösterilir; tüm uygun hisseler CSV'de kalır.
+Sıra önce zaman dilimi sayısı, sonra farklı tarama sayısı ve hisse kodudur.
 Kesişim yoksa bunu belirten metin ve boş sonuç CSV'si gelir.
 
 Aynı yönde en az iki farklı tarama bulunan en az iki zaman dilimi gerekir.
 Mum kapanış saatlerinin eşit olması gerekmez. Her dilimin son teslim edilmiş,
 aynı gerçek işlem seansına ait durumu kullanılır; gözlem yaşı dilim süresi
-+ 30 dakikayı aşamaz. Kaynağı eski, hatalı veya işlem sırası kapalı hisseler
++ 30 dakikayı aşamaz; bu yaş gönderim başlamadan önce yeniden kontrol edilir.
+Kaynağı eski, hatalı veya işlem sırası kapalı hisseler
 güncel oy vermez; eksik zaman dilimleri metinde görünür. Açık mum sonucu
 **CANLI / TEYİTSİZ** olarak kalır. Farklı planların Stop/TP seviyeleri
 birleştirilmez. Aynı kaynak paketleri tekrar görülürse tamamlanmış teslim

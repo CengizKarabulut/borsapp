@@ -27,6 +27,7 @@ from market_intelligence.scanning.display_codes import SCANNER_ORDER, scanner_co
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts import atc_live_snapshot as live
 from scripts.atc_live_multihour_frames import NATIVE_MULTIHOUR_GRIDS
+from scripts.atc_live_packet_contract import packet_files, verify_acknowledgements
 from scripts.atc_live_snapshot_frames import NATIVE_45M_GRID
 from scripts.atc_live_weekly_frames import NATIVE_WEEKLY_GRID, calendar_week_identity
 from scripts.atc_structure_report import atomic_json, canonical
@@ -73,11 +74,13 @@ def validate_packet(folder, tf, source, *, now, session, pinned, bindings, hashe
         raise ValueError("symlinked_source_packet")
     manifest_raw = (folder / "prepared-packet.json").read_bytes()
     manifest = _read(folder / "prepared-packet.json")
+    report = _read(folder / "live-snapshot.json")
+    names = packet_files(report)
     if (manifest.get("version") != live.VERSION
-            or set(manifest.get("files", {})) != set(live.FILES)
+            or set(manifest.get("files", {})) != set(names)
             or manifest.get("implementation_files") != hashes):
         raise ValueError("source_implementation_changed_refresh_timeframe")
-    for name in live.FILES:
+    for name in names:
         path = folder / name
         if path.is_symlink() or sha256(path.read_bytes()).hexdigest() != manifest["files"][name]:
             raise ValueError("source_packet_file_hash_changed")
@@ -86,10 +89,9 @@ def validate_packet(folder, tf, source, *, now, session, pinned, bindings, hashe
     acknowledged = receipt.get("acknowledged", {})
     if (receipt.get("status") != "sent" or receipt.get("packet_sha256") != packet_hash
             or receipt.get("chat_id") != live.CHAT or receipt.get("topic_id") != live.TOPICS[tf]
-            or set(acknowledged) != {"text", "photo", "csv"}
             or any(type(value) is not int or value <= 0 for value in acknowledged.values())):
         raise ValueError("acknowledged_source_packet_required")
-    report = _read(folder / "live-snapshot.json")
+    verify_acknowledgements(report, receipt)
     rows = report.get("rows", [])
     if (report.get("version") != live.VERSION or report.get("timeframe") != tf
             or report.get("provisional") is not True or report.get("confirmed_store_writes") != 0
@@ -192,6 +194,17 @@ def _frame_codes(item):
                      for tf, part in item["timeframes"].items())
 
 
+def image_groups(items):
+    result = []
+    for direction, label in (("bullish", "LONG"), ("bearish", "SHORT")):
+        group = [item for item in items if item["direction"] == direction]
+        if group:
+            result.append({"direction": direction, "label": label, "total_stock_count": len(group),
+                "stock_count": min(len(group), PAGE_SIZE), "omitted_stock_count": max(0, len(group) - PAGE_SIZE),
+                "stocks": group[:PAGE_SIZE]})
+    return result
+
+
 def render_text(report):
     lines = ["ATC KESİŞİM | CANLI / TEYİTSİZ",
         "Son bilinen durumların ortak görünümü; kapanış zamanlarının aynı olması aranmaz.",
@@ -210,7 +223,10 @@ def render_text(report):
     elif not report["intersections"]:
         lines.append("Bu görüntüde koşulları sağlayan kesişim bulunmadı.")
     else:
-        lines.append(f"{len(report['intersections'])} hisse · tamamı {report['image_pages']} görselde ve CSV'de.")
+        lines.append(f"{len(report['intersections'])} hisse · LONG ve SHORT ayrı; her grupta en çok 20 · tam liste CSV'de.")
+        for group in report["image_groups"]:
+            lines.append(f"{group['label']}: {group['stock_count']}/{group['total_stock_count']} görselde.")
+        lines.append("Sıra: zaman dilimi sayısı, farklı tarama sayısı, hisse kodu; başarı puanı değildir.")
     lines.append("Açık mum koşulları değişebilir. Kesişim sayısı başarı olasılığı değildir; emir veya ortak Stop/TP planı üretilmez.")
     text = "\n".join(lines)
     if len(text) > 4000:
@@ -238,18 +254,17 @@ def render_csv(report):
 def render_pages(report):
     from PIL import Image, ImageDraw
 
-    items = report["intersections"]
     pages = []
-    for offset in range(0, len(items), PAGE_SIZE):
-        group = items[offset:offset + PAGE_SIZE]
+    for page_number, lane in enumerate(report["image_groups"], 1):
+        group = lane["stocks"]
         wrapped = [textwrap.wrap(_frame_codes(item), width=95, break_long_words=False) or [""] for item in group]
         heights = [max(66, 26 * len(lines) + 24) for lines in wrapped]
         image = Image.new("RGB", (1840, 270 + sum(heights)), "#F1F5F9")
         draw = ImageDraw.Draw(image)
         draw.rectangle((0, 0, 1840, 95), fill="#112E4A")
-        draw.text((30, 22), "ATC KESİŞİM · CANLI / TEYİTSİZ", font=_font(29, bold=True), fill="white")
-        draw.text((30, 65), f"{report['session']} · Son bilinen durumlar · {len(items)} hisse · "
-                  f"Sayfa {offset // PAGE_SIZE + 1}/{report['image_pages']}", font=_font(18), fill="white")
+        draw.text((30, 22), f"ATC KESİŞİM · {lane['label']} · CANLI / TEYİTSİZ", font=_font(29, bold=True), fill="white")
+        draw.text((30, 65), f"{report['session']} · Son bilinen durumlar · {lane['stock_count']}/{lane['total_stock_count']} hisse · "
+                  f"Görsel {page_number}/{report['image_pages']}", font=_font(18), fill="white")
         for x, title in ((30, "HİSSE"), (190, "YÖN"), (330, "ZAMAN DİLİMLERİ"), (770, "HER DİLİMDE TARAMA KODLARI")):
             draw.text((x, 125), title, font=_font(19, bold=True), fill="#52697F")
         y = 165
@@ -264,7 +279,7 @@ def render_pages(report):
             y += height
         draw.text((30, image.height - 74), "Her dilimde ≥2 aynı yönlü tarama · ≥2 dilim · eşit kapanış zamanı gerekmez.",
                   font=_font(19), fill="#52697F")
-        draw.text((30, image.height - 42), "Tüm hisseler görsellerde ve CSV'de. Başarı olasılığı, emir veya Stop/TP planı değildir.",
+        draw.text((30, image.height - 42), "Her yönde en çok 20 hisse; tamamı CSV'de. Başarı olasılığı, emir veya Stop/TP planı değildir.",
                   font=_font(18), fill="#52697F")
         output = io.BytesIO()
         image.save(output, format="PNG")
@@ -307,7 +322,7 @@ def prepare_report(packets_dir, sources_manifest, output_dir, *, now=None, bindi
         "criteria": {"same_direction_rules_per_timeframe": 2, "same_direction_timeframes": 2,
                      "equal_close_timestamps_required": False, "direction_ties_excluded": True},
         "inputs": inputs, "source_states": states, "intersections": ranked,
-        "image_pages": (len(ranked) + PAGE_SIZE - 1) // PAGE_SIZE,
+        "image_groups": image_groups(ranked), "image_pages": len(image_groups(ranked)),
         "stop_tp_plans_mixed": False, "confirmed_store_writes": 0, "orders_sent": 0}
     report["source_set_sha256"] = sha256(canonical({
         tf: inputs[tf]["packet_sha256"] for tf in sorted(by_tf)}).encode()).hexdigest()
@@ -338,7 +353,9 @@ def publish_report(folder, *, now=None, environ=None, transport=None, previous_r
         raise ValueError("intersection_implementation_changed")
     report = _read(folder / BASE_FILES[0])
     pages = report.get("image_pages")
-    if type(pages) is not int or not 0 <= pages <= 32:
+    if (type(pages) is not int or not 0 <= pages <= 2
+            or report.get("image_groups") != image_groups(report.get("intersections", []))
+            or pages != len(report["image_groups"])):
         raise ValueError("invalid_intersection_page_count")
     expected = {*BASE_FILES, *(f"intersections-{index:03}.png" for index in range(1, pages + 1))}
     if set(manifest.get("files", {})) != expected:
@@ -359,9 +376,11 @@ def publish_report(folder, *, now=None, environ=None, transport=None, previous_r
     payloads = {"text": {"text": (folder / BASE_FILES[1]).read_text(encoding="utf-8")}}
     for index in range(1, pages + 1):
         name = f"intersections-{index:03}.png"
+        group = report["image_groups"][index - 1]
         payloads[f"photo-{index:03}"] = {"_method": "sendPhoto",
             "photo_base64": base64.b64encode((folder / name).read_bytes()).decode("ascii"),
-            "filename": name, "caption": f"CANLI / TEYİTSİZ · {len(report['intersections'])} kesişim hissesi · sayfa {index}/{pages} · tüm liste CSV'de."}
+            "filename": name, "caption": f"{group['label']} · CANLI / TEYİTSİZ · "
+                f"{group['stock_count']}/{group['total_stock_count']} kesişim hissesi · en çok 20 · tüm liste CSV'de."}
     payloads["csv"] = {"_method": "sendDocument",
         "document_base64": base64.b64encode((folder / BASE_FILES[2]).read_bytes()).decode("ascii"),
         "filename": "ATC_KESISIM_CANLI_TEYITSIZ.csv", "caption": "Tüm uygun hisseler · kaynak gözlemleri · CANLI / TEYİTSİZ · ortak Stop/TP veya emir değildir."}
@@ -386,6 +405,14 @@ def publish_report(folder, *, now=None, environ=None, transport=None, previous_r
             or set(receipt["acknowledged"]) - set(payloads)
             or any(type(value) is not int or value <= 0 for value in receipt["acknowledged"].values())):
         raise ValueError("intersection_receipt_identity_changed")
+    for tf, lane in report.get("inputs", {}).items():
+        if lane.get("status") == "included":
+            source_start = live.aware(datetime.fromisoformat(lane["observation_start"]))
+            source_end = live.aware(datetime.fromisoformat(lane["observation_end"]))
+            limit = CADENCE_MINUTES[tf] + 30
+            if (lane.get("maximum_age_minutes") != limit or not source_start <= source_end <= now
+                    or now - source_start > timedelta(minutes=limit)):
+                raise ValueError("intersection_source_observation_expired")
     sender = transport if transport is not None else live.HttpxTelegramTransport(env["TELEGRAM_BOT_TOKEN"])
     receipt.update(version=VERSION, source_set_sha256=source_set, expected_acknowledgements=list(payloads))
     for key, payload in payloads.items():
