@@ -96,9 +96,13 @@ class TvDatafeedBistProvider(BorsapyProvider):
         return self._provider_frame(request, symbol, bars[-request.bars:])
 
     def fetch_native_multihour(self, request: FetchRequest) -> ProviderFrame:
-        """Preserve authentic native 120/240 minute bars and auction-inclusive ends."""
-        if request.timeframe not in (Timeframe.H2, Timeframe.H4):
-            raise ValueError("Native-multihour access supports only explicit 2h/4h requests")
+        """Preserve actual native intraday OHLCV, including opening/closing auctions.
+
+        Compatibility name retained; confirmed ``fetch`` keeps its existing
+        regular-session contract. Only explicit RAM access is extended here.
+        """
+        if request.timeframe not in (Timeframe.M15, Timeframe.M30, Timeframe.H1, Timeframe.H2, Timeframe.H4):
+            raise ValueError("Native-multihour access supports only explicit 15m/30m/1h/2h/4h requests")
         if type(request.bars) is not int or not 1 <= request.bars <= 5000:
             raise ValueError("Native-multihour bars must be between 1 and 5000")
         symbol, frame = self._download(request, native_grid=True)

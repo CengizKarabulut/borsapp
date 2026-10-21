@@ -164,7 +164,8 @@ def live_vendor_chain(timeframe):
         return (BorsapyNative45Provider(), TvDatafeedBistProvider())
     if parse_timeframe(timeframe) is Timeframe.W1:
         return (BorsapyNativeWeeklyProvider(), TvDatafeedBistProvider())
-    if parse_timeframe(timeframe) in (Timeframe.H2, Timeframe.H4):
+    if parse_timeframe(timeframe) in (Timeframe.M15, Timeframe.M30, Timeframe.H1,
+                                     Timeframe.H2, Timeframe.H4):
         return (BorsapyNativeMultihourProvider(), TvDatafeedBistProvider())
     return vendor_chain()
 

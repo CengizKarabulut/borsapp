@@ -49,8 +49,8 @@ class LiveSourceRecoveryTests(unittest.TestCase):
             providers = live.live_vendor_chain("1wk")
         self.assertTrue(all(callable(provider.fetch_native_weekly) for provider in providers))
 
-    def test_multihour_production_never_falls_back_to_hourly_assembly(self):
-        for timeframe in ("2h", "4h"):
+    def test_intraday_production_never_falls_back_to_filtered_or_assembled_candles(self):
+        for timeframe in ("15m", "30m", "1h", "2h", "4h"):
             with self.subTest(timeframe=timeframe), patch.object(live, "vendor_chain",
                     side_effect=AssertionError("hourly assembly forbidden")):
                 providers = live.live_vendor_chain(timeframe)

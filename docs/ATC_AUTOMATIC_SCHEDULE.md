@@ -12,6 +12,9 @@ Planlayıcı BIST takvimini ve gerçek seans sınırlarını kullanır. Her teti
 bütün zaman dilimlerini yeniden yayımlamaz; yalnız o anda vadesi gelen,
 teslim edildiği doğrulanmamış en son dönemi seçer.
 
+Tam sekiz dilimlik gönderimde bütün dilimler ayrı runner'larda paralel
+çalışabilir; her dilimde veri isteği sayısı iki işçiyle sınırlı kalır.
+
 | Zaman dilimi | Normal tam seansta nominal kontrol | Gidilecek mevcut Telegram konusu |
 | --- | --- | --- |
 | 15 dakika | 10:22–17:52 arasında 15 dakikada bir; son kontrol 18:30 | 15 dakika |
@@ -83,6 +86,12 @@ bitişi sırasıyla 19:00 / 21:00 olarak korunur. Bu saatler borsanın o saate
 kadar işlem yaptığı anlamına gelmez. Seyrek saatlik mumlar birleştirilmez,
 eksik fiyat/hacim üretilmez. Geçmiş yarım seansların kaynak gridi ayrıca
 gerçek takvim ve korunmuş 09:30 etiketleriyle kontrol edilir.
+
+15 dakika, 30 dakika ve saatlik taramalar da gerçek kaynak mumlarını
+doğrudan kullanır. Sabah ve kapanış müzayedesi mumları korunur; gerçek
+18:00 mumu varsa son fiyat ve hacim bu mumdan gelir. Müzayede mumu
+gelmeyen hissede yalnız gerçek normal seans kapanışı açık durum etiketiyle
+korunur. Fiyat, hacim veya müzayede mumu üretilmez.
 
 Haftalık OHLCV de kaynağın gerçek `1W` mumundan okunur. Kaynak zaman etiketi
 tatil haftasında pazartesi veya başka bir gün olabilir; değiştirilmez ve

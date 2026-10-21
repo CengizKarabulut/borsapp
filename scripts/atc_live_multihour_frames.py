@@ -1,8 +1,8 @@
-"""Actual native 2h/4h OHLCV, including sparse auction observations, RAM only.
+"""Actual native intraday OHLCV including sparse auction observations, RAM only.
 
-The provider uses a 09:00 grid, not the 10:00 grid of H1 aggregation. Preserve
-actual rows and their full nominal 120/240-minute ends (19:00/21:00 for 17:00
-opens). Nominal ends and provider flags do not establish exchange confirmation
+The compatibility module/function names also serve native 15m/30m/1h rows.
+Preserve real opening/closing auctions and full nominal interval ends, including
+19:00/21:00 for 2h/4h 17:00 opens. These times do not establish confirmation
 or the last trade time. Missing source intervals are never filled or spliced.
 """
 from __future__ import annotations
@@ -26,9 +26,15 @@ from scripts.atc_live_snapshot_frames import (
 )
 
 NATIVE_MULTIHOUR_GRIDS = {
+    Timeframe.M15: "tradingview_native_15m_0945_grid_including_auctions",
+    Timeframe.M30: "tradingview_native_30m_0930_grid_including_auctions",
+    Timeframe.H1: "tradingview_native_1h_09_grid_including_auctions",
     Timeframe.H2: "tradingview_native_2h_09_grid_including_auctions",
     Timeframe.H4: "tradingview_native_4h_09_grid_including_auctions",
 }
+NATIVE_INTRADAY_GRIDS = NATIVE_MULTIHOUR_GRIDS
+REGULAR_ANCHORS = {Timeframe.M15: (9, 45), Timeframe.M30: (9, 30),
+                   Timeframe.H1: (9, 0), Timeframe.H2: (9, 0), Timeframe.H4: (9, 0)}
 SHORT_GRID_EVIDENCE_DATES = ("2025-10-28", "2026-03-19", "2026-05-26")
 
 
@@ -69,12 +75,14 @@ def expected_multihour_context(now, target, sessions):
     """Latest report session, plus its true provider native period label."""
     target = parse_timeframe(target)
     if target not in NATIVE_MULTIHOUR_GRIDS:
-        raise ValueError("Native-multihour supports only 2h/4h")
+        raise ValueError("Native-multihour supports only 15m/30m/1h/2h/4h")
     boundary = now.replace(hour=9, minute=45, second=0, microsecond=0)
     if now.date() in sessions and now >= boundary:
         session = now.date()
-        first = now.replace(hour=9, minute=0, second=0, microsecond=0)
-        cursor = min(now, first.replace(hour=17))
+        hour, minute = REGULAR_ANCHORS[target]
+        first = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        final_hour = 18 if target.minutes <= 60 else 17
+        cursor = min(now, first.replace(hour=final_hour, minute=0))
         duration = timedelta(minutes=target.minutes)
         opened = first + ((cursor - first) // duration) * duration
     else:
@@ -82,7 +90,7 @@ def expected_multihour_context(now, target, sessions):
         if not previous:
             raise ValueError("No previous BIST session in native-multihour calendar")
         session = max(previous)
-        opened = datetime.combine(session, datetime.min.time(), ISTANBUL).replace(hour=17)
+        opened = datetime.combine(session, datetime.min.time(), ISTANBUL).replace(hour=18 if target.minutes <= 60 else 17)
     return session, opened, opened + timedelta(minutes=target.minutes)
 
 
@@ -90,10 +98,10 @@ def prepare_native_multihour(provider, member, *, timeframe, observed_at, clock,
     """One actual source/resolution/basis; never H1 synthesis or confirmed data."""
     target = parse_timeframe(timeframe)
     if target not in NATIVE_MULTIHOUR_GRIDS:
-        raise ValueError("Native-multihour supports only 2h/4h")
+        raise ValueError("Native-multihour supports only 15m/30m/1h/2h/4h")
     fetch = getattr(provider, "fetch_native_multihour", None)
     if not callable(fetch):
-        raise ValueError("Live 2h/4h snapshots require explicit native-multihour access")
+        raise ValueError("Live intraday snapshots require explicit native-multihour access")
     observed_at = _aware(observed_at)
     initial_sessions = _session_days(observed_at.year - 1, observed_at.year + 1)
     _, _, cutoff = expected_multihour_context(observed_at, target, initial_sessions)
@@ -124,13 +132,14 @@ def prepare_native_multihour(provider, member, *, timeframe, observed_at, clock,
             raise ValueError("Native-multihour candle starts after actual receipt")
         if opened.date() not in sessions:
             raise ValueError("Native-multihour candle starts on a non-session date")
-        first = opened.replace(hour=9, minute=0, second=0, microsecond=0)
-        final = first.replace(hour=17)
+        hour, minute = REGULAR_ANCHORS[target]
+        first = opened.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        final = first.replace(hour=18 if target.minutes <= 60 else 17, minute=0)
         if opened.date() in nonregular:
             if opened.date() not in halfdays or opened.date() >= received_at.date():
                 raise ValueError("Unsupported historical shortened-session native-multihour grid")
-            first = first.replace(minute=30)
-            final = first.replace(hour=11 if target is Timeframe.H2 else 9)
+            first = first.replace(hour=9, minute=30)
+            final = first.replace(hour=12 if target.minutes <= 60 else 11 if target is Timeframe.H2 else 9)
             short_dates.add(opened.date())
         if not first <= opened <= final or (opened - first) % duration:
             raise ValueError("Provider supplied a shifted native-multihour candle")
@@ -151,9 +160,21 @@ def prepare_native_multihour(provider, member, *, timeframe, observed_at, clock,
     during_session = received_at.date() in sessions and first_today <= received_at < auction_end
     native_age = max(0.0, (received_at - latest.close_time).total_seconds())
     same_session = latest.open_time.date() == session
-    usable = same_session and (native_age <= MAX_LATEST_NATIVE_AGE_MINUTES * 60 if during_session else current)
+    # Absence of an actual closing-auction candle is not permission to invent
+    # one. After the auction window, the real regular close is a valid final
+    # observation when its native end is exactly18:00. Earlier sparse rows stay
+    # stale. Keep its actual start/end and disclose the missing auction row.
+    auction_open = expected_open.replace(hour=18, minute=0, second=0, microsecond=0)
+    auction_observed = any(bar.open_time == auction_open for bar in selected)
+    regular_close_no_auction = (target.minutes <= 60 and not during_session and same_session
+        and not auction_observed and latest.open_time == auction_open - duration
+        and latest.close_time == auction_open)
+    usable = same_session and (native_age <= MAX_LATEST_NATIVE_AGE_MINUTES * 60 if during_session
+                              else current or regular_close_no_auction)
     status = ("stale_previous_session" if not same_session else "stale_previous_bucket" if not current
               else "native_nominally_open" if nominal_open else "latest_native_observation")
+    if regular_close_no_auction:
+        status = "last_regular_close_without_auction"
     identity = stable_hash({"kind": "ATC_UNPERSISTED_NATIVE_MULTIHOUR_WHAT_IF_V1",
         "source_grid": NATIVE_MULTIHOUR_GRIDS[target], "instrument_id": member.instrument_id,
         "symbol": member.symbol, "timeframe": target, "source": raw.provider,
@@ -165,6 +186,9 @@ def prepare_native_multihour(provider, member, *, timeframe, observed_at, clock,
         "quality": QUALITY, "status": status, "source_grid": NATIVE_MULTIHOUR_GRIDS[target],
         "current_bucket": current, "usable_latest": usable, "target_bucket_present": current,
         "current_native_bucket": current, "expected_market_session": session.isoformat(),
+        "closing_auction_candle_observed": auction_observed if target.minutes <= 60 else None,
+        "closing_observation_basis": "last_regular_close_without_auction_candle" if regular_close_no_auction
+            else "actual_native_source_candle",
         "native_bar_time_basis": "provider_nominal_interval_not_last_trade",
         "actual_bar_is_open": None, "actual_bar_confirmation": "unknown",
         "nominally_open": nominal_open, "temporally_open": nominal_open,
@@ -185,11 +209,11 @@ def prepare_native_multihour(provider, member, *, timeframe, observed_at, clock,
         "session_truncated_bucket": False, "source": raw.provider,
         "price_basis": raw.price_basis.value, "persisted": False,
         "calendar_version": ExchangeCalendarsXist().version,
-        "session_schedule": f"Actual native {target.value} 09:00-17:00 opens including auctions; nominal ends are not last-trade times",
+        "session_schedule": f"Actual native {target.value} grid including auctions; nominal ends are not last-trade times",
         "nonregular_history_dates": [day.isoformat() for day in sorted(short_dates)],
         "historical_nonregular_close_times_nominal": bool(short_dates),
         "historical_nonregular_native_grid_policies": [
-            {"session": day.isoformat(), "anchor": "09:30", "last_open": "11:30" if target is Timeframe.H2 else "09:30",
+            {"session": day.isoformat(), "anchor": "09:30", "last_open": "12:30" if target.minutes <= 60 else "11:30" if target is Timeframe.H2 else "09:30",
              "policy": "calendar_certified_historical_1230_halfday_observed_native_0930_grid",
              **halfdays[day], "calendar_version": ExchangeCalendarsXist().version,
              "grid_evidence_dates": list(SHORT_GRID_EVIDENCE_DATES),
