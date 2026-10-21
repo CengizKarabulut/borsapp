@@ -237,6 +237,17 @@ class PreparedPublicationTests(unittest.TestCase):
         self.assertTrue(all(row["PivotDestek3"] and row["PivotDirenc3"] for row in data))
         self.assertIn("YapisalDestekAciklamasi", data[0])
         self.assertNotIn("bars", self.packet)
+        pages = self.packet["image_pages"]
+        self.assertEqual(len(pages), 32)
+        self.assertEqual([symbol for page in pages for symbol in page["symbols"]], sorted(self.symbols))
+        self.assertTrue(all(1 <= len(page["symbols"]) <= 20 for page in pages))
+        self.assertEqual(len(pages[-1]["symbols"]), 10)
+        for page in pages:
+            self.assertTrue((self.folder / page["filename"]).exists())
+        text = (self.folder / "summary.txt").read_text(encoding="utf-8")
+        self.assertIn("Yöntem 1", text)
+        self.assertIn("Yöntem 2", text)
+        self.assertLessEqual(len(text), 4096)
 
     def test_only_missing_sources_are_retried_without_discarding_successes(self):
         calls = []
@@ -291,12 +302,16 @@ class PreparedPublicationTests(unittest.TestCase):
 
     def test_publish_uses_exact_prepared_files_and_does_not_refetch(self):
         transport = Mock()
-        transport.send.side_effect = [101, 102, 103]
+        transport.send.side_effect = range(101, 200)
         with patch.object(report, "vendor_chain", side_effect=AssertionError("must not fetch")):
             receipt = report.publish_report(self.folder, now=NOW, transport=transport, environ=ENV)
         self.assertEqual(receipt["status"], "sent")
-        self.assertEqual(receipt["acknowledged"], {"text": 101, "photo": 102, "csv": 103})
-        self.assertEqual(transport.send.call_count, 3)
+        expected = ["text", *(f"photo-{index:03}" for index in range(1, 33)), "csv"]
+        self.assertEqual(list(receipt["acknowledged"]), expected)
+        self.assertEqual(receipt["expected_acknowledgements"], expected)
+        self.assertEqual(transport.send.call_count, 34)
+        self.assertEqual(transport.send.call_args_list[-2].kwargs["payload"]["filename"],
+                         "ATC_Destek_Direnc_Pivot_032.png")
         for call in transport.send.call_args_list:
             self.assertEqual(call.kwargs["chat_id"], report.CHAT)
             self.assertEqual(call.kwargs["message_thread_id"], 8)
@@ -309,12 +324,40 @@ class PreparedPublicationTests(unittest.TestCase):
         receipt = json.loads((self.folder / "delivery.json").read_bytes())
         self.assertEqual(receipt["acknowledged"], {"text": 101})
         next_transport = Mock()
-        next_transport.send.side_effect = [102, 103]
+        next_transport.send.side_effect = range(102, 200)
         report.publish_report(self.folder, now=NOW, transport=next_transport, environ=ENV)
-        self.assertEqual(next_transport.send.call_count, 2)
+        self.assertEqual(next_transport.send.call_count, 33)
         repeat = Mock()
         report.publish_report(self.folder, now=NOW, transport=repeat, environ=ENV)
         repeat.send.assert_not_called()
+
+    def test_halted_and_unavailable_symbols_are_not_dropped_from_image_pages(self):
+        rows = copy.deepcopy(self.packet["rows"][:42])
+        rows[0]["status"] = "source_unavailable"
+        rows[-1]["status"] = "official_halt_reference"
+        pages = report.image_pages(rows)
+        self.assertEqual([symbol for page in pages for symbol in page["symbols"]],
+                         sorted(row["symbol"] for row in rows))
+        self.assertEqual([len(page["symbols"]) for page in pages], [20, 20, 2])
+
+    def test_missing_final_page_is_rejected_before_any_send(self):
+        (self.folder / self.packet["image_pages"][-1]["filename"]).unlink()
+        sender = Mock()
+        with self.assertRaises(FileNotFoundError):
+            report.publish_report(self.folder, now=NOW, transport=sender, environ=ENV)
+        sender.send.assert_not_called()
+
+    def test_tampered_page_cannot_hide_a_symbol_even_with_updated_file_hash(self):
+        value = json.loads((self.folder / "report.json").read_bytes())
+        value["image_pages"][-1]["symbols"].pop()
+        report.atomic_json(self.folder / "report.json", value)
+        manifest = json.loads((self.folder / "manifest.json").read_bytes())
+        manifest["files"]["report.json"] = sha256((self.folder / "report.json").read_bytes()).hexdigest()
+        report.atomic_json(self.folder / "manifest.json", manifest)
+        sender = Mock()
+        with self.assertRaisesRegex(ValueError, "image_page_coverage"):
+            report.publish_report(self.folder, now=NOW, transport=sender, environ=ENV)
+        sender.send.assert_not_called()
 
     def test_changed_prepared_text_stops_before_any_message(self):
         (self.folder / "summary.txt").write_text("changed", encoding="utf-8")

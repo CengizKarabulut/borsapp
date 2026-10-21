@@ -131,10 +131,11 @@ bu sonuçların niteliği teyitli kapanış olarak değiştirilmez.
 tatil/hafta sonu aralığında önceki gerçek işlem seansının kapanışı kullanılır.
 Bu günlük rapor, sekiz zaman diliminin tarama sıklığıyla değişmez.
 
-- CSV/JSON **630 kodun tamamını** içerir. Kısa görsel, önceki kapanış × hacme
-  göre ilk 20 hisseyi gösterir; yalnız 20 hisse tarandığı anlamına gelmez.
+- CSV/JSON ve **32 alfabetik görsel 630 kodun tamamını** içerir. Her görselde
+  en fazla 20 hisse, son sayfada 10 hisse vardır. Kaynağı bulunamayan veya
+  işlem sırası kapalı hisse de durum etiketiyle görselde kalır.
 - Ana merdiven önceki kapanmış günlük mumun yüksek/düşük/kapanışından
-  hesaplanan **klasik P, S1/S2/S3 ve R1/R2/R3** seviyeleridir. Böylece veri
+  hesaplanan **geleneksel (Traditional) P, S1/S2/S3 ve R1/R2/R3** seviyeleridir. Böylece veri
   uygunsa her hissede üç destek ve üç direnç referansı bulunur. Bunlar
   pivotun çevresindeki matematiksel seviyelerdir; son fiyatın mutlaka
   tamamının arasında olduğu veya tüm seviyelerin ayrı olduğu söylenmez.

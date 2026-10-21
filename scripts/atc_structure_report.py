@@ -32,11 +32,12 @@ from scripts.atc_support_resistance import build_support_resistance
 from scripts.atc_telegram_briefings import last_closed_session, pivot_levels
 from scripts.atc_universe_seed import load_pinned
 
-VERSION = "atc-closed-daily-structure-v2"
+VERSION = "atc-closed-daily-structure-v3-all-images"
 IST = ZoneInfo("Europe/Istanbul")
 CHAT = -1004439315048
 TOPIC = 8
 FILES = ("report.json", "report.csv", "summary.txt", "summary.png")
+PAGE_SIZE = 20
 MIN_COVERAGE = 0.90
 IMPLEMENTATION_FILES = ("atc_structure_report.py", "atc_support_resistance.py", "atc_telegram_briefings.py",
                         "atc_pivot_ladder.py", "atc_market_status.py")
@@ -176,6 +177,24 @@ def ranked(rows):
                   key=lambda row: (-(row.get("turnover") or 0), row["symbol"]))
 
 
+def image_pages(rows):
+    """Alphabetical, complete coverage including unavailable and halted rows."""
+    symbols = sorted(row["symbol"] for row in rows)
+    if not symbols or len(symbols) != len(set(symbols)):
+        raise ValueError("unique_image_symbols_required")
+    return [{"index": index + 1,
+             "filename": "summary.png" if index == 0 else f"levels-{index + 1:03}.png",
+             "symbols": symbols[start:start + PAGE_SIZE]}
+            for index, start in enumerate(range(0, len(symbols), PAGE_SIZE))]
+
+
+def prepared_filenames(report):
+    pages = image_pages(report["rows"])
+    if report.get("image_pages") != pages:
+        raise ValueError("complete_image_page_coverage_required")
+    return (*FILES, *(page["filename"] for page in pages[1:]))
+
+
 def render_summary(report):
     counts = report["counts"]
     lines = ["ATC | Günlük 3 destek / 3 direnç ve pivot",
@@ -185,8 +204,13 @@ def render_summary(report):
         f"Formül kademesi hazır {counts['ladder_ready']} · düz seans {counts['flat_ladder']} · "
         f"geçersiz kademe {counts['invalid_ladder']}",
         "Ana tablo: önceki kapalı seans H/L/C ile geleneksel pivot S1–S2–S3 / R1–R2–R3.",
-        "Geçmişten teyitli D/R ayrı CSV sütunlarında; bu alanlarda 0–3 seviye bulunabilir.",
-        "Görselde önceki seans kapanış × hacme göre ilk 20; tüm 630 hisse CSV'de."]
+        "Tüm 630 hisse alfabetik görsellerde; sayfa başına en çok 20 hisse. Tam değerler CSV'de.",
+        "Yöntem 1 · Geleneksel (Traditional) pivot: H=önceki seans yüksek, L=düşük, K=kapanış.",
+        "P=(H+L+K)/3; S1=2P−H, S2=P−(H−L), S3=L−2(H−P).",
+        "R1=2P−L, R2=P+(H−L), R3=H+2(P−L).",
+        "Yöntem 2 · Yapısal D/R: son 120 kapalı günlük mum; dönüşün iki yanında 3'er kapalı mum.",
+        "Kapanışın altında/üstünde en yakın 3 ayrı seviye; aralarında kapanışın %1'inden fazla fark aranır.",
+        "Yapısal seviyeler ayrı CSV sütunlarında; bu yöntemde 0–3 seviye bulunabilir."]
     lines.append(f"Resmî işlem durması {counts.get('halted', 0)} · son gerçek kapanış referansı güncel mum sayılmaz.")
     halted_rows = [row for row in report["rows"] if row["status"] == "official_halt_reference"]
     for row in halted_rows[:3]:
@@ -245,35 +269,48 @@ def csv_report(report):
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 
-def render_png(report):
+def render_png(report, *, symbols=None, page=1, pages=None):
     from PIL import Image, ImageDraw
 
     from scripts.atc_timeframe_visuals import _font
-    rows = ranked(report["rows"])[:20]
-    image = Image.new("RGB", (1840, 350 + 46 * max(1, len(rows))), "#F1F5F9")
+    by_symbol = {row["symbol"]: row for row in report["rows"]}
+    chosen = sorted(by_symbol)[:PAGE_SIZE] if symbols is None else list(symbols)
+    if not chosen or len(chosen) > PAGE_SIZE or len(chosen) != len(set(chosen)):
+        raise ValueError("image_page_requires_1_to_20_unique_symbols")
+    rows = [by_symbol[symbol] for symbol in chosen]
+    pages = pages or len(image_pages(report["rows"]))
+    image = Image.new("RGB", (1840, 390 + 58 * len(rows)), "#F1F5F9")
     draw = ImageDraw.Draw(image)
     draw.rectangle((0, 0, 1840, 100), fill="#112E4A")
     draw.text((35, 30), "ATC | 3 DESTEK / 3 DİRENÇ + GELENEKSEL PİVOT", fill="white", font=_font(27, bold=True))
     draw.text((35, 120), f"{report['previous_session']} kapanışı · "
-        f"{report['counts']['fresh']}/630 veri · Kapanış × hacimde ilk 20", fill="#112E4A", font=_font(22))
-    draw.text((35, 150), f"Resmî işlem durması: {report['counts'].get('halted', 0)} · "
-        "son gerçek kapanış referansı CSV'de; güncel kapanış değildir.", fill="#52697F", font=_font(17))
-    columns = ((35, "HİSSE"), (240, "KAPANIŞ"), (440, "S1"), (640, "S2"),
-        (840, "S3"), (1040, "R1"), (1240, "R2"), (1440, "R3"), (1640, "PİVOT"))
+        f"Sayfa {page}/{pages} · {len(rows)} / {report['symbol_count']} hisse · TL", fill="#112E4A", font=_font(22))
+    draw.text((35, 153), "Alfabetik liste · Formül: önceki kapanmış günlük mumun H/L/K değerleri · Anlık fiyat değildir.",
+        fill="#52697F", font=_font(17))
+    columns = ((35, "HİSSE"), (240, "KAPANIŞ"), (440, "S3"), (640, "S2"),
+        (840, "S1"), (1040, "PİVOT"), (1240, "R1"), (1440, "R2"), (1640, "R3"))
     for x, title in columns:
-        draw.text((x, 175), title, fill="#52697F", font=_font(18, bold=True))
+        draw.text((x, 190), title, fill="#52697F", font=_font(18, bold=True))
     for i, row in enumerate(rows):
-        y = 215 + i * 46
+        y = 225 + i * 58
         if i % 2 == 0:
-            draw.rectangle((24, y, 1816, y + 44), fill="white")
+            draw.rectangle((24, y, 1816, y + 56), fill="white")
         ladder = row["pivot_ladder"]
         values = [row["symbol"], price(row.get("close"))]
-        values += [price(ladder.get(key)) for key in ("S1", "S2", "S3", "R1", "R2", "R3", "P")]
+        values += [price(ladder.get(key)) for key in ("S3", "S2", "S1", "P", "R1", "R2", "R3")]
         for (x, _), value in zip(columns, values, strict=True):
             draw.text((x, y + 10), value, fill="#112E4A", font=_font(18, bold=x == 35))
-    y = image.height - 105
-    draw.text((35, y), "Formül kademeleri: önceki kapalı seans H/L/C. Düz seansta seviyeler çakışabilir.", fill="#52697F", font=_font(19))
-    draw.text((35, y + 35), "Tüm 630 hisse ve geçmişten teyitli D/R ayrı sütunlarla CSV'de. Stop/TP değildir.", fill="#52697F", font=_font(19))
+        note = ("KAYNAK YOK" if row["status"] == "source_unavailable" else
+                "İŞLEM DURMASI" if row["status"] == "official_halt_reference" else
+                "DÜZ SEANS" if ladder.get("status") == "flat_session_coincident_levels" else "")
+        if note:
+            draw.text((35, y + 35), note, fill="#8A5015", font=_font(13))
+        if row["status"] == "official_halt_reference":
+            draw.text((240, y + 35), f"Ref. {row.get('reference_session', '—')}", fill="#8A5015", font=_font(13))
+    y = image.height - 125
+    draw.text((35, y), "Geleneksel pivot: P=(H+L+K)/3; S1–S3 destek, R1–R3 direnç referanslarıdır.", fill="#52697F", font=_font(19))
+    draw.text((35, y + 32), "Yapısal D/R ayrıca CSV'de: son 120 günlük mum, 3 sol + 3 sağ teyidi, %1 seviye ayrımı.", fill="#52697F", font=_font(18))
+    draw.text((35, y + 64), "—: veri/geçerli seviye yok. Düz seansta seviyeler çakışabilir. Stop/TP değildir.", fill="#52697F", font=_font(18))
     output = io.BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()
@@ -327,6 +364,7 @@ def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read
         "expected_symbols": 630, "symbol_count": len(rows), "counts": counts, "rows": rows,
         "support_method": "confirmed_120_3_3_pivots", "classic_method": "previous_session_HLC_floor",
         "primary_method": "traditional_previous_session_hlc",
+        "image_pages": image_pages(rows), "image_page_size": PAGE_SIZE,
         "source_retry_limit": retries, "source_retry_attempts": sum(value - 1 for value in attempts.values()),
         "stop_tp_changed": False, "calibration_used": False, "research_zone_model_used": False,
         "independent_corporate_action_validation": False}
@@ -334,10 +372,12 @@ def prepare_report(output_dir, *, now=None, workers=2, symbols=None, reader=read
     atomic_json(output_dir / "report.json", report)
     (output_dir / "report.csv").write_bytes(csv_report(report))
     (output_dir / "summary.txt").write_text(render_summary(report), encoding="utf-8")
-    (output_dir / "summary.png").write_bytes(render_png(report))
+    for page in report["image_pages"]:
+        (output_dir / page["filename"]).write_bytes(render_png(report,
+            symbols=page["symbols"], page=page["index"], pages=len(report["image_pages"])))
     manifest = {"version": VERSION,
         "implementation_files": implementation_hashes(),
-        "files": {name: sha256((output_dir / name).read_bytes()).hexdigest() for name in FILES}}
+        "files": {name: sha256((output_dir / name).read_bytes()).hexdigest() for name in prepared_filenames(report)}}
     atomic_json(output_dir / "manifest.json", manifest)
     return report
 
@@ -349,15 +389,18 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
         raise ValueError("existing_reports_destination_required")
     manifest_raw = (folder / "manifest.json").read_bytes()
     manifest = json.loads(manifest_raw)
-    if manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(FILES):
+    report_path = folder / "report.json"
+    if report_path.is_symlink():
+        raise ValueError("prepared_file_hash_changed")
+    report = json.loads(report_path.read_bytes())
+    if manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(prepared_filenames(report)):
         raise ValueError("prepared_manifest_contract_changed")
     if manifest.get("implementation_files") != implementation_hashes():
         raise ValueError("report_implementation_changed_reprepare_required")
-    for name in FILES:
+    for name in prepared_filenames(report):
         path = folder / name
         if path.is_symlink() or sha256(path.read_bytes()).hexdigest() != manifest["files"][name]:
             raise ValueError("prepared_file_hash_changed")
-    report = json.loads((folder / "report.json").read_bytes())
     if (report.get("version") != VERSION or report.get("symbol_count") != 630
             or len(report.get("rows", [])) != 630
             or {row["symbol"] for row in report["rows"]} != set(load_pinned(Path("config/atc_630_symbols.txt")))
@@ -373,24 +416,35 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
     if (receipt.get("manifest_sha256") != packet_hash or receipt.get("chat_id") != CHAT
             or receipt.get("topic_id") != TOPIC):
         raise ValueError("delivery_receipt_identity_changed")
-    if any(key not in ("text", "photo", "csv") or type(value) is not int or value <= 0
+    pages = report["image_pages"]
+    expected_acks = ["text", *(f"photo-{page['index']:03}" for page in pages), "csv"]
+    if any(key not in expected_acks or type(value) is not int or value <= 0
            for key, value in receipt["acknowledged"].items()):
         raise ValueError("invalid_delivery_acknowledgement")
     sender = transport if transport is not None else HttpxTelegramTransport(env["TELEGRAM_BOT_TOKEN"])
     payloads = {
         "text": {"text": (folder / "summary.txt").read_text(encoding="utf-8")},
-        "photo": {"_method": "sendPhoto", "photo_base64": base64.b64encode((folder / "summary.png").read_bytes()).decode("ascii"),
-            "filename": "ATC_Destek_Direnc_Pivot.png", "caption": "Günlük geleneksel pivot · 3 destek / 3 direnç · görsel ilk 20 · tam 630 hisse CSV'de."},
+        **{f"photo-{page['index']:03}": {"_method": "sendPhoto",
+            "photo_base64": base64.b64encode((folder / page["filename"]).read_bytes()).decode("ascii"),
+            "filename": f"ATC_Destek_Direnc_Pivot_{page['index']:03}.png",
+            "caption": f"{report['previous_session']} · Geleneksel pivot · Sayfa {page['index']}/{len(pages)} · "
+                f"{page['symbols'][0]} – {page['symbols'][-1]} · en çok 20 hisse · önceki kapanış, anlık fiyat değildir."}
+           for page in pages},
         "csv": {"_method": "sendDocument", "document_base64": base64.b64encode((folder / "report.csv").read_bytes()).decode("ascii"),
             "filename": f"ATC_630_Destek_Direnc_Pivot_{report['previous_session']}.csv",
             "caption": "630 hissenin tamamı · S1/S2/S3 ve R1/R2/R3 · geçmişten teyitli D/R ayrı sütunlarda · kaynak ve eksik veri durumları dahil."}}
+    receipt["expected_acknowledgements"] = expected_acks
+    sent = 0
     for key, payload in payloads.items():
         if key in receipt["acknowledged"]:
             continue
+        if transport is None and sent:
+            time.sleep(3.2)
         message_id = sender.send(chat_id=CHAT, message_thread_id=TOPIC, payload=payload)
         if type(message_id) is not int or message_id <= 0:
             raise ValueError("telegram_acknowledgement_required")
         receipt["acknowledged"][key] = message_id
+        sent += 1
         receipt["updated_at"] = datetime.now(IST).isoformat()
         atomic_json(receipt_path, receipt)
     receipt["status"] = "sent"

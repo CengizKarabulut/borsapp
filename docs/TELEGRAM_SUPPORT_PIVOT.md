@@ -3,18 +3,19 @@
 ## Normal 18 tarama
 
 Otomatik gün içi yol **ATC automatic latest candle snapshots** workflow'udur.
-Yedi zaman diliminde (`15m`, `30m`, `45m`, `1h`, `2h`, `4h`, `1d`) sabit
+Sekiz zaman diliminde (`15m`, `30m`, `45m`, `1h`, `2h`, `4h`, `1d`, `1wk`) sabit
 630 hisseyi tarar. Son gerçek açık mum varsa o an kapanmış gibi yalnız
 bellekte hesaplar; sonuç **CANLI / TEYİTSİZ**'dir. Gönderim, zaman diliminin
 mevcut konusuna yapılır. Nominal saatler, teslim makbuzuna göre atlama ve
 GitHub gecikmeleri [otomatik zamanlama kılavuzundadır](ATC_AUTOMATIC_SCHEDULE.md).
-Haftalık bu yeni canlı yola dahil değildir.
+Haftalık ayrı gerçek haftalık kaynak mumundan hesaplanır.
 
 Teyitli kapanış taraması ayrıca korunur: GitHub → Actions → **ATC six
 timeframe real scan in FREE isolated PostgreSQL runner** → Run workflow →
 main → scope=all. Bu manuel seçim sekiz zaman dilimini, haftalık dahil,
-gerçek kapanmış mumlarla tarar. Otomatik cron'u yalnız 18:30 kapanış işidir;
-haftanın son seansında haftalık ve teyitli EOD Kesişim bu yolda kalır.
+gerçek kapanmış mumlarla tarar. Bu eski yol yalnız manuel tanılama içindir;
+otomatik tetiklemesi kaldırılmıştır. Otomatik haftalık ve Kesişim, güncel RAM
+iş akışındadır.
 `due` seçimi için hiç vadesi gelen dönem yoksa gerçek işler `skipped`
 olabilir; yeşil planlayıcı mesajın gruba ulaştığı anlamına gelmez.
 
@@ -42,10 +43,12 @@ Actions → **ATC manual support resistance and pivot report** → Run workflow:
 3. `prepared_run_id` boş bırakılan publish çalışması yeni rapor hazırlar ve
    aynı çalışmada gönderir. Yayın yalnız `main` dalından yapılabilir.
 
-Gönderim mevcut **Raporlar (8)** konusuna bir kısa metin, bir ilk-20 görseli
-ve **630 hissenin tamamını** içeren CSV'dir. Yeni konu oluşturulmaz. Görsel,
-önceki kapanış × hacim sırasındaki ilk 20'yi gösterir; kalan hisseler ve eksik
-veri durumları CSV/JSON'da korunur. Başarı ancak Telegram mesaj kimlikleri
+Gönderim mevcut **Raporlar (8)** konusuna yöntem açıklamalı kısa metin,
+**630 hissenin tamamını içeren 32 alfabetik görsel** ve tam CSV'dir.
+Her sayfada en fazla 20 hisse, son sayfada 10 hisse yer alır. Kaynak eksikliği,
+işlem durması veya düz seans durumları hisseyi görselden silmez; durum etiketi
+ve geçerli olmayan alanda çizgi gösterilir. Yeni konu oluşturulmaz. Başarı ancak
+32 sayfanın ve metin/CSV'nin tamamı için Telegram mesaj kimlikleri
 alındığında `delivery.json` ile kaydedilir. Aynı dosyadan tekrar gönderimde
 kaydı bulunan parçalar tekrarlanmaz; farklı Actions çalışmaları için kalıcı
 grup-geneli tekilleştirme iddiası yoktur.
@@ -66,6 +69,23 @@ grup-geneli tekilleştirme iddiası yoktur.
   referans fiyata göredir; başarı ihtimali değildir. Yapısal sütunun boş
   olması ana pivot merdiveninin veya hissenin listeden silindiği anlamına
   gelmez.
+
+Görseldeki ana tablo **Traditional** yöntemidir; TradingView'in ayrı isimli
+**Classic** yönteminin S3/R3 formülüyle karıştırılmaz. H önceki seansın
+yükseği, L düşüğü, K kapanışı olmak üzere:
+
+```text
+P = (H + L + K) / 3
+S1 = 2P − H       R1 = 2P − L
+S2 = P − (H−L)    R2 = P + (H−L)
+S3 = L − 2(H−P)   R3 = H + 2(P−L)
+```
+
+Formül kaynağı: [TradingView Pivot Points Standard, Traditional](https://www.tradingview.com/support/solutions/43000521824-pivot-points-standard/).
+Yapısal yöntem ayrıca CSV'de tutulur; kapanışın altındaki teyitli dipler
+destek, üstündeki teyitli tepeler dirençtir. Aynı tarafta seçilen seviyeler
+arasında kapanışın %1'inden fazla fark bulunur. Bunlar farklı yöntemlerdir;
+tek bir seviyeyi iki yöntem de bulmuş gibi gösterilmez.
 - Kaynaklar aynı hissenin içinde birleştirilmez. Gözlem kesimi, sağlayıcı,
   fiyat bazı, snapshot ve pivot teyit zamanları dosyada korunur.
 - Önceki seans kapanış kapsamı %90'ın altındaysa gönderim yapılmaz. Eksik
