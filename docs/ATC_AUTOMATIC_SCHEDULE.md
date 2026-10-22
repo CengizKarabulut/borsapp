@@ -100,14 +100,14 @@ teyitli borsa kapanışı değildir.
 Haftalık uygunluk aynı takvim haftasına aittir; son işlemin kaç saniye önce
 yapıldığını göstermez. Bu tarama da **CANLI / TEYİTSİZ** olarak gönderilir.
 
-## LONG / SHORT tarama ve kesişim görselleri
+## BIST LONG tarama ve kesişim görselleri
 
-Her zaman diliminin kendi konusuna dört ayrı grup hazırlanabilir:
-normal **LONG**, normal **SHORT**, **aynı zaman diliminde tarama kesişimi LONG**
-ve **aynı zaman diliminde tarama kesişimi SHORT**. Normal grupta en az bir,
+Her zaman diliminin kendi konusuna iki ayrı grup hazırlanabilir:
+normal **LONG** ve **aynı zaman diliminde tarama kesişimi LONG**.
+BIST SHORT bildirimleri tüm hisseler için kapalıdır. Normal grupta en az bir,
 aynı-dilim kesişiminde en az iki **farklı tarama kimliği** aynı yönde
-eşleşmelidir. İkinci bir zaman diliminin sinyali beklenmez. Bir hisse kendi
-tarama kanıtlarıyla iki yönde de bulunabilir; bu durum gizlenmez.
+eşleşmelidir. İkinci bir zaman diliminin sinyali beklenmez. Düşüş hesapları
+ve iki yönlü tarama kanıtları tam CSV/JSON'da korunur; bildirim yönü hesabı değiştirmez.
 
 Her grupta **en çok 20 hisse** vardır. Önce eşleşen farklı tarama sayısı,
 eşitlikte hisse kodu sıralaması kullanılır. Bu sayım başarı/getiri puanı
@@ -117,8 +117,8 @@ Gösterilen/toplam hisse sayısı ve CSV'de kalan sayı açıkça yazılır.
 teslim kimliği doğrulanmadan dönem tamamlandı sayılmaz.
 
 Otomatik tarama grubunun ardından, mevcut **Kesişim** konusuna kısa metin,
-ayrı **LONG** ve **SHORT** görselleri ve tam CSV gönderilir. Bu ayrı raporda da
-her yönde en fazla 20 hisse gösterilir; tüm uygun hisseler CSV'de kalır.
+**LONG** görseli ve tam CSV gönderilir. Bu ayrı raporda da en fazla 20 LONG
+hisse gösterilir; düşüş yönü dahil tüm uygun hisseler CSV'de kalır.
 Sıra önce zaman dilimi sayısı, sonra farklı tarama sayısı ve hisse kodudur.
 Kesişim yoksa bunu belirten metin ve boş sonuç CSV'si gelir.
 
@@ -135,12 +135,11 @@ makbuzu ile yinelenen gönderim atlanır.
 Gün içindeki eski sıkı kapanış taraması ile saatlik günlük önizlemenin cron
 tetiklemeleri kaldırılmıştır. Aynı gün içi yayını üç ayrı workflow yapmaz.
 Eski **ATC six timeframe real scan in FREE isolated PostgreSQL runner**
-yalnız manuel teyitli tanılama için korunur. 630/630 kapalı kaynak koşuluna
-takılan bu eski yol otomatik günlük/haftalık yayını artık engellemez.
+ve diğer tek seferlik tarama/kurtarma workflow girişleri kaldırıldı.
 Otomatik sekiz dilim ve Kesişim aynı güncel RAM iş akışından gelir;
 bu sonuçların niteliği teyitli kapanış olarak değiştirilmez.
 
-## Destek, direnç ve klasik pivot
+## Destek, direnç ve Traditional pivot
 
 **ATC 630 morning support resistance and pivot report**, hafta içi
 **08:35**'te hazırlanır ve mevcut **Raporlar** konusuna gönderilir. BIST

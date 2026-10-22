@@ -86,7 +86,8 @@ def _votes(row):
     return votes
 
 
-def build_timeframe_metadata(report, *, minimum_scanners=1, max_stocks_per_direction=None):
+def build_timeframe_metadata(report, *, minimum_scanners=1, max_stocks_per_direction=None,
+                             allowed_directions=("bullish", "bearish")):
     """Return verifiable JSON metadata for all matches or same-TF intersections.
 
     ``minimum_scanners=1`` groups normal results. ``2`` requires two DISTINCT
@@ -97,9 +98,13 @@ def build_timeframe_metadata(report, *, minimum_scanners=1, max_stocks_per_direc
     ``max_stocks_per_direction=None`` paginates ALL stocks in groups of 20.
     ``20`` retains the first 20 in each direction and discloses omissions; the
     publisher's complete CSV remains the source for the unabridged results.
+    Selecting only the bullish direction filters notifications only; both
+    analytical vote sets remain unchanged and can still be exported in CSV.
     """
     if type(minimum_scanners) is not int or minimum_scanners not in (1, 2):
         raise ValueError("minimum_scanners_must_be_1_or_2")
+    if allowed_directions not in (("bullish",), ("bullish", "bearish")):
+        raise ValueError("invalid_notification_directions")
     if max_stocks_per_direction is not None and (
             type(max_stocks_per_direction) is not int or max_stocks_per_direction != 20):
         raise ValueError("direction_limit_must_be_none_or_20")
@@ -155,6 +160,8 @@ def build_timeframe_metadata(report, *, minimum_scanners=1, max_stocks_per_direc
         "observation_start": report.get("observation_start"), "observation_end": report.get("observation_end"),
         "stop_tp_plans_mixed": False, "directions": {}}
     for direction, label in DIRECTIONS:
+        if direction not in allowed_directions:
+            continue
         ordered = sorted(grouped[direction], key=lambda item: (-item["scanner_count"], item["symbol"]))
         total = len(ordered)
         shown = ordered if max_stocks_per_direction is None else ordered[:max_stocks_per_direction]
@@ -208,17 +215,21 @@ def _render_page(metadata, group, page):
         y += height
     draw.text((32, image.height - 84), "Stop/TP her taramanın kendi kaydındadır; burada seviyeler birleştirilmez.",
               font=_font(20), fill="#52697F")
-    draw.text((32, image.height - 48), "Bir hisse iki yönde de bulunabilir · CSV'de tüm sonuçlar · Emir değildir.",
+    footer = ("BIST bildirimleri yalnız LONG · CSV'de tüm yönler · Emir değildir."
+              if set(metadata["directions"]) == {"bullish"} else
+              "Bir hisse iki yönde de bulunabilir · CSV'de tüm sonuçlar · Emir değildir.")
+    draw.text((32, image.height - 48), footer,
               font=_font(19), fill="#52697F")
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     return buffer.getvalue()
 
 
-def build_timeframe_pages(report, *, minimum_scanners=1, max_stocks_per_direction=None):
+def build_timeframe_pages(report, *, minimum_scanners=1, max_stocks_per_direction=None,
+                          allowed_directions=("bullish", "bearish")):
     """Return (metadata, {ASCII filename: PNG bytes}); add no hashes or side effects."""
     metadata = build_timeframe_metadata(report, minimum_scanners=minimum_scanners,
-        max_stocks_per_direction=max_stocks_per_direction)
+        max_stocks_per_direction=max_stocks_per_direction, allowed_directions=allowed_directions)
     images = {page["filename"]: _render_page(metadata, group, page)
               for group in metadata["directions"].values() for page in group["pages"]}
     return metadata, images

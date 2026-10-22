@@ -1,4 +1,4 @@
-name: Telegram live pulse
+name: Maintenance - manual Telegram command listener (database)
 
 on:
   workflow_dispatch:
@@ -9,8 +9,6 @@ on:
         default: "180"
         type: choice
         options: ["60", "180", "240", "3600"]
-  schedule:
-    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
@@ -21,7 +19,6 @@ concurrency:
 
 jobs:
   pulse:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_TELEGRAM_PULSE == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:

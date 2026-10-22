@@ -12,11 +12,23 @@ KAP arşivi, fiyat/finansal hesaplamalar, yedekleme ve geçiş doğrulaması: [F
 
 ## Çalışma modeli ve açılış
 
-Bu repo mevcut kurulumda laptop üzerindeki Docker Desktop ile çalışır. Laptop kapalıyken veya uyurken tarama, haber, fiyat ve KAP indirme işleri çalışmaz. Kalıcı PostgreSQL ve finansal arşiv volume'ları verileri saklar. Yeni veri alabilmek için bilgisayar açık, uyanık ve internete bağlı olmalıdır. Windows oturumu açıldığında `Borsapp Local` görevi `scripts/windows/start-local.ps1` üzerinden servisleri başlatır.
+630 hisselik güncel mum taramaları, zaman dilimi kesişimleri ve sabah
+destek/direnç/pivot raporu GitHub Actions üzerinde çalışır; bunlar bilgisayarın
+veya E diskinin açık olmasına, kalıcı PostgreSQL'e ya da Telegram komut
+dinleyicisine bağlı değildir. Güncel işler, manuel kullanım ve bakım işleri:
+[Actions kullanım rehberi](docs/ACTIONS_ISLETIM_REHBERI.md).
+
+Docker Desktop üzerindeki ayrı yerel servisler ise bilgisayar açık ve uyanıkken
+çalışır. Kalıcı PostgreSQL ve finansal arşiv volume'ları yerel geçmişi saklar.
+Windows oturumu açıldığında `Borsapp Local` görevi
+`scripts/windows/start-local.ps1` üzerinden bu servisleri başlatır.
 
 Başlatma betikleri `runtime` ve `financials` profillerini birlikte açar. KAP belgelerini elle indirmek gerekmez: finansal servis ilk başarılı çalışmada BIST_ALL evreninin yaklaşık altı yıllık geçmişini tarar, ardından günlük olarak son yedi günü kontrol eder. İlk yükleme veri miktarına ve KAP erişimine göre uzun sürebilir; bu sırada raporlar mevcut arşivi kullanır ve eksik veriyi açıkça gösterir. Raporun geleceğe yönelik DCF hedefi için şirket bazlı varsayımlar ayrıca gerekir.
 
-Laptop kapalıyken de çalışması isteniyorsa aynı Docker servisleri, kalıcı volume'ları ve gizli `.env` ayarlarıyla sürekli açık bir sunucuya taşınmalıdır. GitHub'a kod yüklemek tek başına botları sürekli çalıştırmaz. Sunucuda ve laptopta aynı bot için iki listener/publisher birlikte çalıştırılmamalıdır.
+Yerel komut botu, KAP arşivi ve uzun süreli finansal servislerin bilgisayar
+kapalıyken de çalışması için kalıcı bir sunucu gerekir. GitHub Actions'taki
+tarama raporları sürekli çalışan komut botunun yerini almaz. Aynı bot için iki
+listener birlikte çalıştırılmamalıdır.
 
 ## Değişmez mimari sınırlar
 
@@ -25,7 +37,7 @@ Stop/TP geçersiz fiyat kontrolleri ve kaynak kimliğini koruyan güncelleme
 adımları: [GitHub–E birlikte kullanım rehberi](docs/NATIVE_E_REPO_SYNC.md).
 Destek/direnç yönteminin geçmiş tepki deneyi ve kapsam sınırları:
 [araştırma notu](docs/SUPPORT_RESISTANCE_RESEARCH.md).
-GitHub'dan normal taramayı çalıştırma ve gruba teyitli destek/direnç ile klasik
+GitHub'dan normal taramayı çalıştırma ve gruba teyitli destek/direnç ile Traditional
 pivot raporu gönderme: [manuel Telegram rapor rehberi](docs/TELEGRAM_SUPPORT_PIVOT.md).
 
 Son gerçek mumu kapanmasını beklemeden kullanarak 630 hisseyi tarama:
@@ -35,9 +47,11 @@ Son gerçek mumu kapanmasını beklemeden kullanarak 630 hisseyi tarama:
 - İndikatörler ortak feature katmanında, açık implementasyon ve warmup kimliğiyle hesaplanır.
 - Event ile state farklı saklanır; MATCH, NO_MATCH ve UNKNOWN aynı şey değildir.
 - Canonical kimlik ticker değil instrument_id değeridir.
-- Kapanmamış veya kısmi mum varsayılan olarak sinyal üretemez.
+- Teyitli motor kapanmış mum kullanır. Ayrı CANLI / TEYİTSİZ rapor, kullanıcının
+  seçimiyle son açık mumu gözlem anında değerlendirir; bunu teyitli geçmişe yazmaz.
 - Confluence puan veya yatırım tavsiyesi değil, zaman pencereli kesişim bilgisidir.
-- Telegram tek listener ve transactional outbox üzerinden çalışır.
+- Komut botu tek listener ve transactional outbox kullanır. Bağımsız Actions
+  raporları doğrulanmış paketleri doğrudan gönderir ve Telegram teslim onaylarını saklar.
 - Legacy davranış shadow modda doğrulanmadan kapatılmaz.
 
 Ayrıntılı sözleşme: [docs/architecture/frozen-contract.md](docs/architecture/frozen-contract.md)

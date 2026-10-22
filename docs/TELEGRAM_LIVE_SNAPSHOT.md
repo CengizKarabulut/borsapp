@@ -23,7 +23,7 @@ gününde 18:30 kontrolünde hazırlanır. Bu da CANLI / TEYİTSİZ RAM sonucudu
 
 Tamamlanan Telegram teslimi, metin/CSV ve üretilen her yön görselinin gerçek,
 birbirinden farklı mesaj kimlikleriyle saklanır. Boş yön varsa o görsel
-üretilmez; normalde iki ile altı parça bulunabilir.
+üretilmez; güncel BIST LONG politikasında iki ile dört parça bulunabilir.
 Sonraki otomatik planlayıcı aynı dönemi atlar; başarısız/önizleme çalışması
 teslim kaydını ilerletmez. Bekleyen eski dönemler topluca oynatılmaz:
 gecikmede yalnız en son uygun dönem seçilir, atlanan dönem sayısı kaydedilir.
@@ -64,11 +64,18 @@ yalnız gönderim adımına verilir, rapor dosyalarına yazılmaz.
 
 ## Sonuçları okuma
 
-**LONG / SHORT grupları:** Normal tarama eşleşmeleri ve aynı zaman diliminde
-en az iki farklı taramanın kesiştiği hisseler ayrı gruplardır. Her birinde
-LONG ve SHORT görselleri ayrıdır, en fazla20 hisse gösterilir. Sıra eşleşen
+**BIST bildirimleri yalnız LONG:** Normal tarama eşleşmeleri ve aynı zaman
+diliminde en az iki farklı taramanın kesiştiği hisseler ayrı LONG gruplarıdır.
+SHORT bildirimleri ve SHORT görselleri kapalıdır. Düşüş yönlü hesaplamalar
+silinmez; tam CSV/JSON'da incelenebilir. Her LONG grubunda en fazla 20 hisse gösterilir. Sıra eşleşen
 farklı tarama sayısı ve ardından hisse kodudur; bu bir başarı olasılığı
 değildir. Gösterilen/toplam sayısı görünür, tam sonuçlar CSV'de kalır.
+
+Yeni paket sürümü `atc-unpersisted-latest-candle-v3-bist-long-only` ve
+`bist-long-only-v1` bildirim politikasıyla sabittir. Politika değiştirilmiş
+paket veya eski çift yönlü paket bu yayıncıdan yeniden gönderilemez.
+Önceki v2 teslim makbuzları, aynı eski dönemi yeniden göndermemek için
+okunabilir; bu, eski SHORT bildirimlerini yeniden etkinleştirmez.
 
 - **630 hissenin tamamı:** Gerçek veriyle hesaplanan, hesaplanamayan ve yetersiz
   geçmişi olan hisselerin tamamı CSV/JSON'da korunur. En az %90 kullanılabilir

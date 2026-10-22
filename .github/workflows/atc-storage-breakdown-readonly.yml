@@ -1,10 +1,7 @@
-name: ATC historical OHLCV storage detail (read-only)
+name: Maintenance - historical database storage audit (read-only)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [.github/workflows/atc-storage-breakdown-readonly.yml]
 
 permissions:
   contents: read

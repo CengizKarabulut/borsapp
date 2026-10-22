@@ -1,10 +1,7 @@
-name: ATC existing Telegram timeframe topics audit
+name: Maintenance - existing Telegram topic routing audit
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [.github/workflows/atc-existing-topics-audit.yml]
 
 permissions:
   contents: read

@@ -13,8 +13,16 @@ from pathlib import Path
 
 import httpx
 
-from scripts.atc_live_packet_contract import packet_files, verify_acknowledgements
-from scripts.atc_live_snapshot import CHAT, FILES, TOPICS, VERSION
+from scripts.atc_live_packet_contract import (
+    READABLE_VERSIONS,
+    notification_policy,
+    packet_files,
+    verify_acknowledgements,
+)
+from scripts.atc_live_packet_contract import (
+    VERSION as VERSION,
+)
+from scripts.atc_live_snapshot import CHAT, FILES, TOPICS
 from scripts.atc_schedule_receipts import API, _atomic_json, _json_read, _retry_read, _trusted_run
 
 WORKFLOW = "atc-scheduled-snapshots.yml"
@@ -34,14 +42,22 @@ def unpack_intersection_receipt(raw):
         receipt = json.loads(archive.read(entries[0]))
     acks = receipt.get("acknowledged", {})
     expected = receipt.get("expected_acknowledgements")
-    if (receipt.get("version") != "atc-latest-known-provisional-intersections-v1"
+    version = receipt.get("version")
+    if (version not in {"atc-latest-known-provisional-intersections-v1",
+                        "atc-latest-known-provisional-intersections-v2-bist-long-only"}
+            or version == "atc-latest-known-provisional-intersections-v2-bist-long-only"
+                and receipt.get("notification_policy") != notification_policy()
             or receipt.get("status") not in {"sent", "already_sent"}
             or receipt.get("chat_id") != CHAT or receipt.get("topic_id") != 28330
             or not re.fullmatch(r"[a-f0-9]{64}", str(receipt.get("source_set_sha256", "")))
             or not isinstance(acks, dict) or not isinstance(expected, list)
+            or len(set(expected)) != len(expected)
+            or version == "atc-latest-known-provisional-intersections-v2-bist-long-only"
+                and expected not in (["text", "csv"], ["text", "photo-001", "csv"])
             or set(acks) != set(expected) or not {"text", "csv"} <= set(acks)
             or any(key not in {"text", "csv"} and not re.fullmatch(r"photo-\d{3}", key) for key in acks)
-            or any(type(value) is not int or value <= 0 for value in acks.values())):
+            or any(type(value) is not int or value <= 0 for value in acks.values())
+            or len(set(acks.values())) != len(acks)):
         raise ValueError("complete_intersection_receipt_required")
     updated = datetime.fromisoformat(receipt["updated_at"])
     if updated.utcoffset() is None:
@@ -70,9 +86,11 @@ def unpack_packet(raw, timeframe):
     slot = json.loads(files["scheduled-slot.json"])
     names = packet_files(report)
     if (set(files) != {*names, "prepared-packet.json", "publication-receipt.json", "scheduled-slot.json"}
-            or manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(names)
+            or manifest.get("version") != report.get("version") or set(manifest.get("files", {})) != set(names)
+            or report.get("version") == VERSION
+                and manifest.get("notification_policy") != notification_policy()
             or any(sha256(files[name]).hexdigest() != manifest["files"][name] for name in names)
-            or report.get("version") != VERSION or report.get("timeframe") != timeframe
+            or report.get("version") not in READABLE_VERSIONS or report.get("timeframe") != timeframe
             or report.get("provisional") is not True or report.get("confirmed_store_writes") != 0
             or report.get("orders_sent") != 0 or slot.get("timeframe") != timeframe
             or receipt.get("status") != "sent" or receipt.get("chat_id") != CHAT

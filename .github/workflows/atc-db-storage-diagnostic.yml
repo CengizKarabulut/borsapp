@@ -1,10 +1,7 @@
-name: ATC read-only database storage diagnostics
+name: Maintenance - database capacity audit (read-only)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [fix/atc-recovery-multitf-intersections-20261015]
-    paths: [.github/workflows/atc-db-storage-diagnostic.yml]
 
 permissions:
   contents: read

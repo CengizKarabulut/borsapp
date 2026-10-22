@@ -1,10 +1,7 @@
-name: ATC Telegram visual delivery diagnostics
+name: Maintenance - database Telegram delivery audit (read-only)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [.github/workflows/atc-telegram-visual-diagnostics.yml]
 
 permissions:
   contents: read

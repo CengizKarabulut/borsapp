@@ -137,7 +137,7 @@ class LivePreparedPacketTests(unittest.TestCase):
         self.assertTrue(all(call.kwargs["payload"].get("_method") in
             {"sendPhoto", "sendDocument"} for call in retry.send.call_args_list))
 
-    def test_both_directions_and_same_timeframe_intersections_require_every_image_ack(self):
+    def test_long_notifications_retain_both_directions_in_full_csv_and_resume_every_image(self):
         selected = set(self.symbols[:3])
         def reader(symbol, **_):
             row = synthetic_reader(symbol)
@@ -148,7 +148,13 @@ class LivePreparedPacketTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp)
             value = live.prepare_report(folder, reader=reader, clock=lambda: NOW)
-            self.assertEqual(len(live.packet_pages(value)), 4)
+            self.assertEqual(len(live.packet_pages(value)), 2)
+            self.assertTrue(all("-LONG-" in page["filename"] for page in live.packet_pages(value)))
+            text = (folder / "live-snapshot.txt").read_text(encoding="utf-8")
+            self.assertNotIn("SHORT", text)
+            records = list(csv.DictReader(io.StringIO(
+                (folder / "live-snapshot.csv").read_text(encoding="utf-8-sig"))))
+            self.assertEqual({row["Yon"] for row in records if row["Yon"]}, {"bullish", "bearish"})
             first = Mock()
             first.send.side_effect = [101, 102, RuntimeError("interrupted")]
             with self.assertRaises(RuntimeError):
@@ -158,9 +164,9 @@ class LivePreparedPacketTests(unittest.TestCase):
             retry = Mock()
             retry.send.side_effect = range(103, 120)
             done = live.publish_report(folder, now=NOW, transport=retry, environ=ENV)
-            self.assertEqual(retry.send.call_count, 4)
+            self.assertEqual(retry.send.call_count, 2)
             self.assertEqual(set(done["acknowledged"]), set(live.acknowledgement_keys(value)))
-            self.assertEqual([len(page["symbols"]) for page in live.packet_pages(value)], [3] * 4)
+            self.assertEqual([len(page["symbols"]) for page in live.packet_pages(value)], [3] * 2)
             repeat = Mock()
             live.publish_report(folder, now=NOW, transport=repeat, environ=ENV)
             repeat.send.assert_not_called()
@@ -172,6 +178,46 @@ class LivePreparedPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "prepared_file_hash_changed"):
             self.send(sender=sender)
         sender.send.assert_not_called()
+
+    def test_policy_cannot_be_changed_even_after_rehashing_report(self):
+        self.change_report(lambda value: value["notification_policy"].update(
+            notification_directions=["bullish", "bearish"]))
+        sender = Mock()
+        with self.assertRaisesRegex(ValueError, "notification_policy_changed"):
+            self.send(sender=sender)
+        sender.send.assert_not_called()
+
+    def test_legacy_dual_direction_packet_cannot_be_republished(self):
+        from scripts.atc_live_packet_contract import LEGACY_VERSION
+        def downgrade(value):
+            value["version"] = LEGACY_VERSION
+            value.pop("notification_policy")
+        self.change_report(downgrade)
+        sender = Mock()
+        with self.assertRaisesRegex(ValueError, "complete_pinned_provisional_packet_required"):
+            self.send(sender=sender)
+        sender.send.assert_not_called()
+
+    def test_bearish_only_analysis_has_no_notification_photo_or_symbol_signal(self):
+        target = self.symbols[0]
+        def reader(symbol, **_):
+            row = synthetic_reader(symbol)
+            if symbol == target:
+                for scan in row["evaluations"][:2]:
+                    scan.update(status="match", findings=[{"direction": "bearish"}])
+            return row
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            value = live.prepare_report(folder, reader=reader, clock=lambda: NOW)
+            self.assertEqual(live.packet_pages(value), [])
+            sender = Mock(send=Mock(side_effect=[101, 102]))
+            result = live.publish_report(folder, now=NOW, transport=sender, environ=ENV)
+            self.assertEqual(result["notification_policy"], live.notification_policy())
+            self.assertEqual(list(result["acknowledged"]), ["text", "csv"])
+            self.assertNotIn("#" + target, sender.send.call_args_list[0].kwargs["payload"]["text"])
+            self.assertIn("bearish", (folder / "live-snapshot.csv").read_text(encoding="utf-8-sig"))
+            selected_row = next(row for row in value["rows"] if row["symbol"] == target)
+            self.assertEqual(selected_row["evaluations"][0]["findings"][0]["direction"], "bearish")
 
     def test_same_message_id_cannot_acknowledge_two_different_parts(self):
         sender = Mock(send=Mock(return_value=101))

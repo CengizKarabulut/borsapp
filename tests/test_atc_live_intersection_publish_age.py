@@ -17,6 +17,7 @@ from scripts.atc_live_packet_contract import (
 from scripts.atc_live_packet_contract import (
     acknowledgement_keys,
     direction_metadata,
+    notification_policy,
     packet_files,
 )
 from scripts.atc_structure_report import atomic_json
@@ -64,11 +65,13 @@ class IntersectionPublishAgeTests(unittest.TestCase):
             if not (folder / name).exists():
                 (folder / name).write_bytes(b"fixture-direction-page-bytes")
         atomic_json(folder / "prepared-packet.json", {"version": PACKET_VERSION,
+            "notification_policy": notification_policy(),
             "implementation_files": HASHES,
             "files": {name: sha256((folder / name).read_bytes()).hexdigest() for name in names}})
         keys = acknowledgement_keys(packet)
         atomic_json(folder / "publication-receipt.json", {"status": "sent",
-            "packet_version": PACKET_VERSION, "chat_id": report.live.CHAT,
+            "packet_version": PACKET_VERSION, "notification_policy": notification_policy(),
+            "chat_id": report.live.CHAT,
             "topic_id": report.live.TOPICS[tf],
             "packet_sha256": sha256((folder / "prepared-packet.json").read_bytes()).hexdigest(),
             "expected_acknowledgements": keys,

@@ -16,7 +16,12 @@ from PIL import Image, ImageDraw
 
 from scripts import atc_live_intersections as report
 from scripts import atc_live_snapshot as live
-from scripts.atc_live_packet_contract import acknowledgement_keys, direction_metadata, packet_files
+from scripts.atc_live_packet_contract import (
+    acknowledgement_keys,
+    direction_metadata,
+    notification_policy,
+    packet_files,
+)
 from scripts.atc_structure_report import atomic_json
 from scripts.atc_universe_seed import load_pinned
 
@@ -53,7 +58,8 @@ def make_packet(folder, tf, symbols, *, matches=45, now=NOW):
                 "last_actual_native_open": "2026-10-20T18:00:00+03:00",
                 "source_grid": report.NATIVE_45M_GRID if tf == "45m" else
                     report.NATIVE_MULTIHOUR_GRIDS.get(tf, "fixture_native_grid")}})
-    packet = {"version": live.VERSION, "timeframe": tf, "symbol_count": 630,
+    packet = {"version": live.VERSION, "notification_policy": notification_policy(),
+        "timeframe": tf, "symbol_count": 630,
         "provisional": True, "confirmed_store_writes": 0, "orders_sent": 0,
         "counts": {"usable": 630}, "observation_start": (now - timedelta(minutes=2)).isoformat(),
         "observation_end": (now - timedelta(minutes=1)).isoformat(), "rows": rows}
@@ -77,13 +83,15 @@ def reseal(folder, tf):
     for name in names:
         if name.endswith(".png"):
             (folder / name).write_bytes(image.getvalue())
-    manifest = {"version": live.VERSION, "implementation_files": HASHES,
+    manifest = {"version": live.VERSION, "notification_policy": notification_policy(),
+        "implementation_files": HASHES,
         "files": {name: sha256((folder / name).read_bytes()).hexdigest() for name in names}}
     atomic_json(folder / "prepared-packet.json", manifest)
     expected = acknowledgement_keys(data)
     atomic_json(folder / "publication-receipt.json", {"status": "sent", "chat_id": live.CHAT,
         "topic_id": live.TOPICS[tf], "packet_sha256": sha256((folder / "prepared-packet.json").read_bytes()).hexdigest(),
-        "packet_version": live.VERSION, "expected_acknowledgements": expected,
+        "packet_version": live.VERSION, "notification_policy": notification_policy(),
+        "expected_acknowledgements": expected,
         "acknowledged": {key: 101 + index for index, key in enumerate(expected)}})
 
 
@@ -320,7 +328,7 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         transport.send.side_effect = [101, 102]
         receipt = report.publish_report(self.out, now=NOW, environ=ENV, transport=transport)
         self.assertEqual(list(receipt["acknowledged"]), ["text", "csv"])
-        self.assertIn("kesişim bulunmadı", transport.send.call_args_list[0].kwargs["payload"]["text"])
+        self.assertIn("LONG kesişimi bulunmadı", transport.send.call_args_list[0].kwargs["payload"]["text"])
 
     def test_partial_page_failure_resumes_only_unsent_pages_and_csv(self):
         def bearish(data):
@@ -332,9 +340,9 @@ class LatestKnownIntersectionTests(unittest.TestCase):
             self.mutate(tf, bearish)
         value = self.prepare()
         self.assertEqual([(lane["label"], lane["total_stock_count"], lane["stock_count"])
-                          for lane in value["image_groups"]], [("LONG", 42, 20), ("SHORT", 3, 3)])
+                          for lane in value["image_groups"]], [("LONG", 42, 20)])
         self.assertEqual(len(value["intersections"]), 45)
-        self.assertEqual(value["image_pages"], 2)
+        self.assertEqual(value["image_pages"], 1)
         first = Mock()
         first.send.side_effect = [101, 102, RuntimeError("network")]
         with self.assertRaises(RuntimeError):
@@ -344,17 +352,35 @@ class LatestKnownIntersectionTests(unittest.TestCase):
         resumed = Mock()
         resumed.send.side_effect = [103, 104]
         receipt = report.publish_report(self.out, now=NOW, environ=ENV, transport=resumed)
-        self.assertEqual(resumed.send.call_count, 2)
-        self.assertEqual(set(receipt["acknowledged"]), {"text", "photo-001", "photo-002", "csv"})
-        self.assertEqual(receipt["expected_acknowledgements"], ["text", "photo-001", "photo-002", "csv"])
-        self.assertEqual(resumed.send.call_args_list[0].kwargs["payload"]["filename"], "intersections-002.png")
-        self.assertEqual(resumed.send.call_args_list[1].kwargs["payload"]["_method"], "sendDocument")
+        self.assertEqual(resumed.send.call_count, 1)
+        self.assertEqual(set(receipt["acknowledged"]), {"text", "photo-001", "csv"})
+        self.assertEqual(receipt["expected_acknowledgements"], ["text", "photo-001", "csv"])
+        self.assertNotIn("SHORT", (self.out / "intersections.txt").read_text(encoding="utf-8"))
+        csv_rows = list(csv.DictReader(io.StringIO(
+            (self.out / "intersections.csv").read_text(encoding="utf-8-sig"))))
+        self.assertEqual({row["Yon"] for row in csv_rows}, {"LONG", "SHORT"})
+        self.assertEqual(resumed.send.call_args_list[0].kwargs["payload"]["_method"], "sendDocument")
         again = Mock()
         report.publish_report(self.out, now=NOW, environ=ENV, transport=again)
         again.send.assert_not_called()
         for call in resumed.send.call_args_list:
             self.assertEqual(call.kwargs["chat_id"], live.CHAT)
             self.assertEqual(call.kwargs["message_thread_id"], 28330)
+
+    def test_changed_notification_policy_is_rejected_even_when_rehashed(self):
+        self.prepare()
+        path = self.out / "intersections.json"
+        value = json.loads(path.read_bytes())
+        value["notification_policy"]["notification_directions"].append("bearish")
+        atomic_json(path, value)
+        manifest_path = self.out / "prepared-intersections.json"
+        manifest = json.loads(manifest_path.read_bytes())
+        manifest["files"][path.name] = sha256(path.read_bytes()).hexdigest()
+        atomic_json(manifest_path, manifest)
+        sender = Mock()
+        with self.assertRaisesRegex(ValueError, "notification_policy_changed"):
+            report.publish_report(self.out, now=NOW, environ=ENV, transport=sender)
+        sender.send.assert_not_called()
 
     def test_same_source_set_in_later_run_is_not_resent_or_relabelled_as_new_ack(self):
         old = self.prepare()

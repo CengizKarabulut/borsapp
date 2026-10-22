@@ -1,10 +1,7 @@
-name: ATC read-only current XUTUM versus pinned 630 audit
+name: Maintenance - pinned 630 versus current BIST universe audit
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [.github/workflows/atc-universe-drift-audit.yml]
 
 permissions:
   contents: read

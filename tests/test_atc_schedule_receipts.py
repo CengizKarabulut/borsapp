@@ -175,20 +175,23 @@ class RecordReceiptTests(unittest.TestCase):
         self.folder = self.root / "packet"
         self.folder.mkdir()
         self.slot = entries(plan(clock(), calendar=Calendar()))["15m"]
-        report = {"version": receipts.PACKET_VERSION, "timeframe": "15m", "provisional": True,
+        from scripts.atc_live_packet_contract import notification_policy
+        report = {"version": receipts.PACKET_VERSION, "notification_policy": notification_policy(),
+                  "timeframe": "15m", "provisional": True,
                   "rows": [], "confirmed_store_writes": 0, "observation_end": clock().isoformat()}
         report["direction_groups"] = direction_metadata(report)
         for name in receipts.PACKET_FILES:
             content = json.dumps(report).encode() if name.endswith(".json") else b"prepared content"
             (self.folder / name).write_bytes(content)
-        manifest = {"version": receipts.PACKET_VERSION, "implementation_files": {},
+        manifest = {"version": receipts.PACKET_VERSION, "notification_policy": notification_policy(),
+                    "implementation_files": {},
                     "files": {name: sha256((self.folder / name).read_bytes()).hexdigest()
                               for name in receipts.PACKET_FILES}}
         (self.folder / "prepared-packet.json").write_text(json.dumps(manifest), encoding="utf-8")
         packet_hash = sha256((self.folder / "prepared-packet.json").read_bytes()).hexdigest()
         receipt = acknowledged(self.slot)["receipt"]
         receipt["packet_sha256"] = packet_hash
-        receipt.update(packet_version=receipts.PACKET_VERSION,
+        receipt.update(packet_version=receipts.PACKET_VERSION, notification_policy=notification_policy(),
                        expected_acknowledgements=["text", "csv"], acknowledged={"text": 1, "csv": 3})
         (self.folder / "publication-receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
         self.output = self.root / "state"
