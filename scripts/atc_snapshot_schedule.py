@@ -143,6 +143,20 @@ def validate_delivery_state(state: object) -> dict:
             or receipt.get("packet_sha256") != packet):
         raise ValueError("scheduled_delivery_receipt_identity_mismatch")
     acknowledgements = receipt.get("acknowledged")
+    from scripts.atc_live_packet_contract import VERSION as direction_version
+    if receipt.get("packet_version") == direction_version:
+        expected = receipt.get("expected_acknowledgements")
+        if (not isinstance(expected, list) or not 2 <= len(expected) <= 6
+                or len(set(expected)) != len(expected) or not {"text", "csv"} <= set(expected)
+                or expected[0] != "text" or expected[-1] != "csv"
+                or any(key not in {"text", "csv"} and not re.fullmatch(
+                    r"photo-(?:tf|same-tf)-" + re.escape(tf) + r"-(?:LONG|SHORT)-001", key)
+                    for key in expected)
+                or not isinstance(acknowledgements, dict) or set(acknowledgements) != set(expected)
+                or any(type(value) is not int or value <= 0 for value in acknowledgements.values())
+                or len(set(acknowledgements.values())) != len(acknowledgements)):
+            raise ValueError("scheduled_delivery_all_direction_pages_required")
+        return state
     if (not isinstance(acknowledgements, dict)
             or set(acknowledgements) != {"text", "photo", "csv"}
             or any(type(value) is not int or value <= 0 for value in acknowledgements.values())):

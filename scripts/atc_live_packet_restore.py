@@ -13,6 +13,7 @@ from pathlib import Path
 
 import httpx
 
+from scripts.atc_live_packet_contract import packet_files, verify_acknowledgements
 from scripts.atc_live_snapshot import CHAT, FILES, TOPICS, VERSION
 from scripts.atc_schedule_receipts import API, _atomic_json, _json_read, _retry_read, _trusted_run
 
@@ -53,7 +54,11 @@ def unpack_packet(raw, timeframe):
         raise ValueError("ram_packet_archive_too_large")
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         entries = archive.infolist()
-        if (len(entries) != len(NAMES) or {entry.filename for entry in entries} != NAMES
+        if (not len(NAMES) <= len(entries) <= len(NAMES) + 4
+                or len({entry.filename for entry in entries}) != len(entries)
+                or any(entry.filename not in NAMES and not re.fullmatch(
+                    r"(?:tf|same-tf)-(?:15m|30m|45m|1h|2h|4h|1d|1wk)-(?:LONG|SHORT)-001\.png", entry.filename)
+                    for entry in entries)
                 or sum(entry.file_size for entry in entries) > MAX_EXPANDED
                 or any(entry.flag_bits & 1 or (entry.external_attr >> 16) & 0o170000 == 0o120000
                        for entry in entries)):
@@ -63,17 +68,21 @@ def unpack_packet(raw, timeframe):
     report = json.loads(files[FILES[0]])
     receipt = json.loads(files["publication-receipt.json"])
     slot = json.loads(files["scheduled-slot.json"])
-    if (manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(FILES)
-            or any(sha256(files[name]).hexdigest() != manifest["files"][name] for name in FILES)
+    names = packet_files(report)
+    if (set(files) != {*names, "prepared-packet.json", "publication-receipt.json", "scheduled-slot.json"}
+            or manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(names)
+            or any(sha256(files[name]).hexdigest() != manifest["files"][name] for name in names)
             or report.get("version") != VERSION or report.get("timeframe") != timeframe
             or report.get("provisional") is not True or report.get("confirmed_store_writes") != 0
             or report.get("orders_sent") != 0 or slot.get("timeframe") != timeframe
             or receipt.get("status") != "sent" or receipt.get("chat_id") != CHAT
             or receipt.get("topic_id") != TOPICS[timeframe]
-            or receipt.get("packet_sha256") != sha256(files["prepared-packet.json"]).hexdigest()
-            or set(receipt.get("acknowledged", {})) != {"text", "photo", "csv"}
-            or any(type(value) is not int or value <= 0 for value in receipt["acknowledged"].values())):
+            or receipt.get("packet_sha256") != sha256(files["prepared-packet.json"]).hexdigest()):
         raise ValueError("ram_packet_identity_or_acknowledgement_invalid")
+    try:
+        verify_acknowledgements(report, receipt)
+    except ValueError as error:
+        raise ValueError("ram_packet_identity_or_acknowledgement_invalid") from error
     observed = datetime.fromisoformat(report["observation_end"])
     if observed.utcoffset() is None:
         raise ValueError("aware_packet_observation_required")

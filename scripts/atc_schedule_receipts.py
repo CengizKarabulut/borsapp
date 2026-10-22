@@ -16,6 +16,16 @@ from uuid import uuid4
 
 import httpx
 
+from scripts.atc_live_packet_contract import (
+    FILES as PACKET_FILES,
+)
+from scripts.atc_live_packet_contract import (
+    VERSION as PACKET_VERSION,
+)
+from scripts.atc_live_packet_contract import (
+    packet_files,
+    verify_acknowledgements,
+)
 from scripts.atc_snapshot_schedule import (
     IST,
     LEDGER_SCHEMA,
@@ -29,8 +39,6 @@ from scripts.atc_snapshot_schedule import (
 API = "https://api.github.com"
 MAX_ARCHIVE = 2 * 1024 * 1024
 MAX_STATE = 100 * 1024
-PACKET_VERSION = "atc-unpersisted-latest-candle-v1"
-PACKET_FILES = ("live-snapshot.json", "live-snapshot.csv", "live-snapshot.txt", "live-snapshot.png")
 SLOT_FIELDS = {"timeframe", "slot_key", "session", "target_close", "scheduled_at",
                "lateness_seconds", "missed_slot_count", "manual_only"}
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
@@ -104,14 +112,18 @@ def _verify_packet(folder: Path, slot: dict) -> tuple[dict, str]:
         raise ValueError("symlinked_prepared_packet")
     raw = manifest_path.read_bytes()
     manifest = json.loads(raw)
+    report_file = folder / PACKET_FILES[0]
+    if report_file.is_symlink():
+        raise ValueError("prepared_packet_file_hash_changed")
+    report = json.loads(report_file.read_bytes())
+    names = packet_files(report)
     if (manifest.get("version") != PACKET_VERSION
-            or set(manifest.get("files", {})) != set(PACKET_FILES)):
+            or set(manifest.get("files", {})) != set(names)):
         raise ValueError("invalid_prepared_packet_manifest")
-    for name in PACKET_FILES:
+    for name in names:
         file = folder / name
         if file.is_symlink() or sha256(file.read_bytes()).hexdigest() != manifest["files"][name]:
             raise ValueError("prepared_packet_file_hash_changed")
-    report = json.loads((folder / PACKET_FILES[0]).read_bytes())
     if (report.get("version") != PACKET_VERSION or report.get("timeframe") != slot["timeframe"]
             or report.get("provisional") is not True or report.get("confirmed_store_writes") != 0):
         raise ValueError("prepared_report_schedule_identity_mismatch")
@@ -138,6 +150,7 @@ def record_receipt(packet_dir: Path, slot: dict, output_dir: Path) -> dict:
     if json.loads((folder / "scheduled-slot.json").read_bytes()) != slot:
         raise ValueError("prepared_packet_schedule_context_changed")
     receipt = json.loads((folder / "publication-receipt.json").read_bytes())
+    verify_acknowledgements(report, receipt)
     state = {"schema": LEDGER_SCHEMA, **slot, "sent": True,
              "packet_sha256": packet_hash, "receipt": receipt,
              "observed_at": report.get("observation_end"),

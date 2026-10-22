@@ -15,13 +15,15 @@ bir kalibrasyon sonucu anlamına gelmez. Gerçek veya sanal emir oluşturmaz.
 ## Otomatik çalışma
 
 **ATC automatic latest candle snapshots** normal seanslarda vadesi gelen
-`15m`, `30m`, `45m`, `1h`, `2h`, `4h` ve günlük dönemleri kontrol eder.
+`15m`, `30m`, `45m`, `1h`, `2h`, `4h`, günlük ve haftalık dönemleri kontrol eder.
 Günlük yeni dönem yalnız 18:30 kapanış kontrolünde vadelidir. Saat tablosu
 ve manuel toplu deneme [otomatik zamanlama kılavuzundadır](ATC_AUTOMATIC_SCHEDULE.md).
-Haftalık (`1wk`) bu yolda yoktur; haftanın son seansında ayrı, teyitli
-18:30 kapanış/Kesişim workflow'unda kalır.
+Haftalık (`1wk`) gerçek haftalık kaynak mumundan, haftanın son gerçek işlem
+gününde 18:30 kontrolünde hazırlanır. Bu da CANLI / TEYİTSİZ RAM sonucudur.
 
-Tamamlanan Telegram teslimi, üç gerçek mesaj kimlikli makbuzla saklanır.
+Tamamlanan Telegram teslimi, metin/CSV ve üretilen her yön görselinin gerçek,
+birbirinden farklı mesaj kimlikleriyle saklanır. Boş yön varsa o görsel
+üretilmez; normalde iki ile altı parça bulunabilir.
 Sonraki otomatik planlayıcı aynı dönemi atlar; başarısız/önizleme çalışması
 teslim kaydını ilerletmez. Bekleyen eski dönemler topluca oynatılmaz:
 gecikmede yalnız en son uygun dönem seçilir, atlanan dönem sayısı kaydedilir.
@@ -39,7 +41,7 @@ kaldırılmıştır; aynı canlı yayını ikinci bir iş tekrarlamaz.
 GitHub → Actions → **ATC manual live candle snapshot** → **Run workflow**:
 
 1. Dal olarak `main` seçin. `timeframe` alanında `15m`, `30m`, `45m`, `1h`,
-   `2h`, `4h` veya `1d` seçin. Bu çalışma için haftalık seçenek yoktur.
+   `2h`, `4h`, `1d` veya `1wk` seçin.
 2. Önce `delivery=preview` seçin; `prepared_run_id` alanını boş bırakın.
    Çalışma 630 hisselik sabit listeyi tarar ve dosyaları hazırlar. Telegram'a
    mesaj göndermez.
@@ -61,6 +63,12 @@ kimlikleri gönderimden önce ayrıca doğrulanır. Telegram erişim bilgileri
 yalnız gönderim adımına verilir, rapor dosyalarına yazılmaz.
 
 ## Sonuçları okuma
+
+**LONG / SHORT grupları:** Normal tarama eşleşmeleri ve aynı zaman diliminde
+en az iki farklı taramanın kesiştiği hisseler ayrı gruplardır. Her birinde
+LONG ve SHORT görselleri ayrıdır, en fazla20 hisse gösterilir. Sıra eşleşen
+farklı tarama sayısı ve ardından hisse kodudur; bu bir başarı olasılığı
+değildir. Gösterilen/toplam sayısı görünür, tam sonuçlar CSV'de kalır.
 
 - **630 hissenin tamamı:** Gerçek veriyle hesaplanan, hesaplanamayan ve yetersiz
   geçmişi olan hisselerin tamamı CSV/JSON'da korunur. En az %90 kullanılabilir
@@ -84,19 +92,12 @@ yalnız gönderim adımına verilir, rapor dosyalarına yazılmaz.
 - **Eksik mum:** Hisse işlem görmediyse, sağlayıcı gerçek mum göndermediyse
   veya geçmiş seri uygun değilse durum eksik kalır. Mum kapanışını beklememek
   bu tür veri eksikliğini kendiliğinden çözmez.
-- **Eksik son aralık:** Özellikle 45 dakikalık birleştirmede, nominal aralık
-  bitmiş olsa da sağlayıcının verdiği son yerel mumlar o aralığın yalnız
-  baştan başlayan kesintisiz bölümünü kapsayabilir. Aynı seanstaki son gerçek
-  kaynak mumunun bitişi en fazla 30 dakika eskiyse bu gözlenen bölüm yalnız
-  **CANLI / TEYİTSİZ** hesapta tutulabilir. Başlangıcı eksik veya içinde boşluk
-  bulunan bölüm kabul edilmez; eksik sona fiyat/hacim eklenmez. Bu kullanım
-  bütün 45 dakikanın OHLCV'sinin mevcut olduğu veya mumun teyit edildiği
-  anlamına gelmez. Metin ve görseldeki **Eksik son aralık** sayısı bu ayrı
-  durumu gösterir; bütün veri eksiklerinin giderildiği anlamına gelmez.
-  CSV'de `SonHedefAralikTam`, `GozlenenOnEkSonu` ve `SonMumDurumu` bulunur.
-  `GozlenenOnEkSonu`, gözlenen son yerel mumun nominal bitiş zamanıdır;
-  gerçek son işlem zamanı değildir. Kaynak hatalarının yalnız güvenli,
-  önceden tanımlanmış doğrulama gerekçeleri `KaynakHatalari` alanına yazılır.
+- **Gerçek yerel mum:** Gün içi üretim yolu her zaman diliminin doğrudan
+  native kaynağını kullanır; seyrek saatlik mumlar birleştirilerek eksik
+  2/4 saatlik veya45 dakikalık mum üretilmez. Sabah/kapanış müzayedesi
+  mumları korunur. Nominal mum bitişi son işlem zamanı veya kapanış teyidi
+  değildir. Kaynak hatalarının yalnız güvenli, önceden tanımlanmış
+  doğrulama gerekçeleri `KaynakHatalari` alanına yazılır.
 - **Kısa seanslar:** Güncel beklenen seans yarım günse bu sürüm açıkça
   desteklenmedi hatası verir. Geçmiş yarım günlerin gerçek OHLCV değerleri
   korunur; nominal saat ve eksik birleştirme uyarıları CSV/JSON'da görünür.
@@ -118,7 +119,7 @@ süreli dönem makbuzuyla atlama düzeni, bu bağımsız manuel denemeden ayrıd
 08:35'teki ayrı günlük rapor önceki gerçek kapalı seansın H/L/C değerlerinden
 ana **P, S1/S2/S3 ve R1/R2/R3** merdivenini hesaplar. 120 kapalı mumdaki
 teyitli yapısal destek/direnç ayrıca ve sıfır–üç seviye olarak korunur.
-Tam 630 kod CSV/JSON'dadır, görsel ilk 20'dir. Canlı zaman dilimi sonuçları
+Tam630 kod CSV/JSON ve32 alfabetik görseldedir; sayfa başına en çok20 hisse vardır. Canlı zaman dilimi sonuçları
 bu günlük referansı kalibre edilmiş Stop/TP veya başarı ihtimali yapmaz.
 Yöntem ve deneme adımları [destek/direnç kılavuzundadır](TELEGRAM_SUPPORT_PIVOT.md).
 

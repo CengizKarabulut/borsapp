@@ -120,7 +120,8 @@ jobs:
             runtime_artifacts/live/live-snapshot.json
             runtime_artifacts/live/live-snapshot.csv
             runtime_artifacts/live/live-snapshot.txt
-            runtime_artifacts/live/live-snapshot.png
+            runtime_artifacts/live/tf-*.png
+            runtime_artifacts/live/same-tf-*.png
             runtime_artifacts/live/prepared-packet.json
             runtime_artifacts/live/publication-receipt.json
           retention-days: 2
