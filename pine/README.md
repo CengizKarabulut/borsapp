@@ -7,6 +7,25 @@ koşullar ve referans Giriş/Stop/TP1–2–3 ayrı tabloda gösterilir. Küçü
 Mini görünümü ve dört satırlık eşleşme sayfaları kullanılır; sayfa ayarlardan
 değiştirilir. Bu gösterge alarm ya da emir oluşturmaz.
 
+`ATC_BIST_18_COKLU_ZAMAN.pine` aynı sembolü **5 dakika, 15 dakika, 1 saat,
+4 saat, 1 gün ve 1 hafta** için tek matriste gösterir. Ana grafik zaman
+dilimini değiştirmek bu altı sütunu değiştirmez; sembol değişince altısı da
+yeni sembolü kullanır. Her sütunda 18 durum, hesaplanabilen kural sayısı,
+kendi son fiyatı ve kaynak mumunun başlangıcı bulunur. `*` açık mumu
+belirtir; fiyat veya saat hücresinin üzerine gelince mum sonu ve hacim
+görülebilir. Eşleşme tablosunda zaman dilimi ve o kaynağın Giriş/Stop/TP
+değerleri gösterilir. Tüm eşleşmeler ayarlardaki sayfalardan erişilebilir.
+
+Bu altılı gösterge yalnız **güncel son mum gözlemidir**. Her kaynağın açık
+mumu fiyat/hacim geldikçe değişebilir. Ana grafikten yüksek zamanlarda
+`lookahead_on` güncel açık üst mumu getirir; düşük/eşit zamanlarda
+`lookahead_off` son alt mumu seçer. İlk alt mumla karışmaz; bütün geçmiş
+alt mum olaylarını veya geçmişte o anda bilinen sinyalleri yeniden oynatmaz.
+Tarihsel sinyal çizimi, alarm veya backtest sonucu üretmez. 18. taramanın
+geçmiş nitelendirmesi kendi kaynak bağlamındaki aynı 600 mumluk varsayılan
+pencereyi kullanır; hesaplanamayan durum eşleşme yok sayılmaz. Fiyat adımına
+yuvarlama sonrasında pozitif ve sıralı kalmayan referans plan gösterilmez.
+
 Negatif durum **Düşüş/İzle** olarak korunur. 17 yalnız günlükte çalışır.
 Yetersiz geçmiş, kapalı hesaplama ve nitelikli MA bulunamaması eşleşme yok
 sonucundan ayrı gösterilir. Son açık mum kullanılır; koşullar değişebilir.
