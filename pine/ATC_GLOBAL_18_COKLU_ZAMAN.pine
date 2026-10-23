@@ -1786,7 +1786,9 @@ if barstate.islast
     bool bistChart = f_global_bist_reference()
     table.clear(statusTable, 0, 0, 6, 25)
     table.clear(matchTable, 0, 0, 7, matchPageSize + 2)
-    f_mtf_cell(statusTable, 0, 0, syminfo.tickerid + " · GLOBAL 18 TARAMA × 6 ZAMAN", headerBg, color.white)
+    // Display the readable symbol; request IDs may encode settlement/session
+    // modifiers. The six requests keep the original ticker ID and its settings.
+    f_mtf_cell(statusTable, 0, 0, syminfo.prefix + ":" + syminfo.ticker + " · GLOBAL 18 TARAMA × 6 ZAMAN", headerBg, color.white)
     f_mtf_cell(statusTable, 0, 1, "TARAMA", headerBg, color.white)
     for id = 1 to 18
         f_mtf_cell(statusTable, 0, id + 1, str.tostring(id) + " · " + array.get(chartRuleNames, id - 1), baseBg, color.white)
