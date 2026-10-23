@@ -27,14 +27,19 @@ from market_intelligence.scanning.display_codes import SCANNER_ORDER, scanner_co
 from market_intelligence.scheduling.xist import ExchangeCalendarsXist
 from scripts import atc_live_snapshot as live
 from scripts.atc_live_multihour_frames import NATIVE_MULTIHOUR_GRIDS
-from scripts.atc_live_packet_contract import packet_files, verify_acknowledgements
+from scripts.atc_live_packet_contract import (
+    READABLE_VERSIONS,
+    notification_policy,
+    packet_files,
+    verify_acknowledgements,
+)
 from scripts.atc_live_snapshot_frames import NATIVE_45M_GRID
 from scripts.atc_live_weekly_frames import NATIVE_WEEKLY_GRID, calendar_week_identity
 from scripts.atc_structure_report import atomic_json, canonical
 from scripts.atc_timeframe_visuals import _font
 from scripts.atc_universe_seed import load_pinned
 
-VERSION = "atc-latest-known-provisional-intersections-v1"
+VERSION = "atc-latest-known-provisional-intersections-v2-bist-long-only"
 TOPIC = 28330
 REPOSITORY = "CengizKarabulut/borsapp"
 WORKFLOW = ".github/workflows/atc-scheduled-snapshots.yml"
@@ -76,7 +81,9 @@ def validate_packet(folder, tf, source, *, now, session, pinned, bindings, hashe
     manifest = _read(folder / "prepared-packet.json")
     report = _read(folder / "live-snapshot.json")
     names = packet_files(report)
-    if (manifest.get("version") != live.VERSION
+    if (manifest.get("version") != report.get("version")
+            or report.get("version") == live.VERSION
+                and manifest.get("notification_policy") != notification_policy()
             or set(manifest.get("files", {})) != set(names)
             or manifest.get("implementation_files") != hashes):
         raise ValueError("source_implementation_changed_refresh_timeframe")
@@ -93,7 +100,7 @@ def validate_packet(folder, tf, source, *, now, session, pinned, bindings, hashe
         raise ValueError("acknowledged_source_packet_required")
     verify_acknowledgements(report, receipt)
     rows = report.get("rows", [])
-    if (report.get("version") != live.VERSION or report.get("timeframe") != tf
+    if (report.get("version") not in READABLE_VERSIONS or report.get("timeframe") != tf
             or report.get("provisional") is not True or report.get("confirmed_store_writes") != 0
             or report.get("symbol_count") != 630 or len(rows) != 630
             or {row.get("symbol") for row in rows} != pinned):
@@ -196,7 +203,7 @@ def _frame_codes(item):
 
 def image_groups(items):
     result = []
-    for direction, label in (("bullish", "LONG"), ("bearish", "SHORT")):
+    for direction, label in (("bullish", "LONG"),):
         group = [item for item in items if item["direction"] == direction]
         if group:
             result.append({"direction": direction, "label": label, "total_stock_count": len(group),
@@ -220,13 +227,15 @@ def render_text(report):
         lines.append("Haftalık uygunluk aynı takvim haftasıdır; mum başlangıcı son işlem zamanı veya anlık veri kanıtı değildir.")
     if len([lane for lane in report["inputs"].values() if lane["status"] == "included"]) < 2:
         lines.append("Kesişim hesabı için yeterli güncel zaman dilimi yok.")
-    elif not report["intersections"]:
-        lines.append("Bu görüntüde koşulları sağlayan kesişim bulunmadı.")
+    elif not report["image_groups"]:
+        lines.append("Bu görüntüde bildirim koşullarını sağlayan LONG kesişimi bulunmadı.")
     else:
-        lines.append(f"{len(report['intersections'])} hisse · LONG ve SHORT ayrı; her grupta en çok 20 · tam liste CSV'de.")
+        total = sum(group["total_stock_count"] for group in report["image_groups"])
+        lines.append(f"{total} LONG hisse · en çok 20 görselde · tam liste CSV'de.")
         for group in report["image_groups"]:
             lines.append(f"{group['label']}: {group['stock_count']}/{group['total_stock_count']} görselde.")
         lines.append("Sıra: zaman dilimi sayısı, farklı tarama sayısı, hisse kodu; başarı puanı değildir.")
+    lines.append("BIST bildirimleri yalnız LONG. Düşüş analizleri dahil tüm yönler CSV'de korunur.")
     lines.append("Açık mum koşulları değişebilir. Kesişim sayısı başarı olasılığı değildir; emir veya ortak Stop/TP planı üretilmez.")
     text = "\n".join(lines)
     if len(text) > 4000:
@@ -279,7 +288,7 @@ def render_pages(report):
             y += height
         draw.text((30, image.height - 74), "Her dilimde ≥2 aynı yönlü tarama · ≥2 dilim · eşit kapanış zamanı gerekmez.",
                   font=_font(19), fill="#52697F")
-        draw.text((30, image.height - 42), "Her yönde en çok 20 hisse; tamamı CSV'de. Başarı olasılığı, emir veya Stop/TP planı değildir.",
+        draw.text((30, image.height - 42), "BIST bildirimleri yalnız LONG; tüm yönler CSV'de. Başarı olasılığı, emir veya Stop/TP planı değildir.",
                   font=_font(18), fill="#52697F")
         output = io.BytesIO()
         image.save(output, format="PNG")
@@ -317,7 +326,8 @@ def prepare_report(packets_dir, sources_manifest, output_dir, *, now=None, bindi
             reason = known if re.fullmatch(r"[a-z][a-z0-9_]{2,90}", known) else "invalid_source_packet"
             inputs[tf] = {"status": "excluded", "reason": reason}
     ranked = current_intersections(by_tf) if len(by_tf) >= 2 else []
-    report = {"version": VERSION, "prepared_at": now.isoformat(), "session": session.isoformat(),
+    report = {"version": VERSION, "notification_policy": notification_policy(),
+        "prepared_at": now.isoformat(), "session": session.isoformat(),
         "provisional": True, "source_state_semantics": "latest_known_with_per_timeframe_observation_age",
         "criteria": {"same_direction_rules_per_timeframe": 2, "same_direction_timeframes": 2,
                      "equal_close_timestamps_required": False, "direction_ties_excluded": True},
@@ -337,6 +347,7 @@ def prepare_report(packets_dir, sources_manifest, output_dir, *, now=None, bindi
         (output_dir / name).write_bytes(data)
         names.append(name)
     atomic_json(output_dir / "prepared-intersections.json", {"version": VERSION,
+        "notification_policy": notification_policy(),
         "source_set_sha256": report["source_set_sha256"],
         "implementation_files": hashes, "files": {name: sha256((output_dir / name).read_bytes()).hexdigest() for name in names}})
     return report
@@ -349,11 +360,15 @@ def publish_report(folder, *, now=None, environ=None, transport=None, previous_r
         raise ValueError("existing_intersection_destination_required")
     manifest_raw = (folder / "prepared-intersections.json").read_bytes()
     manifest = _read(folder / "prepared-intersections.json")
-    if manifest.get("version") != VERSION or manifest.get("implementation_files") != live.implementation_hashes():
+    if (manifest.get("version") != VERSION
+            or manifest.get("notification_policy") != notification_policy()
+            or manifest.get("implementation_files") != live.implementation_hashes()):
         raise ValueError("intersection_implementation_changed")
     report = _read(folder / BASE_FILES[0])
+    if report.get("notification_policy") != notification_policy():
+        raise ValueError("bist_notification_policy_changed")
     pages = report.get("image_pages")
-    if (type(pages) is not int or not 0 <= pages <= 2
+    if (type(pages) is not int or not 0 <= pages <= 1
             or report.get("image_groups") != image_groups(report.get("intersections", []))
             or pages != len(report["image_groups"])):
         raise ValueError("invalid_intersection_page_count")
@@ -390,12 +405,15 @@ def publish_report(folder, *, now=None, environ=None, transport=None, previous_r
         raise ValueError("intersection_source_set_identity_changed")
     previous = _read(Path(previous_receipt)) if previous_receipt is not None else (
         receipt if receipt.get("status") == "already_sent" else None)
-    if previous is not None and previous.get("source_set_sha256") == source_set:
-        if (previous.get("version") != VERSION or previous.get("chat_id") != live.CHAT
+    if (previous is not None and previous.get("version") == VERSION
+            and previous.get("source_set_sha256") == source_set):
+        if (previous.get("notification_policy") != notification_policy()
+                or previous.get("chat_id") != live.CHAT
                 or previous.get("topic_id") != TOPIC or previous.get("status") not in {"sent", "already_sent"}
                 or set(previous.get("acknowledged", {})) != set(payloads)
                 or previous.get("expected_acknowledgements") != list(payloads)
-                or any(type(value) is not int or value <= 0 for value in previous["acknowledged"].values())):
+                or any(type(value) is not int or value <= 0 for value in previous["acknowledged"].values())
+                or len(set(previous["acknowledged"].values())) != len(previous["acknowledged"])):
             raise ValueError("complete_previous_intersection_receipt_required")
         skipped = {**previous, "status": "already_sent", "prepared_packet_skipped_sha256": packet_hash}
         atomic_json(receipt_path, skipped)
@@ -403,7 +421,11 @@ def publish_report(folder, *, now=None, environ=None, transport=None, previous_r
     if (receipt.get("packet_sha256") != packet_hash or receipt.get("chat_id") != live.CHAT
             or receipt.get("topic_id") != TOPIC or not isinstance(receipt.get("acknowledged"), dict)
             or set(receipt["acknowledged"]) - set(payloads)
-            or any(type(value) is not int or value <= 0 for value in receipt["acknowledged"].values())):
+            or any(type(value) is not int or value <= 0 for value in receipt["acknowledged"].values())
+            or len(set(receipt["acknowledged"].values())) != len(receipt["acknowledged"])
+            or receipt_path.exists() and (receipt.get("version") != VERSION
+                or receipt.get("notification_policy") != notification_policy()
+                or receipt.get("expected_acknowledgements") != list(payloads))):
         raise ValueError("intersection_receipt_identity_changed")
     for tf, lane in report.get("inputs", {}).items():
         if lane.get("status") == "included":
@@ -414,12 +436,13 @@ def publish_report(folder, *, now=None, environ=None, transport=None, previous_r
                     or now - source_start > timedelta(minutes=limit)):
                 raise ValueError("intersection_source_observation_expired")
     sender = transport if transport is not None else live.HttpxTelegramTransport(env["TELEGRAM_BOT_TOKEN"])
-    receipt.update(version=VERSION, source_set_sha256=source_set, expected_acknowledgements=list(payloads))
+    receipt.update(version=VERSION, notification_policy=notification_policy(),
+                   source_set_sha256=source_set, expected_acknowledgements=list(payloads))
     for key, payload in payloads.items():
         if key in receipt["acknowledged"]:
             continue
         message_id = sender.send(chat_id=live.CHAT, message_thread_id=TOPIC, payload=payload)
-        if type(message_id) is not int or message_id <= 0:
+        if type(message_id) is not int or message_id <= 0 or message_id in receipt["acknowledged"].values():
             raise ValueError("telegram_acknowledgement_required")
         receipt["acknowledged"][key] = message_id
         receipt["updated_at"] = now.isoformat()

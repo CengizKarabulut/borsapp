@@ -66,6 +66,8 @@ from scripts.atc_live_packet_contract import (
     VERSION,
     acknowledgement_keys,
     direction_metadata,
+    notification_directions,
+    notification_policy,
     packet_files,
     packet_pages,
     verify_acknowledgements,
@@ -236,6 +238,7 @@ def matches(report):
 
 
 def render_summary(report):
+    allowed = notification_directions(report)
     counts = report["counts"]
     lines = [f"ATC | {report['timeframe']} | CANLI / TEYİTSİZ",
         f"Gözlem: {report['observation_start']} → {report['observation_end']}",
@@ -244,7 +247,9 @@ def render_summary(report):
         f"Eksik son aralık: {counts.get('incomplete_latest', 0)} · yalnız gözlenen kesintisiz kaynak bölümü kullanıldı.",
         "Son gerçek mum o an kapansaydı: koşullar ve referans Stop/TP değişebilir."]
     grouped = {}
-    for row, scan, _, direction in matches(report):
+    for row, scan, finding, direction in matches(report):
+        if finding.get("direction") not in allowed:
+            continue
         grouped.setdefault((scan["number"], direction), []).append(row["symbol"])
     for (number, direction), symbols in sorted(grouped.items()):
         unique = sorted(set(symbols))
@@ -264,8 +269,8 @@ def render_summary(report):
         counts = group["directions"]
         lines.append(title + ": " + " · ".join(
             f"{counts[direction]['label']} {counts[direction]['stock_count']}/{counts[direction]['total_stock_count']}"
-            for direction in ("bullish", "bearish")))
-    lines.extend(["LONG ve SHORT ayrı görsellerde; her grupta en çok 20 hisse, tüm sonuçlar CSV'de.",
+            for direction in allowed))
+    lines.extend(["BIST bildirimleri yalnız LONG; her grupta en çok 20 hisse. Düşüş analizleri dahil tüm sonuçlar CSV'de.",
         "Sıra: farklı tarama sayısı, ardından hisse kodu. Başarı olasılığı değildir.",
         "Fiyat/hacim kaynağının anlık olduğu doğrulanmadı. GitHub taraması tek anlık akış değildir.",
         "18: geçmiş yeterlilik kaydı yoksa HESAPLANAMADI. CANLI / TEYİTSİZ · YTD"])
@@ -398,7 +403,8 @@ def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=r
     halted = sum(row["status"] == "available" and bool(row.get("market_event")) for row in rows)
     incomplete_latest = sum(row.get("metadata", {}).get("status") == "incomplete_latest_native_prefix"
                             for row in rows)
-    report = {"version": VERSION, "timeframe": tf.value, "started_at": started.isoformat(),
+    report = {"version": VERSION, "notification_policy": notification_policy(),
+        "timeframe": tf.value, "started_at": started.isoformat(),
         "finished_at": finished.isoformat(), "observation_start": min(observations, default=started).isoformat(),
         "observation_end": max(observations, default=finished).isoformat(), "symbol_count": len(rows),
         "counts": {"usable": usable, "current": current, "stale": counts["available"] - usable - halted,
@@ -413,10 +419,12 @@ def prepare_report(folder, *, timeframe="15m", workers=2, symbols=None, reader=r
     (folder / FILES[1]).write_bytes(csv_report(report))
     (folder / FILES[2]).write_text(render_summary(report), encoding="utf-8")
     for minimum in (1, 2):
-        _, images = build_timeframe_pages(report, minimum_scanners=minimum, max_stocks_per_direction=20)
+        _, images = build_timeframe_pages(report, minimum_scanners=minimum, max_stocks_per_direction=20,
+            allowed_directions=notification_directions(report))
         for name, content in images.items():
             (folder / name).write_bytes(content)
     atomic_json(folder / "prepared-packet.json", {"version": VERSION,
+        "notification_policy": notification_policy(),
         "implementation_files": implementation_hashes(),
         "files": {name: sha256((folder / name).read_bytes()).hexdigest() for name in packet_files(report)}})
     return report
@@ -437,6 +445,7 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
             or not report.get("provisional") or report.get("confirmed_store_writes") != 0):
         raise ValueError("complete_pinned_provisional_packet_required")
     if (manifest.get("version") != VERSION or set(manifest.get("files", {})) != set(packet_files(report))
+            or manifest.get("notification_policy") != notification_policy()
             or manifest.get("implementation_files") != implementation_hashes()):
         raise ValueError("implementation_changed_reprepare_required")
     for name in packet_files(report):
@@ -467,6 +476,7 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
                 or type(value) is not int or value <= 0 for key, value in receipt["acknowledged"].items())
             or len(set(receipt["acknowledged"].values())) != len(receipt["acknowledged"])
             or receipt_path.exists() and (receipt.get("packet_version") != VERSION
+                or receipt.get("notification_policy") != notification_policy()
                 or receipt.get("expected_acknowledgements") != expected_acks)):
         raise ValueError("delivery_receipt_identity_changed")
     sender = transport if transport is not None else HttpxTelegramTransport(env["TELEGRAM_BOT_TOKEN"])
@@ -482,7 +492,8 @@ def publish_report(folder, *, now=None, transport=None, environ=None):
            for page in packet_pages(report)},
         "csv": {"_method": "sendDocument", "document_base64": base64.b64encode((folder / FILES[1]).read_bytes()).decode("ascii"),
             "filename": f"ATC_630_{tf}_CANLI_TEYITSIZ.csv", "caption": "630 hisse × 18 tarama · son gerçek mum anlık görüntüsü · eksikler ayrı · CANLI / TEYİTSİZ."}}
-    receipt.update(packet_version=VERSION, expected_acknowledgements=expected_acks)
+    receipt.update(packet_version=VERSION, notification_policy=notification_policy(),
+                   expected_acknowledgements=expected_acks)
     sent = 0
     for key, payload in payloads.items():
         if key in receipt["acknowledged"]:

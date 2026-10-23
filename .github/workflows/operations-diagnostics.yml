@@ -1,4 +1,4 @@
-name: Operations diagnostics
+name: Maintenance - database command queue diagnostics
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: KAP news sync
+name: Maintenance - manual KAP and news sync (database)
 
 on:
   workflow_dispatch:
@@ -14,8 +14,6 @@ on:
         required: true
         default: false
         type: boolean
-  schedule:
-    - cron: "*/10 6-20 * * 1-5"
 
 permissions:
   contents: read
@@ -26,7 +24,6 @@ concurrency:
 
 jobs:
   sync:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_NEWS == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

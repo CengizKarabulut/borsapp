@@ -1,0 +1,3093 @@
+//@version=6
+indicator("ATC BIST631 LONG REF-20261023", shorttitle="ATC631L23", overlay=true, max_bars_back=3500)
+
+// Historical CAL18 profiles disabled after adjustment-basis audit; all plans are uncalibrated references.
+// Closed-OHLC research cannot recreate intrabar alerts. Fixed stop; no automatic trailing.
+// Native formula ports 1-18. Identical-feed Python numerical parity NOT verified.
+// Monitoring only. Rule18 runs its historical research in the same source frame.
+// A=M-1/macd_cross, B=S-M-1/h8, C=S-M-V-1/i9, D=E-V-1/ema,
+// E=R-M-V-1/rsi_macd, F=A-M-V-1/new_scan, G=S-M-V-2/full,
+// H=S-M-2/smi early, I=R-V-1/rsi.
+
+onlyClosedBar = input.bool(false, "Sadece kapanmis mumda teyit et", group="Genel")
+dailyOnly = input.bool(false, "Yalniz 1G kullan", group="Genel")
+showPanel = input.bool(true, "A-I panelini goster", group="Panel")
+panelPosOpt = input.string("Sag Ust", "Panel konumu", options=["Sag Ust", "Sag Orta", "Sol Ust", "Sol Orta"], group="Panel")
+panelSizeOpt = input.string("Kucuk", "Panel boyutu", options=["Mini", "Kucuk", "Normal"], group="Panel")
+
+panelPosition = panelPosOpt == "Sol Ust" ? position.top_left : panelPosOpt == "Sol Orta" ? position.middle_left : panelPosOpt == "Sag Orta" ? position.middle_right : position.top_right
+panelTextSize = panelSizeOpt == "Mini" ? size.tiny : panelSizeOpt == "Normal" ? size.normal : size.small
+closedGate = not onlyClosedBar or barstate.isconfirmed
+timeframeOk = not dailyOnly or timeframe.isdaily
+
+f_ewm_alpha(float source, int length) =>
+    float alpha = 1.0 / length
+    float value = na
+    value := na(source) ? value[1] : na(value[1]) ? source : alpha * source + (1.0 - alpha) * value[1]
+    value
+
+// indicators.calc_rsi parity.
+f_rsi(float source, int length) =>
+    float change = ta.change(source)
+    float gain = na(change) ? na : math.max(change, 0.0)
+    float loss = na(change) ? na : math.max(-change, 0.0)
+    float avgGain = f_ewm_alpha(gain, length)
+    float avgLoss = f_ewm_alpha(loss, length)
+    avgLoss == 0 ? na : 100.0 - 100.0 / (1.0 + avgGain / avgLoss)
+
+// filters.calc_rsi parity (ilk change=0 seed).
+f_filter_rsi(float source, int length) =>
+    float change = ta.change(source)
+    float gain = na(change) ? 0.0 : change > 0 ? change : 0.0
+    float loss = na(change) ? 0.0 : change < 0 ? -change : 0.0
+    float avgGain = f_ewm_alpha(gain, length)
+    float avgLoss = f_ewm_alpha(loss, length)
+    avgLoss == 0 ? na : 100.0 - 100.0 / (1.0 + avgGain / avgLoss)
+
+f_double_ema(float source, int length) =>
+    ta.ema(ta.ema(source, length), length)
+
+f_tf_text() =>
+    string tf = timeframe.period
+    tf := tf == "15" ? "15 DK" : tf == "30" ? "30 DK" : tf == "45" ? "45 DK" : tf == "60" ? "1 SA" : tf == "120" ? "2 SA" : tf == "240" ? "4 SA" : tf == "D" ? "1G" : tf == "W" ? "1HFT" : tf == "M" ? "1AY" : tf
+    tf
+
+// -----------------------------------------------------------------------------
+// Ortak seriler - Python indicators.py / filters.py ile ayni parametreler.
+// -----------------------------------------------------------------------------
+sma5 = ta.sma(close, 5)
+sma8 = ta.sma(close, 8)
+sma21 = ta.sma(close, 21)
+sma50 = ta.sma(close, 50)
+sma55 = ta.sma(close, 55)
+sma200 = ta.sma(close, 200)
+
+ema5 = ta.ema(close, 5)
+ema8 = ta.ema(close, 8)
+ema13 = ta.ema(close, 13)
+ema21 = ta.ema(close, 21)
+ema55 = ta.ema(close, 55)
+ema200 = ta.ema(close, 200)
+
+[macdLine, macdSignal, macdHist] = ta.macd(close, 12, 26, 9)
+macdCrossOrRise = (macdLine[1] <= macdSignal[1] and macdLine > macdSignal) or (macdLine > macdSignal and macdLine > macdLine[1])
+
+hh10 = ta.highest(high, 10)
+ll10 = ta.lowest(low, 10)
+width10 = hh10 - ll10
+relative10 = close - (hh10 + ll10) / 2.0
+smi = width10 != 0 ? 200.0 * f_double_ema(relative10, 3) / f_double_ema(width10, 3) : 0.0
+smiRef = ta.ema(smi, 3)
+smiCrossOrRise = (smi[1] <= smiRef[1] and smi > smiRef) or (smi > smiRef and smi > smi[1])
+
+rsi7 = f_rsi(close, 7)
+rsi14 = f_rsi(close, 14)
+filterRsi7 = f_filter_rsi(close, 7)
+filterRsi14 = f_filter_rsi(close, 14)
+
+trRaw = ta.tr(true)
+atrEwm14 = f_ewm_alpha(trRaw, 14)
+atr14 = bar_index >= 13 ? atrEwm14 : na
+
+vol10 = ta.sma(volume, 10)
+vol20 = ta.sma(volume, 20)
+volRatio20 = vol20 > 0 ? volume / vol20 : 0.0
+
+// Intraday production tavan filtresi: mevcut fiyat / onceki GUNLUK kapanis.
+// [1] + lookahead_on yalniz tamamlanmis onceki 1G barini tum gun boyunca tasir.
+// Unused legacy daily-close request removed in this isolated prototype.
+
+// Kaufman Efficiency Ratio.
+erDirection = math.abs(close - close[10])
+erNoise = ta.sma(math.abs(ta.change(close)), 10) * 10.0
+er = erNoise > 0 ? erDirection / erNoise : na
+trendRegime = er >= 0.30
+softTrendRegime = er >= 0.22
+reversalRegime = er <= 0.35
+
+// Directional volume + CMF20. Zero-range bar varsa Python rolling CMF NaN olur;
+// validCount kontrolu ayni pencereyi reddeder.
+barRange = high - low
+mfMultiplier = barRange != 0 ? ((close - low) - (high - close)) / barRange : na
+mfVolume = mfMultiplier * volume
+mfAvg20 = ta.sma(mfVolume, 20)
+volAvg20 = ta.sma(volume, 20)
+validCmf = ta.sma(barRange != 0 ? 1.0 : 0.0, 20) >= 0.999999
+cmf20 = validCmf and volAvg20 != 0 ? mfAvg20 / volAvg20 : na
+directionalVolume = volume > vol20 * 1.5 and close > open and cmf20 > 0
+
+above50 = close > sma50
+above200 = close > sma200
+priorLow5 = ta.lowest(low[1], 5)
+reversalStructure = close > ema8 and close > open and close > close[1] and low >= priorLow5
+emaExtensionOk = (close - ema21 <= atr14 * 2.5) and (na(filterRsi14) or filterRsi14 <= 75)
+rsiHeatOk = na(filterRsi7) or filterRsi7 <= 85
+
+// -----------------------------------------------------------------------------
+// A-I sinyal durumlari.
+// -----------------------------------------------------------------------------
+smCore = smiCrossOrRise and smi < 0 and macdHist < 0 and macdHist > macdHist[1]
+smFullRaw = smCore and above200 and volume > vol20 * 1.5
+smEarlyRaw = smCore and not smFullRaw
+sigH = timeframeOk and smEarlyRaw and reversalRegime and reversalStructure and directionalVolume
+sigG = timeframeOk and smFullRaw and directionalVolume
+
+rsi7CrossOrRise = (rsi7[1] <= 50 and rsi7 > 50) or (rsi7 > 50 and rsi7 > rsi7[1])
+rsiRaw = rsi7 > 60 and rsi7CrossOrRise and volume > vol10 * 1.5
+sigI = timeframeOk and rsiRaw and above50 and trendRegime and directionalVolume and rsiHeatOk
+
+newRaw = volume > vol20 * 1.5 and close > sma5 and close > sma8 and close > sma21 and close > sma50 and close > sma55 and close > sma200 and macdLine > 0 and macdCrossOrRise
+sigF = timeframeOk and newRaw
+
+rsi14Up = (rsi14[1] <= 50 and rsi14 > 50) or (rsi14 > 50 and rsi14 > rsi14[1])
+rmvRaw = rsi14Up and rsi14 < 70 and macdCrossOrRise and volume > vol20 * 1.5
+sigE = timeframeOk and rmvRaw and above200 and trendRegime and directionalVolume
+
+ev4 = (ema8[1] <= ema13[1] and ema8 > ema13) or (ema8 > ema13 and ema8 > ema8[1])
+ev5 = (ema5[1] <= ema8[1] and ema5 > ema8) or (ema5 > ema8 and ema5 > ema5[1])
+ev6 = (ema5[1] <= ema13[1] and ema5 > ema13) or (ema5 > ema13 and ema5 > ema5[1])
+emaRaw = close > ema200 and close > ema55 and close > ema21 and ev4 and ev5 and ev6 and volume > vol20 * 1.5
+sigD = timeframeOk and emaRaw and emaExtensionOk
+
+macdRaw = rsi14 > 30 and macdCrossOrRise and macdLine > 0
+sigA = timeframeOk and macdRaw and above50 and trendRegime and directionalVolume
+
+h8Raw = smiCrossOrRise and smi > 0 and macdHist > 0 and macdHist > macdHist[1]
+sigB = timeframeOk and h8Raw and above50 and trendRegime and directionalVolume
+
+i9Raw = h8Raw and above200 and volume > vol20 * 1.5
+sigC = timeframeOk and i9Raw and softTrendRegime and directionalVolume
+
+freshA = sigA and not sigA[1]
+freshB = sigB and not sigB[1]
+freshC = sigC and not sigC[1]
+freshD = sigD and not sigD[1]
+freshE = sigE and not sigE[1]
+freshF = sigF and not sigF[1]
+freshG = sigG and not sigG[1]
+freshH = sigH and not sigH[1]
+freshI = sigI and not sigI[1]
+
+// -----------------------------------------------------------------------------
+// Scanner ile ayni gorunen stop/TP baslangic planlari.
+// -----------------------------------------------------------------------------
+f_plan(float swingLow, float emaValue, int mode, float buffer, float minRiskAtr, float maxRiskAtr, float tp1R, float tp2R, float tp3R) =>
+    float entry = close
+    float swingStop = swingLow - atr14 * buffer
+    float signalStop = low - atr14 * buffer
+    float emaStop = emaValue - atr14 * buffer
+    float fallback = entry - atr14 * minRiskAtr
+    float raw = fallback
+    if mode == 1
+        raw := swingStop
+    else if mode == 2
+        float best = na
+        if swingStop < entry
+            best := swingStop
+        if signalStop < entry
+            best := na(best) ? signalStop : math.min(best, signalStop)
+        if emaStop < entry
+            best := na(best) ? emaStop : math.min(best, emaStop)
+        raw := na(best) ? fallback : best
+    else if mode == 3
+        float best = na
+        if swingStop < entry
+            best := swingStop
+        if signalStop < entry
+            best := na(best) ? signalStop : math.max(best, signalStop)
+        if emaStop < entry
+            best := na(best) ? emaStop : math.max(best, emaStop)
+        raw := na(best) ? fallback : best
+    float risk = math.max(entry - raw, 0.0)
+    float minRisk = atr14 * minRiskAtr
+    float maxRisk = atr14 * maxRiskAtr
+    if risk < minRisk
+        risk := minRisk
+        raw := entry - risk
+    else if risk > maxRisk
+        risk := maxRisk
+        raw := entry - risk
+    [raw, entry + risk * tp1R, entry + risk * tp2R, entry + risk * tp3R]
+
+swing4 = ta.lowest(low, 4)
+swing6 = ta.lowest(low, 6)
+swing7 = ta.lowest(low, 7)
+swing8 = ta.lowest(low, 8)
+
+[aStop, aTp1, aTp2, aTp3] = f_plan(swing7, ema21, 3, 0.20, 0.75, 2.35, 1.0, 1.8, 2.8)
+[bStop, bTp1, bTp2, bTp3] = f_plan(swing6, ema13, 1, 0.20, 0.70, 2.20, 0.8, 1.5, 2.4)
+[cStop, cTp1, cTp2, cTp3] = f_plan(swing7, ema21, 2, 0.20, 0.75, 2.40, 0.8, 1.5, 2.4)
+[dStop, dTp1, dTp2, dTp3] = f_plan(swing8, ema21, 3, 0.20, 0.80, 2.50, 1.0, 2.0, 3.2)
+[eStop, eTp1, eTp2, eTp3] = f_plan(swing6, ema13, 1, 0.20, 0.70, 2.20, 0.8, 1.5, 2.4)
+[fStop, fTp1, fTp2, fTp3] = f_plan(swing8, ema21, 1, 0.20, 0.80, 2.60, 0.8, 1.5, 2.4)
+[gStop, gTp1, gTp2, gTp3] = f_plan(swing7, ema21, 1, 0.25, 0.80, 2.50, 0.8, 1.5, 2.4)
+[hStop, hTp1, hTp2, hTp3] = f_plan(swing6, ema21, 1, 0.25, 0.75, 2.25, 0.8, 1.5, 2.4)
+[iStop, iTp1, iTp2, iTp3] = f_plan(swing4, ema21, 2, 0.15, 0.65, 1.90, 0.8, 1.5, 2.4)
+
+
+// Pine Script v6 fragment; insert after indicator(). No external I/O, UI or orders.
+// Sources: config/{manual-scanner-names.json,scanners.toml};
+// src/market_intelligence/features/{volume,technical,volatility,momentum}.py;
+// src/market_intelligence/scanning/technical/{volume_spike,market_screens}.py;
+// src/market_intelligence/scanning/trade_plan.py (structural-atr-v1).
+// Full bounded-frame recalculation preserves the Python recursive seeds.
+// Native default history=600, supported setting60..3000 (native/engine.py).
+// TradingView compilation, performance and feed parity have NOT been verified.
+
+f_r1016_failed(array<float> lows, array<float> highs, array<float> closes, float level, bool down) =>
+    bool pierced = false
+    int n = array.size(closes)
+    if not na(level)
+        for i = math.max(0, n - 5) to n - 1
+            pierced := pierced or (down ? array.get(lows, i) < level : array.get(highs, i) > level)
+    not na(level) and pierced and (down ? array.get(closes, n - 1) > level : array.get(closes, n - 1) < level)
+
+// Equal volume share over occupied bins;70% value area;lowest tied POC;
+// upper-side preference when the two expansion-bin volumes are equal.
+f_r1016_profile(array<float> lows, array<float> highs, array<float> volumes) =>
+    int n = array.size(lows)
+    int firstBar = math.max(0, n - 100)
+    float lo = array.get(lows, firstBar)
+    float hi = array.get(highs, firstBar)
+    for i = firstBar to n - 1
+        lo := math.min(lo, array.get(lows, i))
+        hi := math.max(hi, array.get(highs, i))
+    float poc = na
+    float val = na
+    float vah = na
+    if hi > lo
+        float width = (hi - lo) / 48.0
+        array<float> bins = array.new<float>(48, 0.0)
+        for i = firstBar to n - 1
+            int firstBin = math.max(math.min(int((array.get(lows, i) - lo) / width), 47), 0)
+            int lastBin = math.max(math.min(int(math.ceil((array.get(highs, i) - lo) / width)) - 1, 47), firstBin)
+            float share = array.get(volumes, i) / (lastBin - firstBin + 1)
+            for j = firstBin to lastBin
+                array.set(bins, j, array.get(bins, j) + share)
+        float total = array.sum(bins)
+        if total > 0
+            int pocIndex = 0
+            float biggest = array.get(bins, 0)
+            for j = 1 to 47
+                if array.get(bins, j) > biggest
+                    biggest := array.get(bins, j)
+                    pocIndex := j
+            int selectedLow = pocIndex
+            int selectedHigh = pocIndex
+            int lower = pocIndex - 1
+            int upper = pocIndex + 1
+            float cumulative = array.get(bins, pocIndex)
+            while cumulative < total * 0.70 and (lower >= 0 or upper < 48)
+                float lowerVolume = lower >= 0 ? array.get(bins, lower) : -1.0
+                float upperVolume = upper < 48 ? array.get(bins, upper) : -1.0
+                int chosen = upperVolume >= lowerVolume ? upper : lower
+                cumulative += array.get(bins, chosen)
+                selectedLow := math.min(selectedLow, chosen)
+                selectedHigh := math.max(selectedHigh, chosen)
+                if chosen == upper
+                    upper += 1
+                else
+                    lower -= 1
+            poc := lo + (pocIndex + 0.5) * width
+            val := lo + selectedLow * width
+            vah := lo + (selectedHigh + 1) * width
+    [poc, val, vah]
+
+// Strict RSI pivots5+5;consecutive same-side pairs;spacing5..60;confirmation
+// age0..5;regular OR hidden;score>=3. CURRENT snapshot ATR scores all pairs.
+f_r1016_divergences(array<float> oscillator, array<float> lows, array<float> highs, float atr) =>
+    int n = array.size(oscillator)
+    int count = 0
+    if n >= 11
+        for side = 0 to 1
+            bool bullish = side == 0
+            int previousIndex = na
+            float previousOsc = na
+            float previousPrice = na
+            for i = 5 to n - 6
+                float center = array.get(oscillator, i)
+                bool pivot = not na(center)
+                for j = i - 5 to i + 5
+                    float neighbour = array.get(oscillator, j)
+                    if na(neighbour) or (j != i and (bullish ? center >= neighbour : center <= neighbour))
+                        pivot := false
+                if pivot
+                    float price = bullish ? array.get(lows, i) : array.get(highs, i)
+                    if not na(previousIndex)
+                        int distance = i - previousIndex
+                        int age = n - 1 - (i + 5)
+                        if distance >= 5 and distance <= 60 and age >= 0 and age <= 5
+                            bool regular = bullish ? center > previousOsc and price < previousPrice : center < previousOsc and price > previousPrice
+                            bool hidden = bullish ? center < previousOsc and price > previousPrice : center > previousOsc and price < previousPrice
+                            if regular or hidden
+                                int points = 1 + (age <= 2 ? 1 : 0)
+                                points += atr > 0 and math.abs(price - previousPrice) / atr >= 0.75 ? 1 : 0
+                                points += math.abs(center - previousOsc) >= 5 ? 1 : 0
+                                count += points >= 3 ? 1 : 0
+                    previousIndex := i
+                    previousOsc := center
+                    previousPrice := price
+    count
+
+// Cluster anchor=FIRST level;width<=0.25ATR;>=2 source families;
+// arithmetic cluster mean must be within0.75ATR of the latest close.
+f_r1016_confluence(array<float> levels, array<int> families, float price, float atr) =>
+    bool near = false
+    int n = array.size(levels)
+    if n > 0 and atr > 0
+        array<int> indices = array.sort_indices(levels, order.ascending)
+        array<bool> seen = array.new<bool>(4, false)
+        float anchor = na
+        float total = 0.0
+        int levelCount = 0
+        int familyCount = 0
+        for k = 0 to n - 1
+            int idx = array.get(indices, k)
+            float value = array.get(levels, idx)
+            int family = array.get(families, idx)
+            if levelCount > 0 and value - anchor > atr * 0.25
+                near := near or (familyCount >= 2 and math.abs(total / levelCount - price) / atr <= 0.75)
+                array.fill(seen, false)
+                total := 0.0
+                levelCount := 0
+                familyCount := 0
+                anchor := na
+            if levelCount == 0
+                anchor := value
+            total += value
+            levelCount += 1
+            if not array.get(seen, family)
+                array.set(seen, family, true)
+                familyCount += 1
+        near := near or (familyCount >= 2 and math.abs(total / levelCount - price) / atr <= 0.75)
+    near
+
+// flags[0..6]=>scanners10..16, WITHOUT candle-close gate;
+// dirs[0..6]=>1bullish/-1bearish/0neutral (meaningful only if flags[i]);
+// known[0..6]=>features available;distinguish UNKNOWN from NO_MATCH;
+// metrics=>[rvol,turnover,BB_rank,RSI,ADX,technicalATR,squeezeBars,setup,
+//           structureTone,trendTone,strongDivergences,nearConfluence,
+//           POC,VAL,VAH,swingHigh,swingLow,planATR];
+// plans=>[longStop,longTP1,longTP2,longTP3,shortStop,shortTP1,shortTP2,shortTP3].
+// setup0transition/1failedDown/2failedUp/3decision/4trend/5exhaustion;
+// tones1positive/-1negative/0warning;structure2=neutral/not enough pivots.
+f_r1016_snapshot(int requestedBars) =>
+    int n = math.min(math.max(requestedBars, 1), bar_index + 1)
+    array<bool> flags = array.new<bool>(7, false)
+    array<int> dirs = array.new<int>(7, 0)
+    array<bool> known = array.new<bool>(7, false)
+    array<float> metrics = array.new<float>(18, na)
+    array<float> plans = array.new<float>(8, na)
+    array<float> closes = array.new<float>(n, na)
+    array<float> lows = array.new<float>(n, na)
+    array<float> highs = array.new<float>(n, na)
+    array<float> volumes = array.new<float>(n, na)
+    bool dataValid = true
+    bool positivePrices = true
+    for i = 0 to n - 1
+        int offset = n - 1 - i
+        float c = close[offset]
+        float l = low[offset]
+        float h = high[offset]
+        float v = volume[offset]
+        array.set(closes, i, c)
+        array.set(lows, i, l)
+        array.set(highs, i, h)
+        array.set(volumes, i, v)
+        dataValid := dataValid and not na(c) and not na(l) and not na(h) and not na(v) and not na(open[offset]) and v >= 0
+        positivePrices := positivePrices and math.min(open[offset], h, l, c) > 0
+    if dataValid
+        float price = array.get(closes, n - 1)
+        // Exclude current from baseline;allow5..20 previous bars;
+        // include current in20-bar average close*volume turnover.
+        int baselineCount = math.min(n - 1, 20)
+        float baselineTotal = 0.0
+        float turnoverTotal = 0.0
+        for i = math.max(0, n - 21) to n - 1
+            if i < n - 1
+                baselineTotal += array.get(volumes, i)
+            if i >= math.max(0, n - 20)
+                turnoverTotal += array.get(closes, i) * array.get(volumes, i)
+        float baseline = baselineCount > 0 ? baselineTotal / baselineCount : na
+        float rvol = baseline > 0 ? array.get(volumes, n - 1) / baseline : na
+        float turnover = turnoverTotal / math.min(n, 20)
+        bool volumeKnown = baselineCount >= 5 and baseline > 0
+        bool liquid = volumeKnown and price >= 1.0 and turnover >= 20000000.0
+        array.set(metrics, 0, rvol)
+        array.set(metrics, 1, turnover)
+        array.set(known, 0, volumeKnown)
+        array.set(flags, 0, liquid and rvol >= 3.0)
+        array<int> periods = array.from(5, 8, 10, 13, 20, 21, 34, 50, 55, 89, 100, 144, 200, 233)
+        array<float> ema = array.new<float>(14, array.get(closes, 0))
+        array<float> rsiSeries = array.new<float>(n, na)
+        float technicalAtr = array.get(highs, 0) - array.get(lows, 0)
+        float plusRma = 0.0
+        float minusRma = 0.0
+        float adxRma = 0.0
+        float gainTotal = 0.0
+        float lossTotal = 0.0
+        float averageGain = na
+        float averageLoss = na
+        float planTrTotal = 0.0
+        float planAtr = na
+        float alpha14 = 1.0 / 14.0
+        // First-range technicalATR;first0 DM/DX;SMA14 first-delta RSI;
+        // planATR excludes first range and seeds SMA14 of TR1..14.
+        for i = 0 to n - 1
+            float c = array.get(closes, i)
+            float h = array.get(highs, i)
+            float l = array.get(lows, i)
+            float tr = h - l
+            if i > 0
+                float previousClose = array.get(closes, i - 1)
+                tr := math.max(tr, math.abs(h - previousClose), math.abs(l - previousClose))
+                technicalAtr := alpha14 * tr + (1.0 - alpha14) * technicalAtr
+                float up = h - array.get(highs, i - 1)
+                float down = array.get(lows, i - 1) - l
+                plusRma := alpha14 * (up > down and up > 0 ? up : 0.0) + (1.0 - alpha14) * plusRma
+                minusRma := alpha14 * (down > up and down > 0 ? down : 0.0) + (1.0 - alpha14) * minusRma
+                float change = c - previousClose
+                float gain = math.max(change, 0.0)
+                float loss = math.max(-change, 0.0)
+                if i <= 14
+                    gainTotal += gain
+                    lossTotal += loss
+                    planTrTotal += tr
+                if i == 14
+                    averageGain := gainTotal / 14.0
+                    averageLoss := lossTotal / 14.0
+                    planAtr := planTrTotal / 14.0
+                else if i > 14
+                    averageGain := (averageGain * 13.0 + gain) / 14.0
+                    averageLoss := (averageLoss * 13.0 + loss) / 14.0
+                    planAtr := (planAtr * 13.0 + tr) / 14.0
+                for j = 0 to 13
+                    float alpha = 2.0 / (array.get(periods, j) + 1.0)
+                    array.set(ema, j, alpha * c + (1.0 - alpha) * array.get(ema, j))
+            if i >= 14
+                float rsi = averageLoss == 0 ? (averageGain > 0 ? 100.0 : 50.0) : 100.0 - 100.0 / (1.0 + averageGain / averageLoss)
+                array.set(rsiSeries, i, rsi)
+            float dx = 0.0
+            if i >= 13 and technicalAtr > 0
+                float plusDi = 100.0 * plusRma / technicalAtr
+                float minusDi = 100.0 * minusRma / technicalAtr
+                float denominator = plusDi + minusDi
+                dx := denominator != 0 ? 100.0 * math.abs(plusDi - minusDi) / denominator : 0.0
+            if i > 0
+                adxRma := alpha14 * dx + (1.0 - alpha14) * adxRma
+        array.set(metrics, 17, planAtr)
+        if n >= 15 and positivePrices and not na(planAtr) and planAtr > 0
+            float swing7Low = array.get(lows, n - 1)
+            float swing7High = array.get(highs, n - 1)
+            for i = math.max(0, n - 7) to n - 1
+                swing7Low := math.min(swing7Low, array.get(lows, i))
+                swing7High := math.max(swing7High, array.get(highs, i))
+            float longRisk = math.max(price - (swing7Low - 0.2 * planAtr), 0.75 * planAtr)
+            float shortRisk = math.max((swing7High + 0.2 * planAtr) - price, 0.75 * planAtr)
+            float longStop = price - longRisk
+            float shortStop = price + shortRisk
+            // Source omits a side if ANY stop/TP level is nonpositive.
+            if math.min(longStop, price + longRisk, price + 2.0 * longRisk, price + 3.0 * longRisk) > 0
+                array.set(plans, 0, longStop)
+                array.set(plans, 1, price + longRisk)
+                array.set(plans, 2, price + 2.0 * longRisk)
+                array.set(plans, 3, price + 3.0 * longRisk)
+            if math.min(shortStop, price - shortRisk, price - 2.0 * shortRisk, price - 3.0 * shortRisk) > 0
+                array.set(plans, 4, shortStop)
+                array.set(plans, 5, price - shortRisk)
+                array.set(plans, 6, price - 2.0 * shortRisk)
+                array.set(plans, 7, price - 3.0 * shortRisk)
+        if n >= 60
+            array<float> widths = array.new<float>(n, na)
+            float bbMiddle = na
+            float bbDeviation = na
+            for i = 19 to n - 1
+                float sumClose = 0.0
+                for j = i - 19 to i
+                    sumClose += array.get(closes, j)
+                float mean = sumClose / 20.0
+                float squared = 0.0
+                for j = i - 19 to i
+                    float difference = array.get(closes, j) - mean
+                    squared += difference * difference
+                float deviation = math.sqrt(squared / 20.0)
+                array.set(widths, i, mean != 0 ? 400.0 * deviation / mean : na)
+                if i == n - 1
+                    bbMiddle := mean
+                    bbDeviation := deviation
+            float bbRank = na
+            int squeezeBars = 0
+            // Reverse ranks until the streak ends: mathematically identical
+            // to all-ranks-then-reverse;the complete streak is NOT capped.
+            for reverse = 0 to n - 20
+                int i = n - 1 - reverse
+                float currentWidth = array.get(widths, i)
+                int validCount = 0
+                int belowOrEqual = 0
+                for j = math.max(0, i - 99) to i
+                    float value = array.get(widths, j)
+                    if not na(value)
+                        validCount += 1
+                        belowOrEqual += value <= currentWidth ? 1 : 0
+                float rank = not na(currentWidth) and validCount >= 33 ? float(belowOrEqual) / validCount * 100.0 : na
+                if reverse == 0
+                    bbRank := rank
+                if not na(rank) and rank <= 25.0
+                    squeezeBars += 1
+                else
+                    break
+            float rsi = array.get(rsiSeries, n - 1)
+            float ema21 = array.get(ema, 5)
+            float ema55 = array.get(ema, 8)
+            int stackedDirection = price > ema21 and price > ema55 ? 1 : price < ema21 and price < ema55 ? -1 : 0
+            int highCount = 0
+            int lowCount = 0
+            float previousHigh = na
+            float lastHigh = na
+            float previousLow = na
+            float lastLow = na
+            // Structure pivots ACCEPT equal neighbours;RSI pivots do not.
+            for i = 5 to n - 6
+                float centerHigh = array.get(highs, i)
+                float centerLow = array.get(lows, i)
+                bool highPivot = true
+                bool lowPivot = true
+                for j = i - 5 to i + 5
+                    highPivot := highPivot and centerHigh >= array.get(highs, j)
+                    lowPivot := lowPivot and centerLow <= array.get(lows, j)
+                if highPivot
+                    previousHigh := lastHigh
+                    lastHigh := centerHigh
+                    highCount += 1
+                if lowPivot
+                    previousLow := lastLow
+                    lastLow := centerLow
+                    lowCount += 1
+            int structureTone = 2
+            float swingHigh = na
+            float swingLow = na
+            if highCount >= 2 and lowCount >= 2
+                bool hh = lastHigh > previousHigh
+                bool hl = lastLow > previousLow
+                structureTone := hh and hl ? 1 : not hh and not hl ? -1 : 0
+                swingHigh := lastHigh
+                swingLow := lastLow
+            array<float> levels = array.new<float>()
+            array<int> families = array.new<int>()
+            int bullishPairs = 0
+            int bearishPairs = 0
+            int includedEmas = 0
+            float previousEma = na
+            for j = 0 to 13
+                if array.get(periods, j) <= n
+                    float value = array.get(ema, j)
+                    if includedEmas > 0
+                        bullishPairs += previousEma > value ? 1 : 0
+                        bearishPairs += previousEma < value ? 1 : 0
+                    previousEma := value
+                    includedEmas += 1
+                    array.push(levels, value)
+                    array.push(families, 0)
+            int pairs = math.max(includedEmas - 1, 1)
+            int trendTone = float(bullishPairs) / pairs >= 0.75 ? 1 : float(bearishPairs) / pairs >= 0.75 ? -1 : 0
+            [poc, val, vah] = f_r1016_profile(lows, highs, volumes)
+            array<float> profileLevels = array.from(poc, val, vah)
+            for j = 0 to 2
+                float value = array.get(profileLevels, j)
+                if not na(value)
+                    array.push(levels, value)
+                    array.push(families, 1)
+            if not na(swingHigh)
+                array.push(levels, swingHigh)
+                array.push(families, 2)
+            if not na(swingLow)
+                array.push(levels, swingLow)
+                array.push(families, 2)
+            array.push(levels, bbMiddle - 2.0 * bbDeviation)
+            array.push(families, 3)
+            array.push(levels, bbMiddle)
+            array.push(families, 3)
+            array.push(levels, bbMiddle + 2.0 * bbDeviation)
+            array.push(families, 3)
+            bool nearConfluence = f_r1016_confluence(levels, families, price, technicalAtr)
+            int strongDiv = f_r1016_divergences(rsiSeries, lows, highs, technicalAtr)
+            bool failedDown = f_r1016_failed(lows, highs, closes, val, true) or f_r1016_failed(lows, highs, closes, swingLow, true)
+            bool failedUp = f_r1016_failed(lows, highs, closes, vah, false) or f_r1016_failed(lows, highs, closes, swingHigh, false)
+            float priorLow = array.get(lows, n - 2)
+            float priorHigh = array.get(highs, n - 2)
+            for i = n - 21 to n - 2
+                priorLow := math.min(priorLow, array.get(lows, i))
+                priorHigh := math.max(priorHigh, array.get(highs, i))
+            bool piercedDown = array.get(lows, n - 1) < priorLow and priorLow <= price
+            bool piercedUp = array.get(highs, n - 1) > priorHigh and priorHigh >= price
+            int setup = 0
+            int setupDirection = 0
+            // Preserve the entire native IF/ELIF PRIORITY tree.
+            if failedDown and squeezeBars < 8
+                setup := 1
+                setupDirection := 1
+            else if failedUp and squeezeBars < 8
+                setup := 2
+                setupDirection := -1
+            else if squeezeBars >= 3 or adxRma < 18
+                setup := 3
+            else if structureTone == trendTone and (structureTone == 1 or structureTone == -1) and adxRma >= 20
+                setup := 4
+                setupDirection := structureTone
+            else if strongDiv > 0 and nearConfluence and (rsi <= 35 or rsi >= 65)
+                setup := 5
+                setupDirection := rsi <= 35 ? 1 : -1
+            bool contextKnown = not na(bbRank) and not na(adxRma) and not na(technicalAtr) and technicalAtr > 0
+            bool screenKnown = volumeKnown and contextKnown
+            for j = 1 to 6
+                array.set(known, j, screenKnown)
+            array.set(flags, 1, liquid and contextKnown and bbRank <= 20.0 and rvol >= 1.5)
+            array.set(flags, 2, liquid and contextKnown and (rsi <= 25.0 or rsi >= 75.0) and rvol >= 1.0)
+            array.set(flags, 3, liquid and contextKnown and (piercedDown or piercedUp) and (setup == 1 or setup == 2))
+            array.set(flags, 4, liquid and contextKnown and bbRank <= 20.0 and adxRma < 20.0 and setup == 3)
+            array.set(flags, 5, liquid and contextKnown and adxRma >= 25.0 and stackedDirection != 0 and rvol >= 1.0 and setup == 4)
+            array.set(flags, 6, liquid and contextKnown and (rsi <= 30.0 or rsi >= 70.0) and (piercedDown or piercedUp) and setup == 5)
+            array.set(dirs, 2, rsi <= 25.0 ? 1 : -1)
+            array.set(dirs, 3, setupDirection == 1 ? 1 : -1)
+            array.set(dirs, 5, setupDirection == 1 ? 1 : -1)
+            array.set(dirs, 6, setupDirection == 1 ? 1 : -1)
+            array.set(metrics, 2, bbRank)
+            array.set(metrics, 3, rsi)
+            array.set(metrics, 4, adxRma)
+            array.set(metrics, 5, technicalAtr)
+            array.set(metrics, 6, float(squeezeBars))
+            array.set(metrics, 7, float(setup))
+            array.set(metrics, 8, float(structureTone))
+            array.set(metrics, 9, float(trendTone))
+            array.set(metrics, 10, float(strongDiv))
+            array.set(metrics, 11, nearConfluence ? 1.0 : 0.0)
+            array.set(metrics, 12, poc)
+            array.set(metrics, 13, val)
+            array.set(metrics, 14, vah)
+            array.set(metrics, 15, swingHigh)
+            array.set(metrics, 16, swingLow)
+    [flags, dirs, known, metrics, plans]
+
+// bit(scanner-1):scanner10=512,scanner16=32768. NEVER count neutral as bullish.
+// confirmed MUST be set by caller. Within request.security it is preferable
+// to evaluate and offset [1] in the requested context, not barstate.isconfirmed.
+f_r1016_masks(array<bool> flags, array<int> directions, array<bool> known, bool confirmed) =>
+    int matchedMask = 0
+    int bullishMask = 0
+    int bearishMask = 0
+    int neutralMask = 0
+    int knownMask = 0
+    for i = 0 to 6
+        int bit = int(math.pow(2.0, i + 9))
+        if confirmed and array.get(known, i)
+            knownMask += bit
+        if confirmed and array.get(flags, i)
+            matchedMask += bit
+            int direction = array.get(directions, i)
+            if direction == 1
+                bullishMask += bit
+            else if direction == -1
+                bearishMask += bit
+            else
+                neutralMask += bit
+    [matchedMask, bullishMask, bearishMask, neutralMask, knownMask]
+
+// Global-scope chart integration example(uncomment once):
+// r1016FrameBars = input.int(600,"Native snapshot bars10-16",minval=60,maxval=3000)
+// [r1016Flags,r1016Directions,r1016Known,r1016Metrics,r1016Plans] = f_r1016_snapshot(r1016FrameBars)
+// [mask10_16,bull10_16,bear10_16,neutral10_16,known10_16] = f_r1016_masks(r1016Flags,r1016Directions,r1016Known,barstate.isconfirmed)
+// sig10 = barstate.isconfirmed and array.get(r1016Flags,0)
+// sig11 = barstate.isconfirmed and array.get(r1016Flags,1)
+// sig12 = barstate.isconfirmed and array.get(r1016Flags,2)
+// sig13 = barstate.isconfirmed and array.get(r1016Flags,3)
+// sig14 = barstate.isconfirmed and array.get(r1016Flags,4)
+// sig15 = barstate.isconfirmed and array.get(r1016Flags,5)
+// sig16 = barstate.isconfirmed and array.get(r1016Flags,6)
+// Plans:bullish[0..3],bearish[4..7],neutral10/11/14 BOTH valid conditional sides.
+// Source10/13 are EVENT findings:do not replace by rising-edge state matches.
+// Source11/12/14/15/16 are STATE findings;notification policy is separate.
+// Use max_bars_back>=requestedBars for OHLCV. Prefer limited recent history
+// evaluation to avoid full snapshot recomputation on every chart-history bar.
+// If requesting offset[1],compute at least two final bars in that context;
+// a recent10-bar evaluation window provides room for previous-state retrieval.
+// Calling only barstate.islast can leave the previous requested bar undefined.
+
+
+// Pine v6 fragment. No indicator(), alert(), order, network, or UI operations.
+// Source: config/manual-scanner-names.json, config/scanners.toml;
+// src/market_intelligence/features/decision.py, research/ma_levels.py,
+// features/ma.py, scanning/decision/panel_v645.py, scanning/ma/near_zone.py.
+// TradingView compilation and identical-OHLCV Python/Pine parity are unverified.
+
+// pandas ewm(adjust=false, ignore_na=false): first non-na seed,
+// accumulated old weight over internal na gaps, min_periods masking.
+// ta.rma/ta.rsi/ta.atr have different seeds; do not substitute them.
+f_r17_ewm(float source, simple float alpha, simple int minimumObservations) =>
+    float state = na
+    float oldWeight = 1.0
+    int observations = 0
+    state := state[1]
+    oldWeight := nz(oldWeight[1], 1.0)
+    observations := nz(observations[1], 0)
+    if not na(state)
+        oldWeight *= 1.0 - alpha
+        if not na(source)
+            state := (oldWeight * state + alpha * source) / (oldWeight + alpha)
+            oldWeight := 1.0
+    else if not na(source)
+        state := source
+        oldWeight := 1.0
+    if not na(source)
+        observations += 1
+    observations >= minimumObservations ? state : na
+
+f_r17_ema(float source, simple int length) =>
+    f_r17_ewm(source, 2.0 / (length + 1.0), length)
+
+f_r17_rma(float source, simple int length) =>
+    f_r17_ewm(source, 1.0 / length, length)
+
+f_r17_rsi(float source) =>
+    float change = ta.change(source)
+    float averageGain = f_r17_rma(na(change) ? na : math.max(change, 0.0), 14)
+    float averageLoss = f_r17_rma(na(change) ? na : math.max(-change, 0.0), 14)
+    averageLoss == 0.0 ? 100.0 : 100.0 - 100.0 / (1.0 + averageGain / averageLoss)
+
+f_r17_points(bool condition, simple int points) =>
+    condition ? points : 0
+
+// Evaluate on recent source bars; each evaluation recalculates the exact native frame.
+// Tuple: ready, newEntry, score, activeSetup, newSetup, rvol, pct20, adx,
+//        pullbackGuard, pullbackBase.
+// No barstate.isconfirmed inside security(). Every field must be offset for
+// previous-confirmed HTF requests; do not mix a prior flag with a current price.
+// ready is false outside exact 1D; no 1h/4h/1W rule17.
+// Exact bounded native frame: recursive seeds restart at its first OHLCV row.
+// Returns the same ten fields as the old streaming function; never approximates
+// a rolling600-frame by the entire TradingView chart history.
+f_r17_bounded_ewm(array<float> states, array<float> weights, array<int> counts, int slot, float value, float alpha, int minimum) =>
+    float state = array.get(states, slot)
+    float weight = array.get(weights, slot)
+    int count = array.get(counts, slot)
+    if not na(state)
+        weight *= 1.0 - alpha
+        if not na(value)
+            state := (weight * state + alpha * value) / (weight + alpha)
+            weight := 1.0
+    else if not na(value)
+        state := value
+        weight := 1.0
+    if not na(value)
+        count += 1
+    array.set(states, slot, state)
+    array.set(weights, slot, weight)
+    array.set(counts, slot, count)
+    count >= minimum ? state : na
+f_r17_bounded_at(array<float> values, int index) =>
+    index >= 0 and index < array.size(values) ? array.get(values, index) : na
+f_r17_bounded_mean(array<float> values, int index, int period) =>
+    float total = 0.0
+    bool valid = index >= period - 1
+    if valid
+        for j = index - period + 1 to index
+            float value = array.get(values, j)
+            valid := valid and not na(value)
+            total += nz(value)
+    valid ? total / period : na
+f_r17_bounded_high(array<float> values, int index, int period) =>
+    float highest = na
+    bool valid = index >= period - 1
+    if valid
+        for j = index - period + 1 to index
+            float value = array.get(values, j)
+            valid := valid and not na(value)
+            highest := na(highest) ? value : math.max(highest, value)
+    valid ? highest : na
+f_r17_frame(int requestedBars) =>
+    bool readyResult = false
+    bool entryResult = false
+    int scoreResult = 0
+    string activeResult = ""
+    string newResult = ""
+    float rvolResult = na
+    float pctResult = na
+    float adxResult = na
+    bool guardResult = false
+    bool baseResult = false
+    int n = math.min(math.max(requestedBars, 1), bar_index + 1)
+    if timeframe.isdaily and timeframe.multiplier == 1 and n >= 252 and last_bar_index - bar_index <= 2
+        array<float> opens = array.new<float>()
+        array<float> highs = array.new<float>()
+        array<float> lows = array.new<float>()
+        array<float> closes = array.new<float>()
+        array<float> volumes = array.new<float>()
+        array<float> turnovers = array.new<float>()
+        bool dataValid = true
+        for j = 0 to n - 1
+            int offset = n - 1 - j
+            dataValid := dataValid and not na(open[offset]) and not na(high[offset]) and not na(low[offset]) and not na(close[offset]) and not na(volume[offset]) and volume[offset] >= 0
+            array.push(opens, open[offset])
+            array.push(highs, high[offset])
+            array.push(lows, low[offset])
+            array.push(closes, close[offset])
+            array.push(volumes, volume[offset])
+            array.push(turnovers, close[offset] * volume[offset])
+        if dataValid
+            array<float> states = array.new<float>(12, na)
+            array<float> weights = array.new<float>(12, 1.0)
+            array<int> counts = array.new<int>(12, 0)
+            array<float> ema5Values = array.new<float>()
+            array<float> ema8Values = array.new<float>()
+            array<float> ema13Values = array.new<float>()
+            array<float> histogramValues = array.new<float>()
+            array<float> bbWidths = array.new<float>()
+            array<float> distances = array.new<float>()
+            bool priorBreakout = false
+            bool priorPullback = false
+            bool priorTrend = false
+            for i = 0 to n - 1
+                float c = array.get(closes, i)
+                float o = array.get(opens, i)
+                float h = array.get(highs, i)
+                float l = array.get(lows, i)
+                float v = array.get(volumes, i)
+                float ema5 = f_r17_bounded_ewm(states, weights, counts, 0, c, 2.0 / 6.0, 5)
+                float ema8 = f_r17_bounded_ewm(states, weights, counts, 1, c, 2.0 / 9.0, 8)
+                float ema13 = f_r17_bounded_ewm(states, weights, counts, 2, c, 2.0 / 14.0, 13)
+                float ema12 = f_r17_bounded_ewm(states, weights, counts, 3, c, 2.0 / 13.0, 12)
+                float ema26 = f_r17_bounded_ewm(states, weights, counts, 4, c, 2.0 / 27.0, 26)
+                float macd = ema12 - ema26
+                float macdSignal = f_r17_bounded_ewm(states, weights, counts, 5, macd, 2.0 / 10.0, 9)
+                float histogram = macd - macdSignal
+                float change = i > 0 ? c - array.get(closes, i - 1) : na
+                float gain = f_r17_bounded_ewm(states, weights, counts, 6, na(change) ? na : math.max(change, 0.0), 1.0 / 14.0, 14)
+                float loss = f_r17_bounded_ewm(states, weights, counts, 7, na(change) ? na : math.max(-change, 0.0), 1.0 / 14.0, 14)
+                float rsi = loss == 0 ? 100.0 : 100.0 - 100.0 / (1.0 + gain / loss)
+                float tr = i == 0 ? h - l : math.max(h - l, math.abs(h - array.get(closes, i - 1)), math.abs(l - array.get(closes, i - 1)))
+                float atr = f_r17_bounded_ewm(states, weights, counts, 8, tr, 1.0 / 14.0, 14)
+                float up = i > 0 ? h - array.get(highs, i - 1) : na
+                float down = i > 0 ? array.get(lows, i - 1) - l : na
+                float plusDmRma = f_r17_bounded_ewm(states, weights, counts, 9, up > down and up > 0 ? up : 0.0, 1.0 / 14.0, 14)
+                float minusDmRma = f_r17_bounded_ewm(states, weights, counts, 10, down > up and down > 0 ? down : 0.0, 1.0 / 14.0, 14)
+                float plusDi = atr != 0 ? 100.0 * plusDmRma / atr : na
+                float minusDi = atr != 0 ? 100.0 * minusDmRma / atr : na
+                float diSum = plusDi + minusDi
+                float dx = diSum != 0 ? 100.0 * math.abs(plusDi - minusDi) / diSum : na
+                float adx = f_r17_bounded_ewm(states, weights, counts, 11, dx, 1.0 / 14.0, 14)
+                float sma20 = f_r17_bounded_mean(closes, i, 20)
+                float deviation = na
+                if i >= 19
+                    float squared = 0.0
+                    for j = i - 19 to i
+                        squared += math.pow(array.get(closes, j) - sma20, 2)
+                    deviation := math.sqrt(squared / 20.0)
+                float bbWidth = sma20 != 0 ? 400.0 * deviation / sma20 : na
+                float distanceAtr = atr != 0 ? (c - sma20) / atr : na
+                array.push(ema5Values, ema5)
+                array.push(ema8Values, ema8)
+                array.push(ema13Values, ema13)
+                array.push(histogramValues, histogram)
+                array.push(bbWidths, bbWidth)
+                array.push(distances, distanceAtr)
+                if i >= n - 2
+                    float sma50 = f_r17_bounded_mean(closes, i, 50)
+                    float sma200 = f_r17_bounded_mean(closes, i, 200)
+                    float slope20 = (sma20 / f_r17_bounded_mean(closes, i - 5, 20) - 1.0) * 100.0
+                    float slope50 = (sma50 / f_r17_bounded_mean(closes, i - 10, 50) - 1.0) * 100.0
+                    float slope200 = (sma200 / f_r17_bounded_mean(closes, i - 20, 200) - 1.0) * 100.0
+                    bool priceAbove20 = c > sma20
+                    bool sma20Above50 = sma20 > sma50
+                    bool sma50Above200 = sma50 > sma200
+                    bool slope20Ok = slope20 >= 0.0
+                    bool slope50Ok = slope50 >= 0.0
+                    bool slope200Ok = slope200 >= -0.5
+                    bool trendCore = priceAbove20 and sma20Above50 and sma50Above200 and slope20Ok and slope50Ok and slope200Ok
+                    bool ema5Up = ema5 > f_r17_bounded_at(ema5Values, i - 1)
+                    bool ema8Up = ema8 > f_r17_bounded_at(ema8Values, i - 1)
+                    bool ema13Up = ema13 > f_r17_bounded_at(ema13Values, i - 1)
+                    bool shortAligned = ema5 > ema8 and ema8 > ema13
+                    bool shortSlopes = ema5Up and ema8Up and ema13Up
+                    bool shortTrend = shortAligned and shortSlopes
+                    bool shortRecovery = (ema5 > ema8 and f_r17_bounded_at(ema5Values, i - 1) <= f_r17_bounded_at(ema8Values, i - 1)) or (ema5 > ema8 and ema5Up and ema8Up)
+
+                    bool macdAboveSignal = macd > macdSignal
+                    bool macdAboveZero = macd > 0.0
+                    bool histPositive = histogram > 0.0
+                    bool histNegative = histogram < 0.0
+                    bool histRising = histogram > f_r17_bounded_at(histogramValues, i - 1)
+                    bool histFalling = histogram < f_r17_bounded_at(histogramValues, i - 1)
+                    bool histCrossUp = histPositive and f_r17_bounded_at(histogramValues, i - 1) <= 0.0
+                    bool histBullStrengthening = histPositive and histRising
+                    bool histBullWeakening = histPositive and histFalling
+                    bool histBearRecovering = histNegative and histRising
+                    bool rsiTrendOk = rsi >= 55.0 and rsi <= 72.0
+                    bool rsiPullbackOk = rsi >= 50.0 and rsi <= 72.0
+                    bool rsiIdeal = rsi >= 55.0 and rsi <= 68.0
+
+                    bool strengthCore = adx > 20.0 and plusDi > minusDi
+                    bool diOk = plusDi > minusDi
+                    float atrPct = c != 0.0 ? atr / c * 100.0 : na
+                    bool atrPctOk = atrPct >= 1.5 and atrPct <= 7.0
+
+                    float averageVolume = f_r17_bounded_mean(volumes, i - 1, 10)
+                    float rvol = averageVolume != 0.0 ? v / averageVolume : na
+                    float turnover = c * v
+                    float averageTurnover = f_r17_bounded_mean(turnovers, i - 1, 20)
+                    float relativeTurnover = averageTurnover != 0.0 ? turnover / averageTurnover : na
+                    float high52 = f_r17_bounded_high(highs, i, 252)
+                    float high20 = f_r17_bounded_high(highs, i, 20)
+                    float pct52 = high52 != 0.0 ? c / high52 * 100.0 : na
+                    float pct20 = high20 != 0.0 ? c / high20 * 100.0 : na
+                    bool near52 = pct52 >= 85.0
+                    bool near20 = pct20 >= 95.0
+                    bool breakout20 = c > f_r17_bounded_high(highs, i - 1, 20)
+                    bool participationOk = rvol > (breakout20 ? 1.50 : 1.20)
+                    float distancePct = sma20 != 0.0 ? (c / sma20 - 1.0) * 100.0 : na
+                    bool distanceCore = distancePct >= 0.0 and distancePct <= 7.0 and distanceAtr >= 0.0 and distanceAtr <= 1.50
+                    bool bbWidthRising = bbWidth > f_r17_bounded_at(bbWidths, i - 1)
+                    bool bbWidthAboveAverage = bbWidth > f_r17_bounded_mean(bbWidths, i, 20)
+                    float candleRange = h - l
+                    float clv = candleRange != 0.0 ? (c - l) / candleRange : 0.5
+                    float upperWick = h - math.max(o, c)
+                    bool breakoutQuality = bbWidthRising and clv >= 0.60 and upperWick / atr <= 0.50
+                    bool wasAboveSma20 = f_r17_bounded_high(distances, i - 1, 10) >= 0.75
+                    bool sma20Touched = l <= sma20 + 0.25 * atr and l >= sma20 - 0.50 * atr
+                    bool pullbackBase = not breakout20 and wasAboveSma20 and sma20Touched and c > sma20 and distanceAtr <= 1.0 and (c > o or clv >= 0.60)
+                    bool pullbackMomentum = macdAboveZero and rsiPullbackOk and (histBearRecovering or histCrossUp or histBullStrengthening)
+                    bool breakoutMomentum = macdAboveSignal and macdAboveZero and rsiTrendOk and (histBullStrengthening or histCrossUp)
+
+                    int trendScore = f_r17_points(priceAbove20, 4) + f_r17_points(sma20Above50, 4) + f_r17_points(sma50Above200, 4) + f_r17_points(slope20Ok, 3) + f_r17_points(slope50Ok, 3) + f_r17_points(slope200 > 0.0, 2) + f_r17_points(shortAligned, 3) + f_r17_points(shortSlopes, 2)
+                    int histogramScore = histCrossUp ? 6 : histBullStrengthening ? 6 : histBearRecovering ? 4 : histBullWeakening ? 2 : 0
+                    int momentumScore = f_r17_points(macdAboveZero, 4) + f_r17_points(macdAboveSignal, 5) + histogramScore + f_r17_points(rsiIdeal, 5)
+                    int volumeScore = (rvol >= 3.0 ? 18 : rvol >= 2.0 ? 16 : rvol >= 1.5 ? 12 : rvol >= 1.2 ? 7 : rvol >= 1.0 ? 3 : 0) + f_r17_points(relativeTurnover >= 1.0, 2)
+                    int strengthScore = (adx >= 40.0 ? 7 : adx >= 30.0 ? 6 : adx >= 25.0 ? 5 : adx > 20.0 ? 3 : 0) + f_r17_points(diOk, 3)
+                    int locationScore = (pct52 >= 95.0 ? 7 : pct52 >= 90.0 ? 5 : pct52 >= 85.0 ? 3 : 0) + f_r17_points(near20, 3)
+                    int distanceScore = (distancePct >= 0.0 and distancePct <= 3.0 ? 5 : distancePct > 3.0 and distancePct <= 5.0 ? 4 : distancePct > 5.0 and distancePct <= 7.0 ? 2 : 0) + (distanceAtr >= 0.0 and distanceAtr < 1.0 ? 5 : distanceAtr >= 1.0 and distanceAtr <= 1.5 ? 4 : distanceAtr > 1.5 and distanceAtr <= 2.0 ? 2 : 0)
+                    int volatilityScore = f_r17_points(bbWidthRising, 2) + f_r17_points(bbWidthAboveAverage, 1) + f_r17_points(atrPctOk, 2)
+                    int score = trendScore + momentumScore + volumeScore + strengthScore + locationScore + distanceScore + volatilityScore
+
+                    bool ready = i >= 251 and not na(f_r17_bounded_mean(closes, i - 20, 200)) and not na(rsi) and not na(atr) and atr > 0 and not na(high52)
+                    bool structure = trendCore and strengthCore and near52
+                    bool common = ready and structure and participationOk and distanceCore and score >= 75
+                    bool breakout = common and breakout20 and shortTrend and breakoutMomentum and breakoutQuality
+                    bool pullbackGuard = rvol <= 2.0 and pct20 >= 95.0
+                    bool pullback = common and pullbackBase and pullbackMomentum and (shortRecovery or shortTrend) and pullbackGuard
+                    bool trend = common and not breakout20 and not pullbackBase and shortTrend and breakoutMomentum
+                    bool newBreakout = breakout and not priorBreakout
+                    bool newPullback = pullback and not priorPullback
+                    bool newTrend = trend and not priorTrend
+                    string activeSetup = breakout ? "BREAKOUT" : pullback ? "PULLBACK" : trend ? "TREND DEVAMI" : ""
+                    string newSetup = newBreakout ? "BREAKOUT" : newPullback ? "PULLBACK" : newTrend ? "TREND DEVAMI" : ""
+                    priorBreakout := breakout
+                    priorPullback := pullback
+                    priorTrend := trend
+                    if i == n - 1
+                        readyResult := ready
+                        entryResult := newSetup != ""
+                        scoreResult := score
+                        activeResult := activeSetup
+                        newResult := newSetup
+                        rvolResult := nz(rvol, 0.0)
+                        pctResult := nz(pct20, 0.0)
+                        adxResult := nz(adx, 0.0)
+                        guardResult := pullbackGuard
+                        baseResult := pullbackBase
+    [readyResult, entryResult, scoreResult, activeResult, newResult, rvolResult, pctResult, adxResult, guardResult, baseResult]
+
+// Separate bearish Rule17: ratio-reflection low/close; no relabeling.
+f_r17_bounded_low(array<float> values, int index, int period) =>
+    float lowest = na
+    bool valid = index >= period - 1
+    if valid
+        for j = index - period + 1 to index
+            float value = array.get(values, j)
+            valid := valid and not na(value)
+            lowest := na(lowest) ? value : math.min(lowest, value)
+    valid ? lowest : na
+
+f_r17_bear_frame(int requestedBars) =>
+    bool readyResult = false
+    bool entryResult = false
+    int scoreResult = 0
+    string activeResult = ""
+    string newResult = ""
+    float rvolResult = na
+    float pctResult = na
+    float adxResult = na
+    bool guardResult = false
+    bool baseResult = false
+    int n = math.min(math.max(requestedBars, 1), bar_index + 1)
+    if timeframe.isdaily and timeframe.multiplier == 1 and n >= 252 and last_bar_index - bar_index <= 2
+        array<float> opens = array.new<float>()
+        array<float> highs = array.new<float>()
+        array<float> lows = array.new<float>()
+        array<float> closes = array.new<float>()
+        array<float> volumes = array.new<float>()
+        array<float> turnovers = array.new<float>()
+        bool dataValid = true
+        for j = 0 to n - 1
+            int offset = n - 1 - j
+            dataValid := dataValid and not na(open[offset]) and not na(high[offset]) and not na(low[offset]) and not na(close[offset]) and not na(volume[offset]) and volume[offset] >= 0
+            array.push(opens, open[offset])
+            array.push(highs, high[offset])
+            array.push(lows, low[offset])
+            array.push(closes, close[offset])
+            array.push(volumes, volume[offset])
+            array.push(turnovers, close[offset] * volume[offset])
+        if dataValid
+            array<float> states = array.new<float>(12, na)
+            array<float> weights = array.new<float>(12, 1.0)
+            array<int> counts = array.new<int>(12, 0)
+            array<float> ema5Values = array.new<float>()
+            array<float> ema8Values = array.new<float>()
+            array<float> ema13Values = array.new<float>()
+            array<float> histogramValues = array.new<float>()
+            array<float> bbWidths = array.new<float>()
+            array<float> distances = array.new<float>()
+            bool priorBreakout = false
+            bool priorPullback = false
+            bool priorTrend = false
+            for i = 0 to n - 1
+                float c = array.get(closes, i)
+                float o = array.get(opens, i)
+                float h = array.get(highs, i)
+                float l = array.get(lows, i)
+                float v = array.get(volumes, i)
+                float ema5 = f_r17_bounded_ewm(states, weights, counts, 0, c, 2.0 / 6.0, 5)
+                float ema8 = f_r17_bounded_ewm(states, weights, counts, 1, c, 2.0 / 9.0, 8)
+                float ema13 = f_r17_bounded_ewm(states, weights, counts, 2, c, 2.0 / 14.0, 13)
+                float ema12 = f_r17_bounded_ewm(states, weights, counts, 3, c, 2.0 / 13.0, 12)
+                float ema26 = f_r17_bounded_ewm(states, weights, counts, 4, c, 2.0 / 27.0, 26)
+                float macd = ema12 - ema26
+                float macdSignal = f_r17_bounded_ewm(states, weights, counts, 5, macd, 2.0 / 10.0, 9)
+                float histogram = macd - macdSignal
+                float change = i > 0 ? c - array.get(closes, i - 1) : na
+                float gain = f_r17_bounded_ewm(states, weights, counts, 6, na(change) ? na : math.max(change, 0.0), 1.0 / 14.0, 14)
+                float loss = f_r17_bounded_ewm(states, weights, counts, 7, na(change) ? na : math.max(-change, 0.0), 1.0 / 14.0, 14)
+                float rsi = loss == 0 ? 100.0 : 100.0 - 100.0 / (1.0 + gain / loss)
+                float tr = i == 0 ? h - l : math.max(h - l, math.abs(h - array.get(closes, i - 1)), math.abs(l - array.get(closes, i - 1)))
+                float atr = f_r17_bounded_ewm(states, weights, counts, 8, tr, 1.0 / 14.0, 14)
+                float up = i > 0 ? h - array.get(highs, i - 1) : na
+                float down = i > 0 ? array.get(lows, i - 1) - l : na
+                float plusDmRma = f_r17_bounded_ewm(states, weights, counts, 9, up > down and up > 0 ? up : 0.0, 1.0 / 14.0, 14)
+                float minusDmRma = f_r17_bounded_ewm(states, weights, counts, 10, down > up and down > 0 ? down : 0.0, 1.0 / 14.0, 14)
+                float plusDi = atr != 0 ? 100.0 * plusDmRma / atr : na
+                float minusDi = atr != 0 ? 100.0 * minusDmRma / atr : na
+                float diSum = plusDi + minusDi
+                float dx = diSum != 0 ? 100.0 * math.abs(plusDi - minusDi) / diSum : na
+                float adx = f_r17_bounded_ewm(states, weights, counts, 11, dx, 1.0 / 14.0, 14)
+                float sma20 = f_r17_bounded_mean(closes, i, 20)
+                float deviation = na
+                if i >= 19
+                    float squared = 0.0
+                    for j = i - 19 to i
+                        squared += math.pow(array.get(closes, j) - sma20, 2)
+                    deviation := math.sqrt(squared / 20.0)
+                float bbWidth = sma20 != 0 ? 400.0 * deviation / sma20 : na
+                float distanceAtr = atr != 0 ? (sma20 - c) / atr : na
+                array.push(ema5Values, ema5)
+                array.push(ema8Values, ema8)
+                array.push(ema13Values, ema13)
+                array.push(histogramValues, histogram)
+                array.push(bbWidths, bbWidth)
+                array.push(distances, distanceAtr)
+                if i >= n - 2
+                    float sma50 = f_r17_bounded_mean(closes, i, 50)
+                    float sma200 = f_r17_bounded_mean(closes, i, 200)
+                    float slope20 = (sma20 / f_r17_bounded_mean(closes, i - 5, 20) - 1.0) * 100.0
+                    float slope50 = (sma50 / f_r17_bounded_mean(closes, i - 10, 50) - 1.0) * 100.0
+                    float slope200 = (sma200 / f_r17_bounded_mean(closes, i - 20, 200) - 1.0) * 100.0
+                    bool priceAbove20 = c < sma20
+                    bool sma20Above50 = sma20 < sma50
+                    bool sma50Above200 = sma50 < sma200
+                    bool slope20Ok = slope20 <= 0.0
+                    bool slope50Ok = slope50 <= 0.0
+                    bool slope200Ok = slope200 <= 0.5
+                    bool trendCore = priceAbove20 and sma20Above50 and sma50Above200 and slope20Ok and slope50Ok and slope200Ok
+                    bool ema5Up = ema5 < f_r17_bounded_at(ema5Values, i - 1)
+                    bool ema8Up = ema8 < f_r17_bounded_at(ema8Values, i - 1)
+                    bool ema13Up = ema13 < f_r17_bounded_at(ema13Values, i - 1)
+                    bool shortAligned = ema5 < ema8 and ema8 < ema13
+                    bool shortSlopes = ema5Up and ema8Up and ema13Up
+                    bool shortTrend = shortAligned and shortSlopes
+                    bool shortRecovery = (ema5 < ema8 and f_r17_bounded_at(ema5Values, i - 1) >= f_r17_bounded_at(ema8Values, i - 1)) or (ema5 < ema8 and ema5Up and ema8Up)
+
+                    bool macdAboveSignal = macd < macdSignal
+                    bool macdAboveZero = macd < 0.0
+                    bool histPositive = histogram < 0.0
+                    bool histNegative = histogram > 0.0
+                    bool histRising = histogram < f_r17_bounded_at(histogramValues, i - 1)
+                    bool histFalling = histogram > f_r17_bounded_at(histogramValues, i - 1)
+                    bool histCrossUp = histPositive and f_r17_bounded_at(histogramValues, i - 1) >= 0.0
+                    bool histBullStrengthening = histPositive and histRising
+                    bool histBullWeakening = histPositive and histFalling
+                    bool histBearRecovering = histNegative and histRising
+                    bool rsiTrendOk = rsi >= 28.0 and rsi <= 45.0
+                    bool rsiPullbackOk = rsi >= 28.0 and rsi <= 50.0
+                    bool rsiIdeal = rsi >= 32.0 and rsi <= 45.0
+
+                    bool strengthCore = adx > 20.0 and minusDi > plusDi
+                    bool diOk = minusDi > plusDi
+                    float atrPct = c != 0.0 ? atr / c * 100.0 : na
+                    bool atrPctOk = atrPct >= 1.5 and atrPct <= 7.0
+
+                    float averageVolume = f_r17_bounded_mean(volumes, i - 1, 10)
+                    float rvol = averageVolume != 0.0 ? v / averageVolume : na
+                    float turnover = c * v
+                    float averageTurnover = f_r17_bounded_mean(turnovers, i - 1, 20)
+                    float relativeTurnover = averageTurnover != 0.0 ? turnover / averageTurnover : na
+                    float high52 = f_r17_bounded_low(lows, i, 252)
+                    float high20 = f_r17_bounded_low(lows, i, 20)
+                    float pct52 = high52 != 0.0 ? high52 / c * 100.0 : na
+                    float pct20 = high20 != 0.0 ? high20 / c * 100.0 : na
+                    bool near52 = pct52 >= 85.0
+                    bool near20 = pct20 >= 95.0
+                    bool breakout20 = c < f_r17_bounded_low(lows, i - 1, 20)
+                    bool participationOk = rvol > (breakout20 ? 1.50 : 1.20)
+                    float distancePct = sma20 != 0.0 ? (1.0 - c / sma20) * 100.0 : na
+                    bool distanceCore = distancePct >= 0.0 and distancePct <= 7.0 and distanceAtr >= 0.0 and distanceAtr <= 1.50
+                    bool bbWidthRising = bbWidth > f_r17_bounded_at(bbWidths, i - 1)
+                    bool bbWidthAboveAverage = bbWidth > f_r17_bounded_mean(bbWidths, i, 20)
+                    float candleRange = h - l
+                    float clv = candleRange != 0.0 ? (c - l) / candleRange : 0.5
+                    float upperWick = math.min(o, c) - l
+                    bool breakoutQuality = bbWidthRising and clv <= 0.40 and upperWick / atr <= 0.50
+                    bool wasAboveSma20 = f_r17_bounded_high(distances, i - 1, 10) >= 0.75
+                    bool sma20Touched = h >= sma20 - 0.25 * atr and h <= sma20 + 0.50 * atr
+                    bool pullbackBase = not breakout20 and wasAboveSma20 and sma20Touched and c < sma20 and distanceAtr <= 1.0 and (c < o or clv <= 0.40)
+                    bool pullbackMomentum = macdAboveZero and rsiPullbackOk and (histBearRecovering or histCrossUp or histBullStrengthening)
+                    bool breakoutMomentum = macdAboveSignal and macdAboveZero and rsiTrendOk and (histBullStrengthening or histCrossUp)
+
+                    int trendScore = f_r17_points(priceAbove20, 4) + f_r17_points(sma20Above50, 4) + f_r17_points(sma50Above200, 4) + f_r17_points(slope20Ok, 3) + f_r17_points(slope50Ok, 3) + f_r17_points(slope200 < 0.0, 2) + f_r17_points(shortAligned, 3) + f_r17_points(shortSlopes, 2)
+                    int histogramScore = histCrossUp ? 6 : histBullStrengthening ? 6 : histBearRecovering ? 4 : histBullWeakening ? 2 : 0
+                    int momentumScore = f_r17_points(macdAboveZero, 4) + f_r17_points(macdAboveSignal, 5) + histogramScore + f_r17_points(rsiIdeal, 5)
+                    int volumeScore = (rvol >= 3.0 ? 18 : rvol >= 2.0 ? 16 : rvol >= 1.5 ? 12 : rvol >= 1.2 ? 7 : rvol >= 1.0 ? 3 : 0) + f_r17_points(relativeTurnover >= 1.0, 2)
+                    int strengthScore = (adx >= 40.0 ? 7 : adx >= 30.0 ? 6 : adx >= 25.0 ? 5 : adx > 20.0 ? 3 : 0) + f_r17_points(diOk, 3)
+                    int locationScore = (pct52 >= 95.0 ? 7 : pct52 >= 90.0 ? 5 : pct52 >= 85.0 ? 3 : 0) + f_r17_points(near20, 3)
+                    int distanceScore = (distancePct >= 0.0 and distancePct <= 3.0 ? 5 : distancePct > 3.0 and distancePct <= 5.0 ? 4 : distancePct > 5.0 and distancePct <= 7.0 ? 2 : 0) + (distanceAtr >= 0.0 and distanceAtr < 1.0 ? 5 : distanceAtr >= 1.0 and distanceAtr <= 1.5 ? 4 : distanceAtr > 1.5 and distanceAtr <= 2.0 ? 2 : 0)
+                    int volatilityScore = f_r17_points(bbWidthRising, 2) + f_r17_points(bbWidthAboveAverage, 1) + f_r17_points(atrPctOk, 2)
+                    int score = trendScore + momentumScore + volumeScore + strengthScore + locationScore + distanceScore + volatilityScore
+
+                    bool ready = i >= 251 and not na(f_r17_bounded_mean(closes, i - 20, 200)) and not na(rsi) and not na(atr) and atr > 0 and not na(high52)
+                    bool structure = trendCore and strengthCore and near52
+                    bool common = ready and structure and participationOk and distanceCore and score >= 75
+                    bool breakout = common and breakout20 and shortTrend and breakoutMomentum and breakoutQuality
+                    bool pullbackGuard = rvol <= 2.0 and pct20 >= 95.0
+                    bool pullback = common and pullbackBase and pullbackMomentum and (shortRecovery or shortTrend) and pullbackGuard
+                    bool trend = common and not breakout20 and not pullbackBase and shortTrend and breakoutMomentum
+                    bool newBreakout = breakout and not priorBreakout
+                    bool newPullback = pullback and not priorPullback
+                    bool newTrend = trend and not priorTrend
+                    string activeSetup = breakout ? "BREAKDOWN" : pullback ? "BEAR RETEST" : trend ? "BEAR TREND" : ""
+                    string newSetup = newBreakout ? "BREAKDOWN" : newPullback ? "BEAR RETEST" : newTrend ? "BEAR TREND" : ""
+                    priorBreakout := breakout
+                    priorPullback := pullback
+                    priorTrend := trend
+                    if i == n - 1
+                        readyResult := ready
+                        entryResult := newSetup != ""
+                        scoreResult := score
+                        activeResult := activeSetup
+                        newResult := newSetup
+                        rvolResult := nz(rvol, 0.0)
+                        pctResult := nz(pct20, 0.0)
+                        adxResult := nz(adx, 0.0)
+                        guardResult := pullbackGuard
+                        baseResult := pullbackBase
+    [readyResult, entryResult, scoreResult, activeResult, newResult, rvolResult, pctResult, adxResult, guardResult, baseResult]
+
+// Same-timeframe 1D chart consumer. Call each bar. available is distinct from
+// entry=false; a non-confirmed daily bar has no closed rule17 snapshot.
+f_r17_closed_chart() =>
+    [ready, entry, score, activeSetup, newSetup, rvol, pct20, adx, guard, base] = f_r17_frame(600)
+    bool available = ready and barstate.isconfirmed
+    [available, available and entry, score, activeSetup, newSetup, rvol, pct20, adx, guard, base]
+
+// INTRADAY consumer: request only from "1D" with lookahead_on. EVERY field is
+// offset. This reports the prior completed daily event at the next daily period.
+// Do not label it a 1h/4h/1W rule17; deduplicate by returned source time_close.
+f_r17_previous_daily() =>
+    [ready, entry, score, activeSetup, newSetup, rvol, pct20, adx, guard, base] = f_r17_frame(600)
+    [ready[1], entry[1], score[1], activeSetup[1], newSetup[1], rvol[1], pct20[1], adx[1], guard[1], base[1], time_close[1]]
+
+// RULE18: qualified observations must come from the historical research port
+// below or a provenance-backed Python snapshot. Raw MA proximity is insufficient.
+// The selection stage preserves Python quality/distance ranking and stable ties.
+type R18QualifiedObservation
+    string maType
+    int period
+    float value
+    string qualificationSide
+    string levelClass
+    int touches
+    float qualityScore
+    string researchVersion
+    bool activeSide
+
+f_r18_insert_top_two(array<int> selected, int candidateIndex, array<R18QualifiedObservation> observations, float price, float atr) =>
+    R18QualifiedObservation candidate = array.get(observations, candidateIndex)
+    float candidateDistance = math.abs((candidate.value - price) / atr)
+    int insertion = array.size(selected)
+    if array.size(selected) > 0
+        for rank = 0 to array.size(selected) - 1
+            R18QualifiedObservation existing = array.get(observations, array.get(selected, rank))
+            float existingDistance = math.abs((existing.value - price) / atr)
+            if candidate.qualityScore > existing.qualityScore or (candidate.qualityScore == existing.qualityScore and candidateDistance < existingDistance)
+                insertion := rank
+                break
+    array.insert(selected, insertion, candidateIndex)
+    if array.size(selected) > 2
+        array.pop(selected)
+    array.size(selected)
+
+// Outputs: known, supportIndices(bullish), resistanceIndices(bearish).
+// Both sides may be present. ResultKind.STATE, not entry EVENT.
+// Equal-score/equal-distance ties retain original observation order.
+// validUntilMs=0 means no explicit end; validity end is EXCLUSIVE.
+// snapshotKnown is provenance-backed availability, never a confidence vote.
+// The caller must not enable this with an unqualified MA proximity calculation.
+f_r18_select(bool snapshotKnown, string snapshotTickerId, string snapshotTf, int validFromMs, int validUntilMs, bool identicalHistoryAndBasis, array<R18QualifiedObservation> observations, float price, float atr, int sourceBarCloseMs, bool sourceBarClosed) =>
+    array<int> support = array.new<int>()
+    array<int> resistance = array.new<int>()
+    bool configuredTf = timeframe.period == "60" or timeframe.period == "240" or (timeframe.isdaily and timeframe.multiplier == 1) or (timeframe.isweekly and timeframe.multiplier == 1) or (timeframe.ismonthly and timeframe.multiplier == 1)
+    bool validity = validFromMs <= sourceBarCloseMs and (validUntilMs == 0 or sourceBarCloseMs < validUntilMs)
+    bool known = snapshotKnown and identicalHistoryAndBasis and sourceBarClosed and configuredTf and snapshotTickerId == syminfo.tickerid and snapshotTf == timeframe.period and validity and not na(price) and not na(atr) and atr > 0.0
+    if known and array.size(observations) > 0
+        for index = 0 to array.size(observations) - 1
+            R18QualifiedObservation item = array.get(observations, index)
+            string side = item.value <= price ? "support" : "resistance"
+            bool qualifiedSide = item.qualificationSide == "both" or item.qualificationSide == side
+            bool acceptedClass = item.levelClass == "strong_level" or item.levelClass == "level"
+            bool metadata = item.period >= 2 and item.touches >= 0 and item.researchVersion != "" and not na(item.qualityScore)
+            bool near = not na(item.value) and math.abs((item.value - price) / atr) <= 1.0
+            if item.activeSide and qualifiedSide and acceptedClass and metadata and near
+                if side == "support"
+                    f_r18_insert_top_two(support, index, observations, price, atr)
+                else
+                    f_r18_insert_top_two(resistance, index, observations, price, atr)
+    [known, support, resistance]
+
+
+// RULE18 native historical MA research, matching Python default MaResearchConfig.
+// Port target: research/ma_levels.py + features/ma.py + scanning/ma/near_zone.py.
+// No extra request.security context is created. The caller supplies one closed
+// OHLCV frame with the same rolling history used by the native Python executor.
+// Formula port; same-feed numerical parity and TradingView runtime still require
+// validation. Never change all_rules_parity_verified because this code compiles.
+
+f_r18_wma(array<float> values, int period) =>
+    int n = array.size(values)
+    array<float> result = array.new<float>(n, na)
+    if n >= period
+        float denominator = period * (period + 1) / 2.0
+        float windowSum = 0.0
+        float weightedSum = 0.0
+        for i = 0 to period - 1
+            float value = array.get(values, i)
+            windowSum += value
+            weightedSum += (i + 1) * value
+        array.set(result, period - 1, weightedSum / denominator)
+        if n > period
+            for i = period to n - 1
+                float previousSum = windowSum
+                windowSum += array.get(values, i) - array.get(values, i - period)
+                weightedSum += period * array.get(values, i) - previousSum
+                array.set(result, i, weightedSum / denominator)
+    result
+
+f_r18_ma(string kind, array<float> closes, array<float> volumes, int period) =>
+    int n = array.size(closes)
+    array<float> result = array.new<float>(n, na)
+    if n >= period
+        if kind == "SMA"
+            float rolling = 0.0
+            for i = 0 to period - 1
+                rolling += array.get(closes, i)
+            array.set(result, period - 1, rolling / period)
+            if n > period
+                for i = period to n - 1
+                    rolling += array.get(closes, i) - array.get(closes, i - period)
+                    array.set(result, i, rolling / period)
+        else if kind == "EMA"
+            float alpha = 2.0 / (period + 1.0)
+            float current = array.get(closes, 0)
+            for i = 0 to n - 1
+                if i > 0
+                    current := alpha * array.get(closes, i) + (1.0 - alpha) * current
+                if i >= period - 1
+                    array.set(result, i, current)
+        else if kind == "WMA"
+            result := f_r18_wma(closes, period)
+        else if kind == "VWMA"
+            float denominator = 0.0
+            float numerator = 0.0
+            for i = 0 to period - 1
+                denominator += array.get(volumes, i)
+                numerator += array.get(closes, i) * array.get(volumes, i)
+            if denominator > 0.0
+                array.set(result, period - 1, numerator / denominator)
+            if n > period
+                for i = period to n - 1
+                    denominator += array.get(volumes, i) - array.get(volumes, i - period)
+                    numerator += array.get(closes, i) * array.get(volumes, i)
+                    numerator -= array.get(closes, i - period) * array.get(volumes, i - period)
+                    if denominator > 0.0
+                        array.set(result, i, numerator / denominator)
+        else if kind == "KAMA"
+            float current = 0.0
+            for i = 0 to period - 1
+                current += array.get(closes, i)
+            current /= period
+            array.set(result, period - 1, current)
+            float volatility = 0.0
+            if n > period
+                for i = 1 to period
+                    volatility += math.abs(array.get(closes, i) - array.get(closes, i - 1))
+                for i = period to n - 1
+                    float change = math.abs(array.get(closes, i) - array.get(closes, i - period))
+                    if i > period
+                        volatility += math.abs(array.get(closes, i) - array.get(closes, i - 1))
+                        volatility -= math.abs(array.get(closes, i - period) - array.get(closes, i - period - 1))
+                    float efficiency = volatility > 0.0 ? change / volatility : 0.0
+                    float smoothing = math.pow(efficiency * (2.0 / 3.0 - 2.0 / 31.0) + 2.0 / 31.0, 2.0)
+                    current += smoothing * (array.get(closes, i) - current)
+                    array.set(result, i, current)
+        else if kind == "ALMA"
+            float center = 0.85 * (period - 1)
+            float width = period / 6.0
+            array<float> weights = array.new<float>(period, na)
+            float denominator = 0.0
+            for j = 0 to period - 1
+                float weight = math.exp(-math.pow(j - center, 2.0) / (2.0 * width * width))
+                array.set(weights, j, weight)
+                denominator += weight
+            for i = period - 1 to n - 1
+                float numerator = 0.0
+                for j = 0 to period - 1
+                    numerator += array.get(closes, i - period + 1 + j) * array.get(weights, j)
+                array.set(result, i, numerator / denominator)
+        else if kind == "HMA"
+            int half = math.max(2, int(math.floor(period / 2.0)))
+            int root = math.max(2, int(math.sqrt(period)))
+            array<float> halfValues = f_r18_wma(closes, half)
+            array<float> fullValues = f_r18_wma(closes, period)
+            array<float> combined = array.new<float>()
+            array<int> positions = array.new<int>()
+            for i = 0 to n - 1
+                float halfValue = array.get(halfValues, i)
+                float fullValue = array.get(fullValues, i)
+                if not na(halfValue) and not na(fullValue)
+                    array.push(combined, 2.0 * halfValue - fullValue)
+                    array.push(positions, i)
+            array<float> smoothed = f_r18_wma(combined, root)
+            if array.size(positions) > 0
+                for i = 0 to array.size(positions) - 1
+                    array.set(result, array.get(positions, i), array.get(smoothed, i))
+    result
+
+f_r18_median(array<float> values) =>
+    int count = array.size(values)
+    float result = na
+    if count > 0
+        array.sort(values, order.ascending)
+        int middle = int(math.floor(count / 2.0))
+        result := count % 2 == 1 ? array.get(values, middle) : (array.get(values, middle - 1) + array.get(values, middle)) / 2.0
+    result
+
+// Python round(score,2): recover multiplication rounding error with a split
+// product, then apply ties-to-even to the exact binary score times 100. This
+// handles 2.675->2.67 and 2.685->2.69, unlike plain math.round(score*100).
+f_r18_round_score(float score) =>
+    float scaled = score * 100.0
+    float split = 134217729.0 * score
+    float highPart = split - (split - score)
+    float lowPart = score - highPart
+    float productError = (highPart * 100.0 - scaled) + lowPart * 100.0
+    float lower = math.floor(scaled)
+    float fromTie = (scaled - lower - 0.5) + productError
+    float rounded = fromTie > 0.0 ? lower + 1.0 : fromTie < 0.0 ? lower : int(lower) % 2 == 0 ? lower : lower + 1.0
+    [rounded / 100.0, false]
+
+// Historical touch boundary deliberately excludes the final 23 bars exactly as
+// Python range(1, len(frame.bars) - independence_bars - 2) does for defaults.
+f_r18_side_research(array<float> closes, array<float> highs, array<float> lows, array<float> moving, array<float> atrs, int side, int validBars, int crossCount) =>
+    int n = array.size(closes)
+    bool wasFar = false
+    bool previousInZone = false
+    int lastTouch = -1000000000
+    array<float> bounces = array.new<float>()
+    int held = 0
+    int holds = 0
+    if n >= 24
+        for i = 1 to n - 23
+            float value = array.get(moving, i)
+            float atr = array.get(atrs, i)
+            if na(value) or na(atr) or atr <= 0.0
+                wasFar := false
+                previousInZone := false
+            else
+                float signedDistance = (array.get(closes, i) - value) / atr
+                float zone = 0.20 * atr
+                bool inZone = array.get(lows, i) <= value + zone and array.get(highs, i) >= value - zone
+                if not inZone
+                    if side == 1 and signedDistance >= 2.0
+                        wasFar := true
+                    else if side == 1 and array.get(highs, i) < value - zone
+                        wasFar := false
+                    else if side == -1 and signedDistance <= -2.0
+                        wasFar := true
+                    else if side == -1 and array.get(lows, i) > value + zone
+                        wasFar := false
+                bool independent = i - lastTouch > 20
+                if inZone and not previousInZone and wasFar and independent
+                    float extreme = array.get(side == 1 ? highs : lows, i + 1)
+                    for j = i + 1 to i + 10
+                        extreme := side == 1 ? math.max(extreme, array.get(highs, j)) : math.min(extreme, array.get(lows, j))
+                    array.push(bounces, side * (extreme - value) / atr)
+                    float maximumBreach = side * (value - array.get(closes, i + 1)) / atr
+                    for j = i + 1 to i + 5
+                        maximumBreach := math.max(maximumBreach, side * (value - array.get(closes, j)) / atr)
+                    holds += 1
+                    held += maximumBreach <= 0.50 ? 1 : 0
+                    lastTouch := i
+                    wasFar := false
+                previousInZone := inZone
+    int touches = array.size(bounces)
+    float score = 0.0
+    bool ambiguousRounding = false
+    if touches > 0
+        float evidence = math.min(touches / 20.0, 1.0) * 25.0
+        float holdRate = holds > 0 ? 100.0 * held / holds : 0.0
+        float hold = math.max(0.0, math.min(holdRate, 100.0)) / 100.0 * 30.0
+        float bounce = math.max(0.0, math.min(f_r18_median(bounces), 4.0)) / 4.0 * 25.0
+        float quality = (evidence + hold + bounce) / 80.0 * 100.0
+        float crossings = math.max(0.0, math.min(100.0 * crossCount / math.max(validBars, 1), 8.0))
+        float cleanliness = 1.0 - 0.60 * crossings / 8.0
+        [rounded, ambiguous] = f_r18_round_score(quality * cleanliness)
+        score := rounded
+        ambiguousRounding := ambiguous
+    string levelClass = touches < 5 ? "insufficient_touches" : score >= 50.0 ? "strong_level" : score >= 38.0 ? "level" : score >= 27.0 ? "weak_level" : "not_level"
+    [touches, score, levelClass, ambiguousRounding]
+
+f_r18_native_snapshot(int requestedBars) =>
+    int n = math.min(math.max(requestedBars, 1), bar_index + 1)
+    array<float> closes = array.new<float>(n, na)
+    array<float> highs = array.new<float>(n, na)
+    array<float> lows = array.new<float>(n, na)
+    array<float> volumes = array.new<float>(n, na)
+    array<float> atrs = array.new<float>(n, na)
+    bool valid = n >= 30
+    float currentAtr = na
+    for i = 0 to n - 1
+        int offset = n - 1 - i
+        float c = close[offset]
+        float h = high[offset]
+        float l = low[offset]
+        float v = volume[offset]
+        valid := valid and not na(c) and not na(h) and not na(l) and not na(v) and v >= 0.0
+        array.set(closes, i, c)
+        array.set(highs, i, h)
+        array.set(lows, i, l)
+        array.set(volumes, i, v)
+        float tr = i == 0 ? h - l : math.max(h - l, math.abs(h - array.get(closes, i - 1)), math.abs(l - array.get(closes, i - 1)))
+        currentAtr := i == 0 ? tr : (1.0 / 14.0) * tr + (1.0 - 1.0 / 14.0) * currentAtr
+        if i >= 13
+            array.set(atrs, i, currentAtr)
+    valid := valid and not na(currentAtr) and currentAtr > 0.0
+    // Historical qualification excludes a still-forming final candle.
+    // Latest MA proximity and ATR nevertheless use the entire observed frame.
+    int researchCount = n - (time_close > timenow ? 1 : 0)
+    array<float> researchCloses = array.slice(closes, 0, researchCount)
+    array<float> researchHighs = array.slice(highs, 0, researchCount)
+    array<float> researchLows = array.slice(lows, 0, researchCount)
+    array<float> researchAtrs = array.slice(atrs, 0, researchCount)
+    array<R18QualifiedObservation> observations = array.new<R18QualifiedObservation>()
+    int researched = 0
+    bool roundingAmbiguous = false
+    if valid
+        array<string> types = array.from("SMA", "EMA", "WMA", "VWMA", "KAMA", "ALMA", "HMA")
+        array<int> periods = array.from(5, 8, 10, 13, 20, 21, 22, 34, 50, 55, 89, 100, 144, 200, 233, 377)
+        for typeIndex = 0 to array.size(types) - 1
+            string kind = array.get(types, typeIndex)
+            for periodIndex = 0 to array.size(periods) - 1
+                int period = array.get(periods, periodIndex)
+                array<float> moving = f_r18_ma(kind, closes, volumes, period)
+                int validBars = 0
+                int previousSign = 0
+                int crossCount = 0
+                for i = 0 to researchCount - 1
+                    float value = array.get(moving, i)
+                    if not na(value)
+                        validBars += 1
+                        float difference = array.get(closes, i) - value
+                        if difference != 0.0
+                            int sign = difference > 0.0 ? 1 : -1
+                            if previousSign != 0 and sign != previousSign
+                                crossCount += 1
+                            previousSign := sign
+                if validBars > 0
+                    researched += 1
+                    [supportTouches, supportScore, supportClass, supportAmbiguous] = f_r18_side_research(researchCloses, researchHighs, researchLows, array.slice(moving, 0, researchCount), researchAtrs, 1, validBars, crossCount)
+                    [resistanceTouches, resistanceScore, resistanceClass, resistanceAmbiguous] = f_r18_side_research(researchCloses, researchHighs, researchLows, array.slice(moving, 0, researchCount), researchAtrs, -1, validBars, crossCount)
+                    roundingAmbiguous := roundingAmbiguous or supportAmbiguous or resistanceAmbiguous
+                    // Python max preserves the first (support) side for exact ties.
+                    bool chooseResistance = resistanceScore > supportScore or (resistanceScore == supportScore and resistanceTouches > supportTouches)
+                    string qualificationSide = chooseResistance ? "resistance" : "support"
+                    float latest = array.get(moving, n - 1)
+                    string activeSide = latest <= close ? "support" : "resistance"
+                    if not na(latest) and qualificationSide == activeSide
+                        array.push(observations, R18QualifiedObservation.new(kind, period, latest, qualificationSide, chooseResistance ? resistanceClass : supportClass, chooseResistance ? resistanceTouches : supportTouches, chooseResistance ? resistanceScore : supportScore, "ma_level_observation_v1-default", true))
+    // No active levels matches Python provider's unavailable snapshot policy.
+    bool snapshotKnown = valid and array.size(observations) > 0 and not roundingAmbiguous
+    [known, support, resistance] = f_r18_select(snapshotKnown, syminfo.tickerid, timeframe.period, time_close, time_close + 1, true, observations, close, currentAtr, time_close, true)
+    [known, array.size(support) > 0, array.size(resistance) > 0, researched, roundingAmbiguous]
+
+// Native Python parity core for scanners 1-9. The old A-I formulas above are
+// retained for chart display, but alarm packets use this dependency-aware core.
+f_native_mean(array<float> values, int endIndex, int period) =>
+    float total = 0.0
+    bool valid = endIndex >= period - 1
+    if valid
+        for j = endIndex - period + 1 to endIndex
+            float value = array.get(values, j)
+            valid := valid and not na(value)
+            total += na(value) ? 0.0 : value
+    valid ? total / period : na
+
+f_native_legacy_snapshot(int requestedBars) =>
+    int n = math.min(math.max(requestedBars, 1), bar_index + 1)
+    array<bool> flags = array.new<bool>(9, false)
+    array<int> directions = array.new<int>(9, 0)
+    array<bool> known = array.new<bool>(9, false)
+    array<float> plans = array.new<float>(8, na)
+    array<float> closes = array.new<float>(n, na)
+    array<float> highs = array.new<float>(n, na)
+    array<float> lows = array.new<float>(n, na)
+    array<float> volumes = array.new<float>(n, na)
+    array<float> e5 = array.new<float>(n, na)
+    array<float> e8 = array.new<float>(n, na)
+    array<float> e13 = array.new<float>(n, na)
+    array<float> e21 = array.new<float>(n, na)
+    array<float> e55 = array.new<float>(n, na)
+    array<float> e200 = array.new<float>(n, na)
+    array<float> macd = array.new<float>(n, na)
+    array<float> macdSignal = array.new<float>(n, na)
+    array<float> hist = array.new<float>(n, na)
+    array<float> smi = array.new<float>(n, na)
+    array<float> smiSignal = array.new<float>(n, na)
+    array<float> rsi7 = array.new<float>(n, na)
+    array<float> rsi14 = array.new<float>(n, na)
+    array<float> wilder = array.new<float>(n, na)
+    bool priceValid = true
+    for i = 0 to n - 1
+        int offset = n - 1 - i
+        float c = close[offset]
+        float h = high[offset]
+        float l = low[offset]
+        float v = volume[offset]
+        array.set(closes, i, c)
+        array.set(highs, i, h)
+        array.set(lows, i, l)
+        array.set(volumes, i, v)
+        priceValid := priceValid and not na(c) and not na(h) and not na(l) and not na(open[offset]) and c > 0 and h > 0 and l > 0
+    if priceValid
+        float ema5 = na
+        float ema8 = na
+        float ema13 = na
+        float ema21 = na
+        float ema55 = na
+        float ema200 = na
+        float fast = na
+        float slow = na
+        float line = na
+        float signal = na
+        float g7 = na
+        float l7 = na
+        float g14 = na
+        float l14 = na
+        float wGainTotal = 0.0
+        float wLossTotal = 0.0
+        float wGain = na
+        float wLoss = na
+        float planTrTotal = 0.0
+        float planAtr = na
+        float num1 = na
+        float num2 = na
+        float den1 = na
+        float den2 = na
+        float smiSig = na
+        bool smiSeed = false
+        for i = 0 to n - 1
+            float c = array.get(closes, i)
+            float h = array.get(highs, i)
+            float l = array.get(lows, i)
+            if i == 0
+                ema5 := c
+                ema8 := c
+                ema13 := c
+                ema21 := c
+                ema55 := c
+                ema200 := c
+                fast := c
+                slow := c
+                line := 0.0
+                signal := line
+            else
+                ema5 := 2.0 / 6.0 * c + 4.0 / 6.0 * ema5
+                ema8 := 2.0 / 9.0 * c + 7.0 / 9.0 * ema8
+                ema13 := 2.0 / 14.0 * c + 12.0 / 14.0 * ema13
+                ema21 := 2.0 / 22.0 * c + 20.0 / 22.0 * ema21
+                ema55 := 2.0 / 56.0 * c + 54.0 / 56.0 * ema55
+                ema200 := 2.0 / 201.0 * c + 199.0 / 201.0 * ema200
+                fast := 2.0 / 13.0 * c + 11.0 / 13.0 * fast
+                slow := 2.0 / 27.0 * c + 25.0 / 27.0 * slow
+                line := fast - slow
+                signal := 2.0 / 10.0 * line + 8.0 / 10.0 * signal
+            array.set(e5, i, ema5)
+            array.set(e8, i, ema8)
+            array.set(e13, i, ema13)
+            array.set(e21, i, ema21)
+            array.set(e55, i, ema55)
+            array.set(e200, i, ema200)
+            array.set(macd, i, line)
+            array.set(macdSignal, i, signal)
+            array.set(hist, i, line - signal)
+            if i > 0
+                float previousClose = array.get(closes, i - 1)
+                float change = c - previousClose
+                float gain = math.max(change, 0.0)
+                float loss = math.max(-change, 0.0)
+                if i == 1
+                    g7 := gain
+                    l7 := loss
+                    g14 := gain
+                    l14 := loss
+                else
+                    g7 := gain / 7.0 + 6.0 / 7.0 * g7
+                    l7 := loss / 7.0 + 6.0 / 7.0 * l7
+                    g14 := gain / 14.0 + 13.0 / 14.0 * g14
+                    l14 := loss / 14.0 + 13.0 / 14.0 * l14
+                array.set(rsi7, i, l7 == 0.0 ? (g7 > 0.0 ? 100.0 : na) : 100.0 - 100.0 / (1.0 + g7 / l7))
+                array.set(rsi14, i, l14 == 0.0 ? (g14 > 0.0 ? 100.0 : na) : 100.0 - 100.0 / (1.0 + g14 / l14))
+                float tr = math.max(h - l, math.abs(h - previousClose), math.abs(l - previousClose))
+                if i <= 14
+                    wGainTotal += gain
+                    wLossTotal += loss
+                    planTrTotal += tr
+                if i == 14
+                    wGain := wGainTotal / 14.0
+                    wLoss := wLossTotal / 14.0
+                    planAtr := planTrTotal / 14.0
+                else if i > 14
+                    wGain := (13.0 * wGain + gain) / 14.0
+                    wLoss := (13.0 * wLoss + loss) / 14.0
+                    planAtr := (13.0 * planAtr + tr) / 14.0
+                if i >= 14
+                    array.set(wilder, i, wLoss == 0.0 ? (wGain > 0.0 ? 100.0 : 50.0) : 100.0 - 100.0 / (1.0 + wGain / wLoss))
+            if i >= 9
+                float highest = array.get(highs, i)
+                float lowest = array.get(lows, i)
+                for j = i - 9 to i
+                    highest := math.max(highest, array.get(highs, j))
+                    lowest := math.min(lowest, array.get(lows, j))
+                float relative = c - (highest + lowest) / 2.0
+                float width = highest - lowest
+                if not smiSeed
+                    num1 := relative
+                    num2 := relative
+                    den1 := width
+                    den2 := width
+                    smiSeed := true
+                else
+                    num1 := 0.5 * relative + 0.5 * num1
+                    num2 := 0.5 * num1 + 0.5 * num2
+                    den1 := 0.5 * width + 0.5 * den1
+                    den2 := 0.5 * den1 + 0.5 * den2
+                float smiValue = 200.0 * num2 / (den2 == 0.0 ? 0.000001 : den2)
+                smiSig := na(smiSig) ? smiValue : 0.5 * smiValue + 0.5 * smiSig
+                array.set(smi, i, smiValue)
+                array.set(smiSignal, i, smiSig)
+        if n >= 2
+            bool macdReady = n >= 35
+            bool smiReady = n >= 11 and not na(array.get(smi, n - 1)) and not na(array.get(smi, n - 2))
+            bool wilderReady = n >= 16 and not na(array.get(wilder, n - 1)) and not na(array.get(wilder, n - 2))
+            bool legacy7Ready = n >= 3 and not na(array.get(rsi7, n - 1)) and not na(array.get(rsi7, n - 2))
+            bool legacy14Ready = n >= 3 and not na(array.get(rsi14, n - 1)) and not na(array.get(rsi14, n - 2))
+            float vol20Mean = f_native_mean(volumes, n - 1, 20)
+            float vol10Mean = f_native_mean(volumes, n - 1, 10)
+            bool volume20Ready = not na(vol20Mean) and vol20Mean > 0.0
+            bool volume10Ready = not na(vol10Mean) and vol10Mean > 0.0
+            bool trendReady = n >= 200
+            float price = array.get(closes, n - 1)
+            float currentVolume = array.get(volumes, n - 1)
+            float macdValue = array.get(macd, n - 1)
+            float macdSignalValue = array.get(macdSignal, n - 1)
+            float previousMacd = array.get(macd, n - 2)
+            float previousMacdSignal = array.get(macdSignal, n - 2)
+            float histogram = array.get(hist, n - 1)
+            float previousHistogram = array.get(hist, n - 2)
+            float smiValue = array.get(smi, n - 1)
+            float smiSignalValue = array.get(smiSignal, n - 1)
+            float previousSmi = array.get(smi, n - 2)
+            float previousSmiSignal = array.get(smiSignal, n - 2)
+            bool macdTrigger = (previousMacd <= previousMacdSignal and macdValue > macdSignalValue) or (macdValue > macdSignalValue and macdValue > previousMacd)
+            bool smiTrigger = (previousSmi <= previousSmiSignal and smiValue > smiSignalValue) or (smiValue > smiSignalValue and smiValue > previousSmi)
+            bool positiveCore = smiTrigger and smiValue > 0.0 and histogram > 0.0 and histogram > previousHistogram
+            bool negativeCore = smiTrigger and smiValue < 0.0 and histogram < 0.0 and histogram > previousHistogram
+            float currentRsi14 = array.get(wilder, n - 1)
+            float previousRsi14 = array.get(wilder, n - 2)
+            float currentLegacy14 = array.get(rsi14, n - 1)
+            float previousLegacy14 = array.get(rsi14, n - 2)
+            float currentLegacy7 = array.get(rsi7, n - 1)
+            float previousLegacy7 = array.get(rsi7, n - 2)
+            bool volume20High = volume20Ready and currentVolume > vol20Mean * 1.5
+            bool volume10High = volume10Ready and currentVolume > vol10Mean * 1.5
+            float sma200 = trendReady ? f_native_mean(closes, n - 1, 200) : na
+            float sma5 = trendReady ? f_native_mean(closes, n - 1, 5) : na
+            float sma8 = trendReady ? f_native_mean(closes, n - 1, 8) : na
+            float sma21 = trendReady ? f_native_mean(closes, n - 1, 21) : na
+            float sma50 = trendReady ? f_native_mean(closes, n - 1, 50) : na
+            float sma55 = trendReady ? f_native_mean(closes, n - 1, 55) : na
+            bool trendValuesReady = trendReady and not na(sma200) and not na(sma5) and not na(sma8) and not na(sma21) and not na(sma50) and not na(sma55)
+            bool emaTrend = trendValuesReady and price > array.get(e21, n - 1) and price > array.get(e55, n - 1) and price > array.get(e200, n - 1) and array.get(e8, n - 1) > array.get(e13, n - 1) and array.get(e5, n - 1) > array.get(e8, n - 1) and array.get(e5, n - 1) > array.get(e13, n - 1) and ((array.get(e8, n - 2) <= array.get(e13, n - 2) and array.get(e8, n - 1) > array.get(e13, n - 1)) or (array.get(e8, n - 1) > array.get(e13, n - 1) and array.get(e8, n - 1) > array.get(e8, n - 2))) and ((array.get(e5, n - 2) <= array.get(e8, n - 2) and array.get(e5, n - 1) > array.get(e8, n - 1)) or (array.get(e5, n - 1) > array.get(e8, n - 1) and array.get(e5, n - 1) > array.get(e5, n - 2))) and ((array.get(e5, n - 2) <= array.get(e13, n - 2) and array.get(e5, n - 1) > array.get(e13, n - 1)) or (array.get(e5, n - 1) > array.get(e13, n - 1) and array.get(e5, n - 1) > array.get(e5, n - 2)))
+            array.set(known, 0, macdReady and wilderReady)
+            array.set(known, 1, macdReady and smiReady)
+            array.set(known, 2, macdReady and smiReady and trendValuesReady and volume20Ready)
+            array.set(known, 3, trendValuesReady and volume20Ready)
+            array.set(known, 4, macdReady and legacy14Ready and volume20Ready)
+            array.set(known, 5, macdReady and trendValuesReady and volume20Ready)
+            array.set(known, 6, macdReady and smiReady and trendValuesReady and volume20Ready)
+            array.set(known, 7, macdReady and smiReady and trendValuesReady and volume20Ready)
+            array.set(known, 8, legacy7Ready and volume10Ready)
+            array.set(flags, 0, array.get(known, 0) and currentRsi14 > 30.0 and macdValue > 0.0 and macdTrigger)
+            array.set(flags, 1, array.get(known, 1) and n >= 200 and positiveCore)
+            array.set(flags, 2, array.get(known, 2) and positiveCore and price > sma200 and volume20High)
+            array.set(flags, 3, array.get(known, 3) and emaTrend and volume20High)
+            array.set(flags, 4, array.get(known, 4) and ((previousLegacy14 <= 50.0 and currentLegacy14 > 50.0) or (currentLegacy14 > 50.0 and currentLegacy14 > previousLegacy14)) and currentLegacy14 < 70.0 and macdTrigger and volume20High)
+            array.set(flags, 5, array.get(known, 5) and price > sma5 and price > sma8 and price > sma21 and price > sma50 and price > sma55 and price > sma200 and macdValue > 0.0 and macdTrigger and volume20High)
+            array.set(flags, 6, array.get(known, 6) and negativeCore and price > sma200 and volume20High)
+            array.set(flags, 7, array.get(known, 7) and negativeCore and not (price > sma200 and volume20High))
+            array.set(flags, 8, array.get(known, 8) and n >= 30 and currentLegacy7 > 60.0 and ((previousLegacy7 <= 50.0 and currentLegacy7 > 50.0) or (currentLegacy7 > 50.0 and currentLegacy7 > previousLegacy7)) and volume10High)
+            bool macdDown = (previousMacd >= previousMacdSignal and macdValue < macdSignalValue) or (macdValue < macdSignalValue and macdValue < previousMacd)
+            bool smiDown = (previousSmi >= previousSmiSignal and smiValue < smiSignalValue) or (smiValue < smiSignalValue and smiValue < previousSmi)
+            bool bearCore = smiDown and smiValue < 0.0 and histogram < 0.0 and histogram < previousHistogram
+            bool bearRecovery = smiDown and smiValue > 0.0 and histogram > 0.0 and histogram < previousHistogram
+            bool emaDown = trendValuesReady and price < array.get(e21, n - 1) and price < array.get(e55, n - 1) and price < array.get(e200, n - 1)
+            emaDown := emaDown and ((array.get(e8, n - 2) >= array.get(e13, n - 2) and array.get(e8, n - 1) < array.get(e13, n - 1)) or (array.get(e8, n - 1) < array.get(e13, n - 1) and array.get(e8, n - 1) < array.get(e8, n - 2)))
+            emaDown := emaDown and ((array.get(e5, n - 2) >= array.get(e8, n - 2) and array.get(e5, n - 1) < array.get(e8, n - 1)) or (array.get(e5, n - 1) < array.get(e8, n - 1) and array.get(e5, n - 1) < array.get(e5, n - 2)))
+            emaDown := emaDown and ((array.get(e5, n - 2) >= array.get(e13, n - 2) and array.get(e5, n - 1) < array.get(e13, n - 1)) or (array.get(e5, n - 1) < array.get(e13, n - 1) and array.get(e5, n - 1) < array.get(e5, n - 2)))
+            array<bool> bearFlags = array.new<bool>(9, false)
+            array.set(bearFlags, 0, array.get(known, 0) and currentRsi14 < 70.0 and macdValue < 0.0 and macdDown)
+            array.set(bearFlags, 1, array.get(known, 1) and n >= 200 and bearCore)
+            array.set(bearFlags, 2, array.get(known, 2) and bearCore and price < sma200 and volume20High)
+            array.set(bearFlags, 3, array.get(known, 3) and emaDown and volume20High)
+            array.set(bearFlags, 4, array.get(known, 4) and ((previousLegacy14 >= 50.0 and currentLegacy14 < 50.0) or (currentLegacy14 < 50.0 and currentLegacy14 < previousLegacy14)) and currentLegacy14 > 30.0 and macdDown and volume20High)
+            array.set(bearFlags, 5, array.get(known, 5) and price < sma5 and price < sma8 and price < sma21 and price < sma50 and price < sma55 and price < sma200 and macdValue < 0.0 and macdDown and volume20High)
+            array.set(bearFlags, 6, array.get(known, 6) and bearRecovery and price < sma200 and volume20High)
+            array.set(bearFlags, 7, array.get(known, 7) and bearRecovery and not (price < sma200 and volume20High))
+            array.set(bearFlags, 8, array.get(known, 8) and n >= 30 and currentLegacy7 < 40.0 and ((previousLegacy7 >= 50.0 and currentLegacy7 < 50.0) or (currentLegacy7 < 50.0 and currentLegacy7 < previousLegacy7)) and volume10High)
+            for i = 0 to 8
+                if array.get(flags, i)
+                    array.set(directions, i, 1)
+                else if array.get(bearFlags, i)
+                    array.set(flags, i, true)
+                    array.set(directions, i, -1)
+            if not na(planAtr) and planAtr > 0.0
+                float recentLow = array.get(lows, n - 1)
+                float recentHigh = array.get(highs, n - 1)
+                for i = math.max(0, n - 7) to n - 1
+                    recentLow := math.min(recentLow, array.get(lows, i))
+                    recentHigh := math.max(recentHigh, array.get(highs, i))
+                float longRisk = math.max(price - (recentLow - 0.2 * planAtr), 0.75 * planAtr)
+                float shortRisk = math.max((recentHigh + 0.2 * planAtr) - price, 0.75 * planAtr)
+                array.set(plans, 0, price - longRisk)
+                array.set(plans, 1, price + longRisk)
+                array.set(plans, 2, price + 2.0 * longRisk)
+                array.set(plans, 3, price + 3.0 * longRisk)
+                array.set(plans, 4, price + shortRisk)
+                array.set(plans, 5, price - shortRisk)
+                array.set(plans, 6, price - 2.0 * shortRisk)
+                array.set(plans, 7, price - 3.0 * shortRisk)
+    // Match Python: an invalid stop or any target invalidates the whole side.
+    for sideIndex = 0 to 1
+        bool validSide = true
+        for levelIndex = sideIndex * 4 to sideIndex * 4 + 3
+            float level = array.get(plans, levelIndex)
+            validSide := validSide and not na(level) and level > 0.0
+        if not validSide
+            for levelIndex = sideIndex * 4 to sideIndex * 4 + 3
+                array.set(plans, levelIndex, na)
+    [flags, directions, known, plans]
+
+// Latest observed states, including live candles. Ordinary BIST hourly chart.
+atcEnabled = true
+directionMode = input.string("AL ve SAT", "Tablo yönleri (bildirim yalnız AL)", options=["AL ve SAT", "Yalnız AL", "Yalnız SAT"], group="Genel")
+atcComplex = input.bool(true, "10-17 hesaplarini etkinlestir (taslak)", group="Alpha Trend Cipher")
+atcR18 = input.bool(true, "18 tarihsel MA arastirmasi (dogrulama)", group="Alpha Trend Cipher")
+// Hard policy: BIST bearish analysis remains visible, but notifications are LONG only.
+// No input can enable a bearish notification. Existing server alerts must be recreated.
+notificationPolicy = "BIST bildirim: YALNIZ AL · Düşüş yalnız izleme"
+humanStrengthening = input.bool(false, "Koşul sayısı artınca güçlenme bildir", group="Manuel Bildirim")
+humanInitial = input.bool(false, "İlk taramada mevcut adayları da bildir", group="Manuel Bildirim")
+humanMaxEvents = input.int(5, "Bir mesajdaki aday sayısı", minval=1, maxval=10, group="Manuel Bildirim")
+humanMaxRuleNames = input.int(3, "Mesajda gösterilecek tarama adı", minval=1, maxval=18, group="Manuel Bildirim")
+atcBars = input.int(600, "Python snapshot mum sayisi", minval=252, maxval=3000, group="Alpha Trend Cipher")
+f_atc_bit(int mask, int id) =>
+    int(math.floor(mask / math.pow(2.0, id - 1))) % 2 == 1
+f_atc_ids(int mask) =>
+    string s = "["
+    int count = 0
+    for id = 1 to 18
+        if f_atc_bit(mask, id)
+            s += (count > 0 ? "," : "") + str.tostring(id)
+            count += 1
+    s + "]"
+f_atc_count(int mask) =>
+    int count = 0
+    for id = 1 to 18
+        if f_atc_bit(mask, id)
+            count += 1
+    count
+f_atc_stamp(int t) =>
+    str.format_time(t, "yyyy-MM-dd'T'HH:mm:ss", "UTC") + "Z"
+f_atc_tf() =>
+    timeframe.period == "60" ? "1h" : timeframe.period == "240" ? "4h" : timeframe.isdaily and timeframe.multiplier == 1 ? "1d" : "1wk"
+// BEGIN GENERATED CAL-20261018 — completed verified reports only.
+// Coefficients passed three closed-bar cost scenarios; live/feed equivalence is unproved.
+// Uncovered/invalid keys retain the original coherent reference plan.
+// Bundle SHA256 10ea3742dd5def7cf1fdc263044ba3d632b6757f8a947f3be36db1dec4e602de
+calibratedLevelsEnabled = false // CAL18 quarantined: historical adjustment basis requires revalidation.
+calibrationCoverage = "Referans Stop/TP · geçmiş kalibrasyonu yeniden doğrulanıyor"
+f_cal_spec(string stock, string frame, int rule, bool up) =>
+    float sa = na
+    float t1 = na
+    float t2 = na
+    float t3 = na
+    if stock == "A1YEN" and frame == "1h" and rule == 1 and up == true
+        // Profile e2665308e411c34d8fa29954c0eda4464dc3b830d762b7d2a400d51b47a0c879
+        sa := 1.5
+        t1 := 1.125
+        t2 := 2.25
+        t3 := 3.375
+    if stock == "ADEL" and frame == "1d" and rule == 1 and up == true
+        // Profile 73faaea71c281220e55e3bf9854c1b8621e6ea647e56c384e9dbc85d7432d080
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "ADEL" and frame == "1d" and rule == 2 and up == true
+        // Profile cb6a25af888556f61f549acba2a6be88c16f7c0393c04773525f2225ffbb230f
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ADEL" and frame == "1d" and rule == 3 and up == true
+        // Profile 73acc2f321b11080fac3df5a1e8942ec02222a7f983ba0e1d476d7f330025739
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ADEL" and frame == "1d" and rule == 4 and up == true
+        // Profile 81a4806ba7d4fb289609ea5623c03ba3f6c475b629c3228a90c42c036e02df10
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ADEL" and frame == "1d" and rule == 6 and up == true
+        // Profile 5e1f3c34f269ed41940befcb1d8c72fc4564f4e91d6099b04ace3106dd21a5c7
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ADEL" and frame == "1h" and rule == 2 and up == true
+        // Profile 459454243f431c7b7f27c49676f1a124d4b64e03d776e0c7e9480d912085dffb
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ADESE" and frame == "1d" and rule == 9 and up == true
+        // Profile 20ab082e9255be9c6a5b0b922622a1e2ebc7c7a8b4b3a56d6820c758a1ac9524
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AEFES" and frame == "1d" and rule == 2 and up == true
+        // Profile 7229a726a3952819d42ab42eca0d1b8057603634e0a93bcccb5327864057ab31
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AEFES" and frame == "1d" and rule == 5 and up == true
+        // Profile 6d70ccbb949674c460d13bc3597642a89f88f45d2bd77693416f3117327964cc
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AFYON" and frame == "1d" and rule == 1 and up == true
+        // Profile 48c617e7ca45b4892e9997f3d885b22ff8d4d8432f530813de8bef0401e75d44
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "AFYON" and frame == "1d" and rule == 2 and up == true
+        // Profile d296e01325e09c94484ef16a8d40ef798bf259e19bc15cb0c9b3fa9ccb775d0b
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AFYON" and frame == "1d" and rule == 3 and up == true
+        // Profile 7cebf6dc6098063e873b4cfde01bcfdcb4bbb0aefbeb085aa97ee68cc3daad58
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AFYON" and frame == "1d" and rule == 4 and up == true
+        // Profile d7cf3f8f3a45641103f4b2ec814aaa4f186d3555c9facb1e4d5528675389da93
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AFYON" and frame == "1d" and rule == 5 and up == true
+        // Profile 4ea9aad9722cd9c24410b62ae4cb1a3dee8ca7d0b88ec7c66d79c2ee290ef59c
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AFYON" and frame == "1d" and rule == 9 and up == true
+        // Profile fdde3ce51963bdaa5e84ff5a9a83ab7c2b4b89d5b23d6d7b7d895d48d3e74658
+        sa := 1.5
+        t1 := 1.5
+        t2 := 3.0
+        t3 := 4.5
+    if stock == "AGHOL" and frame == "1d" and rule == 2 and up == true
+        // Profile 3ef49d7ff27dc2c746973ea2389fa783f7bb5ce6ffa6ec2f25513f174706e828
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AGHOL" and frame == "1d" and rule == 3 and up == true
+        // Profile 3edca373b985ced982f6b17303c9bce0549758172276dd1cf0c4b9b0c235d8b7
+        sa := 2.5
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AGHOL" and frame == "1d" and rule == 4 and up == true
+        // Profile c329842b613b676e4dcf02d736c34c29c7809d212ba95fcde87b6af9b3eaa8ef
+        sa := 1.5
+        t1 := 1.5
+        t2 := 3.0
+        t3 := 4.5
+    if stock == "AGHOL" and frame == "1d" and rule == 5 and up == true
+        // Profile 5914bf8e0e779613a5668ff1aba25a2a0cfd8d861cd70975e9c45e2484cb275f
+        sa := 2.5
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AGHOL" and frame == "1d" and rule == 6 and up == true
+        // Profile 4b8244c968ea4ed026f458f66486cf8966bbe25873bab793f544bce75b507f24
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AGHOL" and frame == "1d" and rule == 9 and up == true
+        // Profile d814ff39d96642eb2ee78f794dff0c6f8cc94dbdff3e360015109f95da25a3b6
+        sa := 2.5
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AGROT" and frame == "1h" and rule == 2 and up == false
+        // Profile 240a394f03e473719ea6224a54d0cc0ca9740eacfa3261f284f181d5d15bc55f
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AGYO" and frame == "1d" and rule == 1 and up == true
+        // Profile 0f45e0e263b605663324fb17c993d432d01867dfe36daae903a01175ee85f9a1
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "AGYO" and frame == "1d" and rule == 3 and up == true
+        // Profile 2c153677add1a029eff3a4a45711eeabaa68f23ef503371956f86b94e9f65d1e
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AGYO" and frame == "1d" and rule == 4 and up == true
+        // Profile 921bf4f5944dac748b344b88d030a314f6c5c2aa60a845fde8303f2b19dda2dc
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AGYO" and frame == "1d" and rule == 5 and up == true
+        // Profile 7ab8cdda938ca7cf63f7cb294b2283f4ccab15d6d95a35c1ad8932c32f7f3727
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "AKBNK" and frame == "1d" and rule == 2 and up == true
+        // Profile 5394ff0175aed3b3d2ead4b3b089ce2fbd89831ed5ae89645ade7cc08f2039f2
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AKBNK" and frame == "1d" and rule == 3 and up == true
+        // Profile 853b4db36b3ba389b2053649bbe67c643f0f7e8204b0bbce58b395328bc47231
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKBNK" and frame == "1d" and rule == 4 and up == true
+        // Profile d096c2e4d0b15ad3ccd4b05dbd1218aba174a2ff2199531a3f42d1dc45775c8b
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKBNK" and frame == "1d" and rule == 5 and up == true
+        // Profile 4e07c44aa0dd7b84170f581cfe3affa147396d8d8d8f2270f4ca3123b47b987f
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKBNK" and frame == "1d" and rule == 8 and up == true
+        // Profile bfdf309891007bd64719e7149bcb6911cffc27c2193d96ddafc337e125dd67e4
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AKBNK" and frame == "1d" and rule == 9 and up == true
+        // Profile 42824178b4bfb4315db441c5b0f5228c3b31ee35c6a3f04de77cdce59f4f73ed
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKCNS" and frame == "1d" and rule == 2 and up == false
+        // Profile 3d86fb89903de0713924f3a7d597adda5cc4334dafe14d78b2383c2873b4dcfc
+        sa := 1.0
+        t1 := 1.0
+        t2 := 2.0
+        t3 := 3.0
+    if stock == "AKCNS" and frame == "1d" and rule == 2 and up == true
+        // Profile af98fbcd36eb6fb52ac53cc7033db5ce62be1cbeb545ec6deae7487c49e72293
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKENR" and frame == "1d" and rule == 1 and up == true
+        // Profile 439a83ef7c0be18122876748ec9b485d0c8afec8cd0419c4afd35721f2dc7355
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AKENR" and frame == "1d" and rule == 3 and up == true
+        // Profile 6589b7c44971bae5c5f996aaa6c57b487e234fd00e44505dac67a03bbf48b48c
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AKENR" and frame == "1d" and rule == 4 and up == true
+        // Profile a3ffb0a86943ae6ea4db8d0259c9a6362831443efe995f1cebe1ed1c39a313ca
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKENR" and frame == "1d" and rule == 6 and up == true
+        // Profile 9b8cb88f5cb48672ae9064bf612be6f1f69f82620ece616a975a4d96ab30ba0c
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AKFIS" and frame == "1h" and rule == 2 and up == true
+        // Profile a3d05b918393608a3ec436519d2ab268a8b9720aa1ab7ed8ea5c71d8b63dba10
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "AKFYE" and frame == "1h" and rule == 1 and up == false
+        // Profile 71e17b5828bc6716e701bafebe748d7718870b0b899045e7a3ac76e801776fde
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AKFYE" and frame == "1h" and rule == 9 and up == false
+        // Profile 4e8fefd9cd40e55954f21a5aa080937cabe345b738826e470f4029a218ff1109
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AKGRT" and frame == "1d" and rule == 2 and up == true
+        // Profile c78926308519794c497f8c7c23874de2a40fd24fc8bbb7257a7ef03c4b5cfe55
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKMGY" and frame == "1d" and rule == 5 and up == true
+        // Profile 63fbccc2400ba0f75b7716da1be0b9d129bf78fb069db25e12c43c75c604e86a
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "AKSA" and frame == "1d" and rule == 1 and up == true
+        // Profile 04e5f30780148151eb6bfcec7b6ed0fc9d523a0a7c7941f63a2adf1abdc6f3aa
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AKSA" and frame == "1d" and rule == 8 and up == true
+        // Profile 15c2a9895ab3db5c55d89ce788e59732e08dc51db920304a622e548fc803b51f
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "AKSA" and frame == "1d" and rule == 9 and up == true
+        // Profile 772bc4dcc8f9f6b0dc8495c7b82f7def2b67bf12c9aded9f001393dddb994b8e
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AKSEN" and frame == "1d" and rule == 1 and up == true
+        // Profile 94a838125b9905ed429c6242c1846eaf0926ddf2c4746fdb923a2d24ab9feecf
+        sa := 1.5
+        t1 := 1.125
+        t2 := 2.25
+        t3 := 3.375
+    if stock == "AKSEN" and frame == "1d" and rule == 8 and up == true
+        // Profile 515b09003be8dbedc83edeb4fb3877837001c7d5cf264d293aa40363c2b8b217
+        sa := 1.0
+        t1 := 0.75
+        t2 := 1.5
+        t3 := 2.25
+    if stock == "AKSUE" and frame == "1d" and rule == 2 and up == true
+        // Profile 14691f5821fe29ec7cac03a17a459eabb11f64afc230c1fa432772811d92f315
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "AKSUE" and frame == "1d" and rule == 4 and up == true
+        // Profile f9f8cfa8ea83872b8b419e83fcdd3e45d78147f8a252a6c9b43f8f858d958e61
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "AKSUE" and frame == "1d" and rule == 9 and up == true
+        // Profile a09c9fd456715cbaa8c12466533126e063178d5ca15f32be7ecf316f4b971ca9
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALARK" and frame == "1d" and rule == 1 and up == false
+        // Profile de6547d74b583edfb11dc43510b3ef949a68ded7d50e4d53b5049da4b84caf9c
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALARK" and frame == "1d" and rule == 1 and up == true
+        // Profile c8406ce8d194a5689e1c9b7be4a719f213c2d809552e198fcf1ceec8299f6f5c
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALARK" and frame == "1d" and rule == 2 and up == true
+        // Profile 6056287a8b8e83b75180c3a4acdb96c422ba9c15a5e4f3ac07bb144897936ba1
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALARK" and frame == "1d" and rule == 3 and up == true
+        // Profile 7a13d2063c03f26e03eab26b165a048a21c006058733e3b80fcfd0ca1793cc76
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALARK" and frame == "1d" and rule == 4 and up == true
+        // Profile 7015e768879398760053e6308db2a0ef87d441e8902df34bdc4fea5ce1737c35
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALARK" and frame == "1d" and rule == 6 and up == true
+        // Profile 73bc72a46545cbc72d66394837a6a2059fee5cb1fbf3f25585d25a65afd7f729
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALARK" and frame == "1d" and rule == 8 and up == true
+        // Profile d21c9441dea660a77f59d5a09217320c35b8a4280495716181c7a38a832ddc53
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALARK" and frame == "1d" and rule == 18 and up == true
+        // Profile 4f1b46ecb631dc544ffdaaf2aff8a43e960f6152adb3c4b6bb6f80f7f40b332f
+        sa := 2.5
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALBRK" and frame == "1d" and rule == 2 and up == true
+        // Profile 024ec320fb35b76d64542e40ee1e6879721155028ab80f04395a2dd4991ced5f
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALBRK" and frame == "1d" and rule == 5 and up == true
+        // Profile 334e46ba47b0978e59b591278d21981a0307259b5e09e68e62575b87cdee8ffc
+        sa := 2.0
+        t1 := 2.0
+        t2 := 4.0
+        t3 := 6.0
+    if stock == "ALBRK" and frame == "1d" and rule == 9 and up == true
+        // Profile ff261c1d410765245c1f218fa8e68a280af9bc9293aaada112331000a259fa58
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCAR" and frame == "1d" and rule == 3 and up == true
+        // Profile d505a509b2a0903a00df83898ce2ac05d1147c5406416e3d1e3d7b5fba81c7a0
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALCAR" and frame == "1d" and rule == 4 and up == true
+        // Profile e7e614b489a721ad677f6278a92ae464dcc59055fa65318e85304419d633f8df
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALCAR" and frame == "1d" and rule == 5 and up == true
+        // Profile 9410f3f3ecb86763092fde228c11a22cc07a681a877341b17c75b5edbe15f9c8
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALCAR" and frame == "1d" and rule == 6 and up == true
+        // Profile 6f34d8cb2ad8a7da326b6eeb4f68ce97c8377183c814bb6bd49f8d8baedc2273
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALCAR" and frame == "1d" and rule == 9 and up == true
+        // Profile 1d4eb3059efaad6ac16e1e491cc9d8a70fe5f2eeae2230e7aca12aad06ada04c
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCAR" and frame == "1d" and rule == 18 and up == true
+        // Profile 118a374c307eb14b432e1c34327deae778aedbfba7620bb2acf2e8f6de79c94d
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCAR" and frame == "1h" and rule == 5 and up == true
+        // Profile c3b520763fbb8ae73c621ca199f0354ee5e5373ec09adce3a6aabf4f42ec2b69
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALCAR" and frame == "1h" and rule == 9 and up == true
+        // Profile 36b836a888d466ab86fb8bc90d388e47e0c7ef44a9ea89a997c59140533400a1
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCTL" and frame == "1d" and rule == 1 and up == true
+        // Profile 285d0016b801070fcd2042566973a8e967840efb617cba9aced92ed2eb4a5d6e
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCTL" and frame == "1d" and rule == 2 and up == true
+        // Profile 0b16bc22741cc17b2b1fa722712982a7af9066ef7960a60fb523d5ed7c1f5045
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCTL" and frame == "1d" and rule == 4 and up == true
+        // Profile 526366e85dab73316001d6c0c80d2204e3d262d2ed956c466bb3b160f1ab47c6
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCTL" and frame == "1d" and rule == 6 and up == true
+        // Profile 0c23c18906681c1aca321afcbcee47e3264e069693fa16808fa341d359726c44
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALCTL" and frame == "1d" and rule == 8 and up == true
+        // Profile 620c9b32fae93aca59949b354e0b0583f1dfbb4ef88aa98c682f95cc1de93502
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALFAS" and frame == "1h" and rule == 2 and up == false
+        // Profile bc7f689a62d578a4fc21834fc5adbb4749becf1cfcff875502a191fec08f6ce9
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALGYO" and frame == "1d" and rule == 1 and up == true
+        // Profile 789d6da96de9a6562ae14ed572f3e32aab098d484330a587b5aab5166648dcf4
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALGYO" and frame == "1d" and rule == 3 and up == true
+        // Profile 3dbeab994ed6a5732970f7882afcab779428810f7fe85b7b91c3a9b27645eb93
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "ALGYO" and frame == "1d" and rule == 4 and up == true
+        // Profile 3bfe2876836c0e0961d2f609f40f4b11285e64369eff343767b3cc2cf6e4017d
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALGYO" and frame == "1d" and rule == 5 and up == true
+        // Profile 2347382ac83aae214e1b41f5c7a08d1d6bb6a0e74aeef3a28f475c207a3a54b9
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALGYO" and frame == "1d" and rule == 9 and up == true
+        // Profile 8f00fcf9e31a97cfaf7b3e2815ebc2b504347405f9846a5cec84d4b2f3060f94
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALGYO" and frame == "1h" and rule == 2 and up == true
+        // Profile 8c9c6fb46f5b14f28a4e1f2d691c53d2c1bf431b09ad1ea83d2282068dc479a4
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ALKA" and frame == "1d" and rule == 2 and up == true
+        // Profile b2283f364b2810ef5df7049de2830e709e2ab46e52f5775c7194e3d1698c54c5
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALKA" and frame == "1d" and rule == 5 and up == true
+        // Profile 562384fe53a8be7042e5a9ad50f75665659259fe9810d2d8919551a3cbe47a6f
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALKA" and frame == "1d" and rule == 9 and up == true
+        // Profile 829a6f769f2b3705cea04ca4c1a56039304da1617bd6e6f517197e1b265057ae
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALKLC" and frame == "1h" and rule == 1 and up == true
+        // Profile 0343e9516c10b857e2cdcb4fb38c919b4b4a7a6248f08525186b0ae12b17c659
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALKLC" and frame == "1h" and rule == 2 and up == true
+        // Profile 9e07db64e609c0ba06b6b49cdb669753f5a3127d4bf88bb714815579bddc5b82
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ALKLC" and frame == "1h" and rule == 9 and up == true
+        // Profile 0c8f20e413f7d7a1204d7067f085c187abcf17cde0b79cbc99f05f5d708f3ea9
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ALVES" and frame == "1h" and rule == 2 and up == false
+        // Profile 94901a170aa72872695244a44651fdd1f0327023f2f4e67da899c4394643e453
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "ANELE" and frame == "1d" and rule == 2 and up == true
+        // Profile d1b92829354eb5d261bd9ccda26663167b8b4bbb81b99a1397c65858421ccc70
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ANHYT" and frame == "1d" and rule == 2 and up == true
+        // Profile 41184692157c766829376a9ed0fd685f806182701bafa458486c3f7307b72d35
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ANHYT" and frame == "1d" and rule == 18 and up == true
+        // Profile 56d11d236a5677814d6a7ebaeeeea394e5ef0c789c7e509dbbca85cebe65959b
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "ANSGR" and frame == "1d" and rule == 5 and up == true
+        // Profile a91c0b0dbf6a543513768de9a208e05c911f19759bc332d369fc3ff8a2cfca59
+        sa := 2.0
+        t1 := 2.0
+        t2 := 4.0
+        t3 := 6.0
+    if stock == "ANSGR" and frame == "1d" and rule == 9 and up == true
+        // Profile 3f4fabcf4951fdc187ef72881af4fbaa950bee0949880c732bfddf19bb2a95e5
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ARCLK" and frame == "1d" and rule == 4 and up == true
+        // Profile f8bf5cf3b7bc911cdae438b54454548ab9df8078a1166dede0dc89d766f84935
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ARCLK" and frame == "1d" and rule == 5 and up == true
+        // Profile 3ffa4fe7a2ae6a0d3e8826e78961b629f7d598c4e605e885fef49e1bdf64da43
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ARCLK" and frame == "1d" and rule == 8 and up == true
+        // Profile c41af99c4fc5874c34384158516b216eb8821db3942b901c8aac1347723b0b97
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ARENA" and frame == "1d" and rule == 1 and up == true
+        // Profile da2ae5d0139f1212557d1c32fb597dff394e153e3c1461ee98825592fc200c37
+        sa := 1.0
+        t1 := 0.75
+        t2 := 1.5
+        t3 := 2.25
+    if stock == "ARENA" and frame == "1d" and rule == 5 and up == true
+        // Profile f842b1c3d39d45fbf7dbb5ee260464024bc6f81b9f07c8b9b0a94fb224e1e4d9
+        sa := 1.5
+        t1 := 1.125
+        t2 := 2.25
+        t3 := 3.375
+    if stock == "ARENA" and frame == "1d" and rule == 8 and up == true
+        // Profile 57f20737704aef86ee666aced814375ece2f60b54a3756f08aaf568c2869863e
+        sa := 1.0
+        t1 := 1.25
+        t2 := 2.5
+        t3 := 3.75
+    if stock == "ARSAN" and frame == "1d" and rule == 1 and up == true
+        // Profile 29fac6f1363507a7c10d39d4301dd45d4d7982ec298aab31295f29404fbebde4
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ARSAN" and frame == "1d" and rule == 3 and up == true
+        // Profile ef4d104ceced25cb48a47ccd07a46c7c7a927f36df65bb30f10b54272a0b5037
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ARSAN" and frame == "1d" and rule == 4 and up == true
+        // Profile 2ea369d0f7a618eb9e91de701f627d32db58d205dae55ef3c2227003987e51e9
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ARSAN" and frame == "1d" and rule == 5 and up == true
+        // Profile e2c2e9fad313f46bf7fba52aa31f68316bc2285f35f4165e60dfc76b8d56403a
+        sa := 2.5
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ARSAN" and frame == "1d" and rule == 6 and up == true
+        // Profile da824ce7e93e137892830a4be1cbe5d1cc43839e59bebfdf0661c927e7870654
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ARSAN" and frame == "1d" and rule == 8 and up == true
+        // Profile cd641a9a3ae3dce548b78599cb7baa77fadd4d9e4168b326be3d5d6764a87289
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ARSAN" and frame == "1d" and rule == 9 and up == true
+        // Profile d2d083539008070d1792f50ea202968f1dc9e0d1747852a4bc40876262731fe5
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ARSAN" and frame == "1h" and rule == 2 and up == true
+        // Profile 659462e3a5da365002509eaccfa4083400111816c1719193c19959e94b4d4b6d
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ASELS" and frame == "1d" and rule == 2 and up == true
+        // Profile 3b6cbf19bd0c56be45fcea443471b501ca20994a81bc65e4da5893fb5abaa8dd
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ASELS" and frame == "1d" and rule == 3 and up == true
+        // Profile 45796c523fe02f6c3faed99af840e62a3e2c883645429a7ccd289094c971f44a
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ASELS" and frame == "1d" and rule == 5 and up == true
+        // Profile c56ca2b46390c1ac371d95449289f4a9c0d823a6bbefc4f50af779ab24f07791
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ASELS" and frame == "1d" and rule == 6 and up == true
+        // Profile d9da42c4aa2729429455b281bc4a5b30c5fba5009c160ca83ae6dba01a83ab76
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ASELS" and frame == "1d" and rule == 8 and up == true
+        // Profile 82a1754c53530c58a3221553ff19d8b2a6f2e880e275627ddc092665da07b36d
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ASELS" and frame == "1d" and rule == 9 and up == true
+        // Profile 9c45e194cad1fafa2b317d39a598221ba5051d724dfe084b7ba90bb444b1077a
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ASELS" and frame == "1d" and rule == 18 and up == true
+        // Profile c4a435e4b6b6780a235e267e370a515e4d3c6582aff4f834c6eb25fb18eeade5
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ASELS" and frame == "1h" and rule == 2 and up == true
+        // Profile b3adaa54a11b0e155b6da5878ee2312ef4334c23483fb4b73b0aa255cd2ca377
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ASELS" and frame == "1h" and rule == 5 and up == true
+        // Profile f735845d0f06923ff4f7a4a8299fccba014d87b086618c9fbdccc969fb8132b0
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ASELS" and frame == "1h" and rule == 9 and up == true
+        // Profile 46c395d09d92462fdf6de21bdd0f5a573802ca603aabd0b7b04ebbd6306b31a3
+        sa := 2.0
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ASTOR" and frame == "1h" and rule == 9 and up == true
+        // Profile 20ef647b4e2ea8b64f473fc3bed3f23d44b774a1349c70646e03c4bfbaac19e9
+        sa := 1.5
+        t1 := 1.5
+        t2 := 3.0
+        t3 := 4.5
+    if stock == "ASUZU" and frame == "1d" and rule == 1 and up == true
+        // Profile 6b6310007ad875cb1f0c841efcbc0e961a253c43aba49ec09e3001af58624e38
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ASUZU" and frame == "1d" and rule == 2 and up == true
+        // Profile e2d787e421eccea015bfc77313e2d3c6d6162425f3d94bba3d2b95b4b8741fe6
+        sa := 1.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    if stock == "ASUZU" and frame == "1d" and rule == 5 and up == true
+        // Profile 14bbc7702cc6e8bedb2116a5ebf4786f23f8af5f6e10c82bd8bf9ec0ab8f49a7
+        sa := 2.5
+        t1 := 3.125
+        t2 := 6.25
+        t3 := 9.375
+    if stock == "ATAGY" and frame == "1d" and rule == 5 and up == true
+        // Profile 6f364f7e1702b757e2a31298494a03e025c15349c02826fcb47cd9d6f60eab93
+        sa := 2.5
+        t1 := 2.5
+        t2 := 5.0
+        t3 := 7.5
+    if stock == "ATAGY" and frame == "1d" and rule == 9 and up == true
+        // Profile 34bcd7ac361e707b5e6fc390bc11ea8cf754a2eb5e90909f4dd22c54b1e37a46
+        sa := 2.5
+        t1 := 1.875
+        t2 := 3.75
+        t3 := 5.625
+    [sa, t1, t2, t3]
+
+f_cal_closed_atr(int requestedBars) =>
+    // Match Python: trim the scan window first, then remove its unfinished bar.
+    // Source time is reliable inside request.security; chart confirmation state is not.
+    int skip = not na(time_close) and time_close > timenow ? 1 : 0
+    int count = math.min(requestedBars, bar_index + 1) - skip
+    float result = na
+    float seed = 0.0
+    bool valid = true
+    if count >= 15
+        for i = 1 to count - 1
+            int offset = skip + count - 1 - i
+            float h = high[offset]
+            float l = low[offset]
+            float previous = close[offset + 1]
+            valid := valid and not na(h) and not na(l) and not na(previous) and h > 0.0 and l > 0.0 and previous > 0.0
+            float tr = math.max(h - l, math.abs(h - previous), math.abs(l - previous))
+            if i <= 14
+                seed += tr
+            if i == 14
+                result := seed / 14.0
+            else if i > 14
+                result := (result * 13.0 + tr) / 14.0
+    valid and result > 0.0 ? result : na
+
+f_cal_plan(int rule, bool up, float atr, float legacyStop, float legacyTp1, float legacyTp2, float legacyTp3) =>
+    float s = legacyStop
+    float t1 = legacyTp1
+    float t2 = legacyTp2
+    float t3 = legacyTp3
+    [sa, m1, m2, m3] = f_cal_spec(syminfo.ticker, f_atc_tf(), rule, up)
+    if calibratedLevelsEnabled and not na(sa) and not na(atr) and atr > 0.0 and close > 0.0
+        float direction = up ? 1.0 : -1.0
+        float cs = close - direction * atr * sa
+        float c1 = close + direction * atr * m1
+        float c2 = close + direction * atr * m2
+        float c3 = close + direction * atr * m3
+        bool valid = cs > 0.0 and c1 > 0.0 and c2 > 0.0 and c3 > 0.0 and (up ? cs < close and close < c1 and c1 < c2 and c2 < c3 : c3 < c2 and c2 < c1 and c1 < close and close < cs)
+        if valid
+            s := cs
+            t1 := c1
+            t2 := c2
+            t3 := c3
+    [s, t1, t2, t3]
+// END GENERATED CAL-20261018
+f_atc_best_plan(int mask, array<float> nativePlans, array<float> genericPlans, bool up, float calibratedAtr) =>
+    int primary = 0
+    float stop = na
+    float tp1 = na
+    float tp2 = na
+    float tp3 = na
+    float nearest = na
+    if f_atc_count(mask) >= 2
+        for id = 1 to 18
+            if f_atc_bit(mask, id)
+                array<float> plans = id <= 9 or id >= 17 ? nativePlans : genericPlans
+                int slot = up ? 0 : 4
+                [s, t1, t2, t3] = f_cal_plan(id, up, calibratedAtr, array.get(plans, slot), array.get(plans, slot + 1), array.get(plans, slot + 2), array.get(plans, slot + 3))
+                bool valid = close > 0 and s > 0 and t1 > 0 and t2 > 0 and t3 > 0 and (up ? s < close and close < t1 and t1 < t2 and t2 < t3 : t3 < t2 and t2 < t1 and t1 < close and close < s)
+                float distance = math.abs(close - s) + math.abs(t1 - close)
+                if valid and (primary == 0 or distance < nearest)
+                    primary := id
+                    stop := s
+                    tp1 := t1
+                    tp2 := t2
+                    tp3 := t3
+                    nearest := distance
+    [primary, stop, tp1, tp2, tp3]
+
+f_atc_state() =>
+    // Bounded Rule17 returns unavailable outside daily/recent source contexts.
+    [r17Ready, r17Entry, r17Score, r17Setup, r17New, r17Vol, r17Pct, r17Adx, r17Guard, r17Base] = f_r17_frame(atcBars)
+    [r17BearReady, r17BearEntry, r17BearScore, r17BearSetup, r17BearNew, r17BearVol, r17BearPct, r17BearAdx, r17BearGuard, r17BearBase] = f_r17_bear_frame(atcBars)
+    int bull = 0
+    int bear = 0
+    int neutral = 0
+    int known = 0
+    array<float> nativePlans = array.new<float>(8, na)
+    array<float> genericPlans = array.new<float>(8, na)
+    // Evaluate native 1-9 only on the final source bars. This is a live
+    // packet optimization; it does not change the requested history window.
+    if last_bar_index - bar_index <= 2
+        [legacyFlags, legacyDirs, legacyKnown, legacyPlans] = f_native_legacy_snapshot(atcBars)
+        for i = 0 to 8
+            int bit = int(math.pow(2.0, i))
+            if array.get(legacyKnown, i)
+                known += bit
+            if array.get(legacyFlags, i)
+                if array.get(legacyDirs, i) > 0
+                    bull += bit
+                else if array.get(legacyDirs, i) < 0
+                    bear += bit
+        nativePlans := legacyPlans
+    // Rules 10-16 are opt-in because their bounded profile/divergence pass is
+    // considerably more expensive. Their own known mask remains separate.
+    if atcComplex and last_bar_index - bar_index <= 2
+        [flags, dirs, available, metrics, plans] = f_r1016_snapshot(atcBars)
+        [matched, longMask, shortMask, neutralMask, knownMask] = f_r1016_masks(flags, dirs, available, true)
+        bull += longMask
+        bear += shortMask
+        neutral += neutralMask
+        known += knownMask
+        genericPlans := plans
+    if atcComplex and r17Ready
+        known += 65536
+        if r17Entry
+            bull += 65536
+        if r17BearReady and r17BearEntry
+            bear += 65536
+    // Rule18 requires 112 historical qualifications. Compute only the newest
+    // source pair consumed by f_atc_select; include one unfinished source
+    // bar for weekly sessions and preserve the full requested frame.
+    if atcR18 and last_bar_index - bar_index <= 2
+        [r18Known, r18Bull, r18Bear, r18Researched, r18RoundingAmbiguous] = f_r18_native_snapshot(atcBars)
+        if r18Known
+            known += 131072
+            if r18Bull
+                bull += 131072
+            if r18Bear
+                bear += 131072
+    bull := directionMode == "Yalnız SAT" ? 0 : bull
+    bear := directionMode == "Yalnız AL" ? 0 : bear
+    string frame = f_atc_tf()
+    // One shared ATR pass only on the final source bars that can be transported.
+    float calibratedAtr = na
+    if calibratedLevelsEnabled and last_bar_index - bar_index <= 2 and (f_atc_count(bull) >= 2 or f_atc_count(bear) >= 2)
+        calibratedAtr := f_cal_closed_atr(atcBars)
+    [longPrimary, longStop, longTp1, longTp2, longTp3] = f_atc_best_plan(bull, nativePlans, genericPlans, true, calibratedAtr)
+    [shortPrimary, shortStop, shortTp1, shortTp2, shortTp3] = f_atc_best_plan(bear, nativePlans, genericPlans, false, calibratedAtr)
+    bool longPlan = longPrimary > 0
+    int primary = longPlan ? longPrimary : shortPrimary
+    float stop = longPlan ? longStop : shortStop
+    float tp1 = longPlan ? longTp1 : shortTp1
+    bool validPlan = primary > 0
+    string planJson = "null"
+    if validPlan
+        string planId = "PINE10:" + syminfo.ticker + ":" + frame + ":" + str.tostring(time_close) + ":" + str.tostring(primary)
+        planJson := '{"source_plan_id":"' + planId + '","scanner_id":' + str.tostring(primary) + ',"direction":"' + (longPlan ? "long" : "short") + '","entry":' + str.tostring(close, "#.########") + ',"stop":' + str.tostring(stop, "#.########") + ',"tp1":' + str.tostring(tp1, "#.########") + ',"currency":"TRY","bar_close":"' + f_atc_stamp(time_close) + '"}'
+    string frameJson = known > 0 and not na(time_close) ? '{"timeframe":"' + frame + '","bar_open":"' + f_atc_stamp(time) + '","bar_close":"' + f_atc_stamp(time_close) + '","bar_confirmed":' + (time_close <= timenow ? "true" : "false") + ',"bullish_ids":' + f_atc_ids(bull) + ',"bearish_ids":' + f_atc_ids(bear) + ',"neutral_ids":' + f_atc_ids(neutral) + ',"evaluated_ids":' + f_atc_ids(known) + ',"plan":' + planJson + '}' : ""
+    [frameJson, time_close, bull, bear, neutral, known, longPrimary, longStop, longTp1, longTp2, longTp3, shortPrimary, shortStop, shortTp1, shortTp2, shortTp3]
+
+type AtcPacket
+    string json
+    int endTime
+    int openTime
+    string sourceId
+    string sourcePrefix
+    string sourceTicker
+    string currency
+    float price
+    float volume
+    int bull
+    int bear
+    int neutral
+    int known
+    bool stock
+    string sourceType
+    int primary
+    float planStop
+    float planTp1
+    float planTp2
+    float planTp3
+    int shortPrimary
+    float shortStop
+    float shortTp1
+    float shortTp2
+    float shortTp3
+type AtcPair
+    AtcPacket current
+    AtcPacket previous
+
+// One request carries current AND previous SOURCE snapshots.
+// A fresh object per source bar prevents historical aliasing.
+// Recurrences run every source bar; only final objects are returned.
+// This is a live monitoring draft, not a historical screener backtest.
+// Latest mode uses the current HTF candle even while the host market is closed.
+// Its unoffset lookahead_on values MUST NOT be used as historical trade evidence.
+f_atc_pair() =>
+    [json, endTime, bull, bear, neutral, known, primary, stop, tp1, tp2, tp3, shortPrimary, shortStop, shortTp1, shortTp2, shortTp3] = f_atc_state()
+    AtcPacket packet = na
+    bool recentSource = last_bar_index - bar_index <= 2
+    if recentSource
+        packet := AtcPacket.new(json, endTime, time, syminfo.tickerid, syminfo.prefix, syminfo.ticker, syminfo.currency, close, volume, bull, bear, neutral, known, syminfo.type == "stock" or (syminfo.prefix == "BIST" and syminfo.ticker == "ALTIN"), syminfo.type, primary, stop, tp1, tp2, tp3, shortPrimary, shortStop, shortTp1, shortTp2, shortTp3)
+    AtcPair result = recentSource ? AtcPair.new(packet, packet[1]) : na
+    result
+
+f_atc_stock_name(string tickerId) =>
+    str.replace(str.replace(str.replace(tickerId, "BIST_DLY:", ""), "BISTMIXED:", ""), "BIST:", "")
+
+// Select actual source bars, never substitute the host chart's timestamps.
+// Independent feeds can temporarily lag the host. In latest mode a closed
+// auction bar remains the latest real candle until the next matched trade.
+f_atc_selectable(AtcPacket packet, int hostEnd, int observationTime) =>
+    not na(packet) and not na(packet.openTime) and not na(packet.endTime) and packet.openTime < packet.endTime and packet.openTime <= observationTime and (not onlyClosedBar or packet.endTime <= hostEnd)
+
+f_atc_select(AtcPair pair, int hostEnd, int observationTime) =>
+    AtcPacket selected = na
+    if not na(pair)
+        if f_atc_selectable(pair.current, hostEnd, observationTime)
+            selected := pair.current
+        else if f_atc_selectable(pair.previous, hostEnd, observationTime)
+            selected := pair.previous
+    selected
+
+f_atc_valid(AtcPacket packet) =>
+    not na(packet) and packet.known > 0 and packet.json != "" and not na(packet.endTime)
+
+// Monitoring eligibility and last-trade freshness are different facts.
+// Preserve exact instrument eligibility; reject another symbol, prior session,
+// impossible/future hourly intervals and unknown price/volume. A closed candle
+// is transported with its true bar_confirmed=true and original open/close.
+f_atc_source_ready(AtcPacket packet, string requestedSymbol, int hostEnd, int closedEnd, int observationTime) =>
+    bool result = false
+    if f_atc_valid(packet)
+        bool sourceBist = packet.sourcePrefix == "BIST" or packet.sourcePrefix == "BISTMIXED" or packet.sourcePrefix == "BIST_DLY"
+        bool sameSymbol = packet.sourceTicker == f_atc_stock_name(requestedSymbol)
+        bool sameSessionDay = str.format_time(packet.openTime, "yyyy-MM-dd", "Europe/Istanbul") == str.format_time(observationTime, "yyyy-MM-dd", "Europe/Istanbul")
+        bool actualHour = not na(packet.openTime) and not na(packet.endTime) and packet.openTime < packet.endTime and packet.endTime - packet.openTime <= 3600000 and packet.openTime <= observationTime and packet.endTime <= hostEnd
+        bool sourceTimeReady = actualHour and (onlyClosedBar ? packet.endTime == closedEnd : sameSessionDay)
+        result := packet.stock and sourceBist and sameSymbol and packet.currency == "TRY" and not na(packet.price) and packet.price > 0 and not na(packet.volume) and packet.volume >= 0 and sourceTimeReady
+    result
+
+f_atc_long(AtcPacket packet) =>
+    f_atc_valid(packet) and f_atc_count(packet.bull) >= 2
+
+f_atc_short(AtcPacket packet) =>
+    f_atc_valid(packet) and f_atc_count(packet.bear) >= 2
+
+f_atc_summary(AtcPacket packet) =>
+    string result = "Veri yok"
+    if f_atc_valid(packet)
+        result := "↑" + str.tostring(f_atc_count(packet.bull)) + " ↓" + str.tostring(f_atc_count(packet.bear)) + " ·" + str.tostring(f_atc_count(packet.neutral)) + " / " + str.tostring(f_atc_count(packet.known)) + "\n" + (packet.endTime > timenow ? "ACIK " : "KAPALI ") + str.format_time(packet.openTime, "dd.MM HH:mm", "Europe/Istanbul")
+    result
+
+f_atc_color(AtcPacket packet) =>
+    bool up = f_atc_long(packet)
+    bool down = f_atc_short(packet)
+    up and down ? color.rgb(170,110,20) : up ? color.rgb(15,110,74) : down ? color.rgb(155,40,50) : color.rgb(38,48,65)
+
+// A requested packet can be cached across source ticks. Maturity is based
+// on that packet's real scheduled close and this frozen observation clock.
+// Numeric states, prices, volume, plans and source timestamps are unchanged.
+f_atc_transport_frame(AtcPacket packet, int observationTime) =>
+    string confirmed = packet.endTime <= observationTime ? "true" : "false"
+    string result = str.replace(packet.json, '"bar_confirmed":true', '"bar_confirmed":' + confirmed)
+    result := str.replace(result, '"bar_confirmed":false', '"bar_confirmed":' + confirmed)
+    result
+
+f_atc_snapshot(AtcPacket h1, AtcPacket h4, AtcPacket daily, AtcPacket weekly, string observed, string observationId, int observationTime) =>
+    string frames = f_atc_transport_frame(h1, observationTime)
+    if f_atc_valid(h4)
+        frames += "," + f_atc_transport_frame(h4, observationTime)
+    if f_atc_valid(daily)
+        frames += "," + f_atc_transport_frame(daily, observationTime)
+    if f_atc_valid(weekly)
+        frames += "," + f_atc_transport_frame(weekly, observationTime)
+    '{"schema":2,"candle_mode":"' + (onlyClosedBar ? "closed" : "latest") + '","signal_id":"' + observationId + '","symbol":"BIST:' + h1.sourceTicker + '","source_feed":"' + h1.sourceId + '","observed_at":"' + observed + '","price":' + str.tostring(h1.price, "#.########") + ',"volume":' + str.tostring(h1.volume, "#.########") + ',"calculation_status":"draft_unverified","frames":[' + frames + ']}'
+
+// Human notifications: primitive varip arrays survive realtime rollback.
+var array<string> humanRuleNames = array.from("MACD kesişim", "SMI/MACD momentum", "SMI hacim onayı", "EMA trend/hacim", "RSI/MACD hacim", "SMA/MACD hacim", "SMI/MACD Full", "SMI/MACD erken", "RSI momentum", "Hacim patlaması", "Sıkışma/hacim", "Uç RSI", "Başarısız kırılım", "Karar bölgesi", "Trend devamı", "Tükenme", "Karar Paneli", "MA yakınlık")
+varip array<int> humanBars = array.new_int(40, na)
+varip array<bool> humanInitialized = array.new_bool(40, false)
+varip array<bool> humanActive = array.new_bool(80, false)
+varip array<bool> humanSeen = array.new_bool(80, false)
+varip array<int> humanHighCount = array.new_int(80, 0)
+varip array<bool> humanPending = array.new_bool(80, false)
+varip array<bool> humanPendingStrength = array.new_bool(80, false)
+varip array<string> humanPendingText = array.new_string(80, "")
+varip array<int> humanPendingCount = array.new_int(80, 0)
+varip array<int> humanPendingAt = array.new_int(80, na)
+varip array<int> humanAlertTimes = array.new_int()
+varip bool humanStarted = false
+
+f_human_number(float value) =>
+    str.replace(str.tostring(value, "#.####"), ".", ",")
+
+f_human_names(int mask) =>
+    string ruleLabelText = ""
+    int shown = 0
+    int total = f_atc_count(mask)
+    for id = 1 to 18
+        if f_atc_bit(mask, id) and shown < humanMaxRuleNames
+            ruleLabelText += (shown > 0 ? " + " : "") + "#" + str.tostring(id) + " " + array.get(humanRuleNames, id - 1)
+            shown += 1
+    ruleLabelText + (total > shown ? " +" + str.tostring(total - shown) + " tarama" : "")
+
+f_human_line(AtcPacket packet, string frameText, string stockText, bool up, bool stronger, int eventAt, int observationTime) =>
+    int mask = up ? packet.bull : packet.bear
+    string direction = up ? "AL ADAYI" : "SHORT / DÜŞÜŞ ADAYI"
+    string eventText = stronger ? " · GÜÇLENDİ" : ""
+    string clockText = str.format_time(observationTime, "HH:mm:ss", "Europe/Istanbul")
+    int primary = up ? packet.primary : packet.shortPrimary
+    float s = up ? packet.planStop : packet.shortStop
+    float t1 = up ? packet.planTp1 : packet.shortTp1
+    float t2 = up ? packet.planTp2 : packet.shortTp2
+    float t3 = up ? packet.planTp3 : packet.shortTp3
+    bool coherent = primary > 0 and f_atc_bit(mask, primary) and s > 0 and t1 > 0 and t2 > 0 and t3 > 0 and (up ? s < packet.price and packet.price < t1 and t1 < t2 and t2 < t3 : t3 < t2 and t2 < t1 and t1 < packet.price and packet.price < s)
+    string levels = coherent ? "Stop " + f_human_number(s) + " | TP1 " + f_human_number(t1) + " | TP2 " + f_human_number(t2) + " | TP3 " + f_human_number(t3) + " · Plan #" + str.tostring(primary) : "Stop/TP: Plan yok"
+    string maturity = packet.endTime <= observationTime ? "Kapalı mum " : "Açık mum "
+    string sourceTime = str.format_time(packet.openTime, "dd.MM HH:mm", "Europe/Istanbul")
+    string waitText = observationTime - eventAt >= 1000 ? " · Sıra " + str.tostring(int((observationTime - eventAt) / 1000)) + " sn" : ""
+    stockText + " · " + frameText + " · " + direction + eventText + " · " + clockText + waitText + "\nFiyat " + f_human_number(packet.price) + " | " + levels + "\n" + f_human_names(mask) + " · " + maturity + sourceTime
+
+f_human_clear(int slot) =>
+    array.set(humanPending, slot, false)
+    array.set(humanPendingStrength, slot, false)
+    array.set(humanPendingText, slot, "")
+    array.set(humanPendingCount, slot, 0)
+    array.set(humanPendingAt, slot, na)
+
+f_human_observe(AtcPacket packet, int frameIndex, string frameText, string stockText, bool sourceReady, bool realtime, bool initialObservation, int observationTime) =>
+    bool valid = sourceReady and f_atc_valid(packet) and packet.sourceTicker == stockText and packet.currency == "TRY" and not na(packet.openTime) and packet.openTime <= observationTime and not na(packet.price) and packet.price > 0
+    int firstSlot = frameIndex * 2
+    // Even slot = LONG; odd slot = bearish. Never retain a bearish queue item.
+    f_human_clear(firstSlot + 1)
+    if not valid
+        f_human_clear(firstSlot)
+        f_human_clear(firstSlot + 1)
+    else
+        bool initialized = array.get(humanInitialized, frameIndex)
+        int priorBar = array.get(humanBars, frameIndex)
+        bool newBar = na(priorBar) or priorBar != packet.openTime
+        if newBar
+            array.set(humanBars, frameIndex, packet.openTime)
+            for side = 0 to 1
+                int slot = firstSlot + side
+                int count = f_atc_count(side == 0 ? packet.bull : packet.bear)
+                array.set(humanSeen, slot, false)
+                array.set(humanHighCount, slot, count)
+                f_human_clear(slot)
+        for side = 0 to 1
+            int slot = firstSlot + side
+            bool up = side == 0
+            if not up
+                f_human_clear(slot)
+            int mask = up ? packet.bull : packet.bear
+            int count = f_atc_count(mask)
+            bool active = count >= 2
+            bool wasActive = array.get(humanActive, slot)
+            bool seen = array.get(humanSeen, slot)
+            int priorHigh = array.get(humanHighCount, slot)
+            bool stronger = humanStrengthening and initialized and not newBar and active and wasActive and count > priorHigh
+            bool becameActive = active and not wasActive
+            bool initialActive = humanInitial and initialObservation and active
+            // Warm baseline is silent by default. Persistent state across
+            // source bars is not called a new crossover merely by a new clock.
+            bool notify = up and realtime and (initialized or humanInitial) and active and (not seen or stronger) and (becameActive or stronger or initialActive)
+            if notify and not array.get(humanPending, slot)
+                array.set(humanPending, slot, true)
+                array.set(humanPendingStrength, slot, stronger)
+                array.set(humanPendingAt, slot, observationTime)
+            bool queued = array.get(humanPending, slot)
+            bool queuedStrength = array.get(humanPendingStrength, slot)
+            // Never flush an inactive or no-longer-strengthened queued finding.
+            if queued and (not active or (queuedStrength and count <= priorHigh))
+                f_human_clear(slot)
+            else if queued
+                int eventAt = array.get(humanPendingAt, slot)
+                array.set(humanPendingText, slot, f_human_line(packet, frameText, stockText, up, queuedStrength, eventAt, observationTime))
+                array.set(humanPendingCount, slot, count)
+            array.set(humanActive, slot, active)
+            if not initialized
+                array.set(humanHighCount, slot, count)
+        array.set(humanInitialized, frameIndex, true)
+
+selectedGroup = input.int(1, "Taranacak grup (1-64)", minval=1, maxval=64, group="Hisse Grubu")
+var array<string> atcUniverse = str.split("BIST:A1CAP|BIST:A1YEN|BIST:AAGYO|BIST:ACSEL|BIST:ADEL|BIST:ADESE|BIST:ADGYO|BIST:AEFES|BIST:AFYON|BIST:AGESA|BIST:AGHOL|BIST:AGROT|BIST:AGYO|BIST:AHGAZ|BIST:AHSGY|BIST:AKBNK|BIST:AKCNS|BIST:AKENR|BIST:AKFGY|BIST:AKFIS|BIST:AKFYE|BIST:AKGRT|BIST:AKHAN|BIST:AKMGY|BIST:AKSA|BIST:AKSEN|BIST:AKSGY|BIST:AKSUE|BIST:AKYHO|BIST:ALARK|BIST:ALBRK|BIST:ALBTN|BIST:ALCAR|BIST:ALCTL|BIST:ALFAS|BIST:ALGYO|BIST:ALKA|BIST:ALKIM|BIST:ALKLC|BIST:ALTNY|BIST:ALVES|BIST:ANELE|BIST:ANGEN|BIST:ANHYT|BIST:ANSGR|BIST:ARASE|BIST:ARCLK|BIST:ARDYZ|BIST:ARENA|BIST:ARFYE|BIST:ARMGD|BIST:ARSAN|BIST:ARTMS|BIST:ARZUM|BIST:ASELS|BIST:ASGYO|BIST:ASTOR|BIST:ASUZU|BIST:ATAGY|BIST:ATAKP|BIST:ATATP|BIST:ATATR|BIST:ATEKS|BIST:ATLAS|BIST:ATSYH|BIST:AVGYO|BIST:AVHOL|BIST:AVOD|BIST:AVPGY|BIST:AVTUR|BIST:AYCES|BIST:AYDEM|BIST:AYEN|BIST:AYES|BIST:AYGAZ|BIST:AZTEK|BIST:BAGFS|BIST:BAHKM|BIST:BAKAB|BIST:BALAT|BIST:BALSU|BIST:BANVT|BIST:BARMA|BIST:BASCM|BIST:BASGZ|BIST:BAYRK|BIST:BEGYO|BIST:BERA|BIST:BESLR|BIST:BESTE|BIST:BETAE|BIST:BEYAZ|BIST:BFREN|BIST:BIENY|BIST:BIGCH|BIST:BIGEN|BIST:BIGTK|BIST:BIMAS|BIST:BINBN|BIST:BINHO|BIST:BIOEN|BIST:BIZIM|BIST:BJKAS|BIST:BKRGY|BIST:BLCYT|BIST:BLUME|BIST:BMSCH|BIST:BMSTL|BIST:BNTAS|BIST:BOBET|BIST:BORLS|BIST:BORSK|BIST:BOSSA|BIST:BRISA|BIST:BRKO|BIST:BRKSN|BIST:BRKVY|BIST:BRLSM|BIST:BRMEN|BIST:BRSAN|BIST:BRYAT|BIST:BSOKE|BIST:BTCIM|BIST:BUCIM|BIST:BULGS|BIST:BURCE|BIST:BURVA|BIST:BVSAN|BIST:BYDNR|BIST:CANTE|BIST:CASA|BIST:CATES|BIST:CCOLA|BIST:CELHA|BIST:CEMAS|BIST:CEMTS|BIST:CEMZY|BIST:CEOEM|BIST:CGCAM|BIST:CIMSA|BIST:CITAS|BIST:CLEBI|BIST:CMBTN|BIST:CMENT|BIST:CONSE|BIST:COSMO|BIST:CRDFA|BIST:CRFSA|BIST:CUSAN|BIST:CVKMD|BIST:CWENE|BIST:DAGI|BIST:DAPGM|BIST:DARDL|BIST:DCTTR|BIST:DENGE|BIST:DERHL|BIST:DERIM|BIST:DESA|BIST:DESPC|BIST:DEVA|BIST:DGATE|BIST:DGGYO|BIST:DGNMO|BIST:DIRIT|BIST:DITAS|BIST:DMRGD|BIST:DMSAS|BIST:DNISI|BIST:DOAS|BIST:DOCO|BIST:DOFER|BIST:DOFRB|BIST:DOGUB|BIST:DOHOL|BIST:DOKTA|BIST:DSTKF|BIST:DUNYH|BIST:DURDO|BIST:DURKN|BIST:DYOBY|BIST:DZGYO|BIST:EBEBK|BIST:ECILC|BIST:ECOGR|BIST:ECZYT|BIST:EDATA|BIST:EDIP|BIST:EFOR|BIST:EGEEN|BIST:EGEGY|BIST:EGEPO|BIST:EGGUB|BIST:EGPRO|BIST:EGSER|BIST:EKDMR|BIST:EKGYO|BIST:EKIM|BIST:EKIZ|BIST:EKOS|BIST:EKSUN|BIST:ELITE|BIST:EMKEL|BIST:EMNIS|BIST:EMPAE|BIST:ENDAE|BIST:ENERY|BIST:ENJSA|BIST:ENKAI|BIST:ENPRA|BIST:ENSRI|BIST:ENTRA|BIST:EPLAS|BIST:ERBOS|BIST:ERCB|BIST:EREGL|BIST:ERSU|BIST:ESCAR|BIST:ESCOM|BIST:ESEN|BIST:ETILR|BIST:ETYAT|BIST:EUHOL|BIST:EUKYO|BIST:EUPWR|BIST:EUREN|BIST:EUYO|BIST:EYGYO|BIST:FADE|BIST:FENER|BIST:FLAP|BIST:FMIZP|BIST:FONET|BIST:FORMT|BIST:FORTE|BIST:FRIGO|BIST:FRMPL|BIST:FROTO|BIST:FZLGY|BIST:GARAN|BIST:GARFA|BIST:GATEG|BIST:GEDIK|BIST:GEDZA|BIST:GENIL|BIST:GENKM|BIST:GENTS|BIST:GEREL|BIST:GESAN|BIST:GIPTA|BIST:GLBMD|BIST:GLCVY|BIST:GLRMK|BIST:GLRYH|BIST:GLYHO|BIST:GMTAS|BIST:GOKNR|BIST:GOLDA|BIST:GOLTS|BIST:GOODY|BIST:GOZDE|BIST:GRNYO|BIST:GRSEL|BIST:GRTHO|BIST:GSDDE|BIST:GSDHO|BIST:GSRAY|BIST:GUBRF|BIST:GUNDG|BIST:GWIND|BIST:GZNMI|BIST:HALKB|BIST:HATEK|BIST:HATSN|BIST:HDFGS|BIST:HEDEF|BIST:HEKTS|BIST:HKTM|BIST:HLGYO|BIST:HOROZ|BIST:HRKET|BIST:HTTBT|BIST:HUBVC|BIST:HUNER|BIST:HURGZ|BIST:ICBCT|BIST:ICUGS|BIST:IDGYO|BIST:IEYHO|BIST:IHAAS|BIST:IHEVA|BIST:IHGZT|BIST:IHLAS|BIST:IHLGM|BIST:IHYAY|BIST:IMASM|BIST:INDES|BIST:INFO|BIST:INGRM|BIST:INTEK|BIST:INTEM|BIST:INTET|BIST:INVEO|BIST:INVES|BIST:ISATR|BIST:ISBIR|BIST:ISBTR|BIST:ISCTR|BIST:ISDMR|BIST:ISFIN|BIST:ISGSY|BIST:ISGYO|BIST:ISKPL|BIST:ISKUR|BIST:ISMEN|BIST:ISSEN|BIST:ISVEA|BIST:ISYAT|BIST:IZENR|BIST:IZFAS|BIST:IZINV|BIST:IZMDC|BIST:JANTS|BIST:KAPLM|BIST:KARCL|BIST:KAREL|BIST:KARSN|BIST:KARTN|BIST:KATMR|BIST:KAYSE|BIST:KBORU|BIST:KCAER|BIST:KCHOL|BIST:KENT|BIST:KERVN|BIST:KFEIN|BIST:KGYO|BIST:KIMMR|BIST:KLGYO|BIST:KLKIM|BIST:KLMSN|BIST:KLNMA|BIST:KLRHO|BIST:KLSER|BIST:KLSYN|BIST:KLYPV|BIST:KMPUR|BIST:KNFRT|BIST:KOCMT|BIST:KONKA|BIST:KONTR|BIST:KONYA|BIST:KOPOL|BIST:KORDS|BIST:KOTON|BIST:KPEKS|BIST:KRDMA|BIST:KRDMB|BIST:KRDMD|BIST:KRGYO|BIST:KRONT|BIST:KRPLS|BIST:KRSTL|BIST:KRTEK|BIST:KRVGD|BIST:KSTUR|BIST:KTLEV|BIST:KTSKR|BIST:KUTPO|BIST:KUVVA|BIST:KUYAS|BIST:KZBGY|BIST:KZGYO|BIST:LIDER|BIST:LIDFA|BIST:LILAK|BIST:LINK|BIST:LKMNH|BIST:LMKDC|BIST:LOGO|BIST:LRSHO|BIST:LUKSK|BIST:LXGYO|BIST:LYDHO|BIST:LYDYE|BIST:MAALT|BIST:MACKO|BIST:MAGEN|BIST:MAKIM|BIST:MAKTK|BIST:MANAS|BIST:MARBL|BIST:MARMR|BIST:MARTI|BIST:MASFN|BIST:MAVI|BIST:MCARD|BIST:MEDTR|BIST:MEGAP|BIST:MEGMT|BIST:MEKAG|BIST:MEPET|BIST:MERCN|BIST:MERIT|BIST:MERKO|BIST:METEN|BIST:METRO|BIST:MEYSU|BIST:MGROS|BIST:MHRGY|BIST:MIATK|BIST:MMCAS|BIST:MNDRS|BIST:MNDTR|BIST:MOBTL|BIST:MOGAN|BIST:MOPAS|BIST:MPARK|BIST:MRGYO|BIST:MRSHL|BIST:MSGYO|BIST:MTRKS|BIST:MTRYO|BIST:MZHLD|BIST:NATEN|BIST:NETAS|BIST:NETCD|BIST:NETGL|BIST:NIBAS|BIST:NTGAZ|BIST:NTHOL|BIST:NUGYO|BIST:NUHCM|BIST:OBAMS|BIST:OBASE|BIST:ODAS|BIST:ODINE|BIST:OFSYM|BIST:ONCSM|BIST:ONRYT|BIST:ORCAY|BIST:ORGE|BIST:ORMA|BIST:ORZAX|BIST:OSMEN|BIST:OSTIM|BIST:OTKAR|BIST:OTTO|BIST:OYAKC|BIST:OYAYO|BIST:OYLUM|BIST:OYYAT|BIST:OZATD|BIST:OZGYO|BIST:OZKGY|BIST:OZRDN|BIST:OZSUB|BIST:OZYSR|BIST:PAGYO|BIST:PAHOL|BIST:PAMEL|BIST:PAPIL|BIST:PARSN|BIST:PASEU|BIST:PATEK|BIST:PCILT|BIST:PEKGY|BIST:PENGD|BIST:PENTA|BIST:PETKM|BIST:PETUN|BIST:PGSUS|BIST:PINSU|BIST:PKART|BIST:PKENT|BIST:PLTUR|BIST:PNLSN|BIST:PNSUT|BIST:POLHO|BIST:POLTK|BIST:PRDGS|BIST:PRKAB|BIST:PRKME|BIST:PRZMA|BIST:PSDTC|BIST:PSGYO|BIST:QNBFK|BIST:QNBTR|BIST:QUAGR|BIST:QUICK|BIST:RALYH|BIST:RAYSG|BIST:REEDR|BIST:RGYAS|BIST:RNPOL|BIST:RODRG|BIST:RTALB|BIST:RUBNS|BIST:RUZYE|BIST:RYGYO|BIST:RYSAS|BIST:SAFKR|BIST:SAHOL|BIST:SAMAT|BIST:SANEL|BIST:SANFM|BIST:SANKO|BIST:SARAE|BIST:SARKY|BIST:SASA|BIST:SAYAS|BIST:SDTTR|BIST:SEGMN|BIST:SEGYO|BIST:SEKFK|BIST:SEKUR|BIST:SELEC|BIST:SELVA|BIST:SERNT|BIST:SEYKM|BIST:SILVR|BIST:SISE|BIST:SKBNK|BIST:SKTAS|BIST:SKYLP|BIST:SKYMD|BIST:SMART|BIST:SMRTG|BIST:SMRVA|BIST:SNGYO|BIST:SNICA|BIST:SNPAM|BIST:SODSN|BIST:SOHOE|BIST:SOKE|BIST:SOKM|BIST:SONME|BIST:SRVGY|BIST:SSAAT|BIST:SUMAS|BIST:SUNTK|BIST:SURGY|BIST:SUWEN|BIST:SVGYO|BIST:TABGD|BIST:TARKM|BIST:TATEN|BIST:TATGD|BIST:TAVHL|BIST:TBORG|BIST:TCELL|BIST:TCKRC|BIST:TDGYO|BIST:TEHOL|BIST:TEKTU|BIST:TERA|BIST:TEZOL|BIST:TGSAS|BIST:THYAO|BIST:TKFEN|BIST:TKNKA|BIST:TKNSA|BIST:TLMAN|BIST:TMPOL|BIST:TMSN|BIST:TNZTP|BIST:TOASO|BIST:TRALT|BIST:TRCAS|BIST:TRENJ|BIST:TRGYO|BIST:TRHOL|BIST:TRILC|BIST:TRMET|BIST:TSGYO|BIST:TSKB|BIST:TSPOR|BIST:TTKOM|BIST:TTRAK|BIST:TUCLK|BIST:TUKAS|BIST:TUPRS|BIST:TUREX|BIST:TURGG|BIST:TURSG|BIST:UCAYM|BIST:UFUK|BIST:ULAS|BIST:ULKER|BIST:ULUFA|BIST:ULUSE|BIST:ULUUN|BIST:UMPAS|BIST:UNLU|BIST:USAK|BIST:USHOL|BIST:VAKBN|BIST:VAKFA|BIST:VAKFN|BIST:VAKKO|BIST:VANGD|BIST:VBTYZ|BIST:VERTU|BIST:VERUS|BIST:VESBE|BIST:VESTL|BIST:VEYAS|BIST:VKFYO|BIST:VKGYO|BIST:VKING|BIST:VRGYO|BIST:VSNMD|BIST:YAPRK|BIST:YATAS|BIST:YAYLA|BIST:YBTAS|BIST:YEOTK|BIST:YESIL|BIST:YGGYO|BIST:YIGIT|BIST:YKBNK|BIST:YKSLN|BIST:YONGA|BIST:YUNSA|BIST:YYAPI|BIST:YYLGD|BIST:ZEDUR|BIST:ZERGY|BIST:ZGYO|BIST:ZOREN|BIST:ZRGYO", "|")
+groupId = "BIST631-" + (selectedGroup < 10 ? "0" : "") + str.tostring(selectedGroup)
+int groupStart = (selectedGroup - 1) * 10
+int groupSize = math.min(10, array.size(atcUniverse) - groupStart)
+array<string> symbols = array.new_string()
+// Slice only actual members. Group 64 has one ticker and four contexts.
+for memberIndex = 0 to groupSize - 1
+    array.push(symbols, array.get(atcUniverse, groupStart + memberIndex))
+array<string> seen = array.new<string>()
+bool configValid = str.match(groupId, "^[A-Za-z0-9_-]{1,16}$") == groupId
+string groupSymbols = ""
+for i = 0 to groupSize - 1
+    string selectedSymbol = array.get(symbols, i)
+    bool validSymbol = str.match(selectedSymbol, "^(BIST|BISTMIXED|BIST_DLY):[A-Z][A-Z0-9]{0,11}$") == selectedSymbol
+    if not validSymbol or array.includes(seen, f_atc_stock_name(selectedSymbol))
+        configValid := false
+    array.push(seen, f_atc_stock_name(selectedSymbol))
+    groupSymbols += (i > 0 ? "-" : "") + f_atc_stock_name(selectedSymbol)
+
+var table batchTable = table.new(position.top_right, 7, 13, border_width=1, border_color=color.rgb(80,95,115))
+if barstate.islast
+    table.clear(batchTable, 0, 0, 6, 12)
+    table.merge_cells(batchTable, 0, 11, 6, 11)
+    table.merge_cells(batchTable, 0, 12, 6, 12)
+    array<string> headers = array.from("HISSE", "1 SAAT", "4 SAAT", "GUNLUK", "HAFTALIK", "TUMU", "VERI")
+    for column = 0 to 6
+        table.cell(batchTable, column, 0, array.get(headers, column), bgcolor=color.rgb(22,53,77), text_color=color.white, text_size=size.small)
+
+bool hourlyClock = timeframe.period == "60" and chart.is_standard and syminfo.currency == "TRY" and (syminfo.prefix == "BIST" or syminfo.prefix == "BISTMIXED" or syminfo.prefix == "BIST_DLY")
+// Observe meaningful changes on every realtime host update. No fixed 20s delay.
+int emissionTime = timenow
+bool humanObserve = hourlyClock and (barstate.isrealtime or barstate.islastconfirmedhistory)
+bool humanInitialObservation = barstate.isrealtime and not humanStarted
+int accepted = 0
+// An unconfirmed host candle cannot attest its future scheduled close.
+// Use its open time as the conservative cutoff, including delayed feeds.
+int closedCutoff = barstate.isrealtime and not barstate.isconfirmed ? time : time_close
+// All contexts are requested on historical bars, never first created in the alert branch.
+// Exactly four direct contexts per stock; ten stocks consume forty unique requests.
+// Actual request/CPU limits and source-data parity require runtime verification.
+for i = 0 to groupSize - 1
+    string requestedSymbol = array.get(symbols, i)
+    AtcPair h1Pair = request.security(requestedSymbol, "60", f_atc_pair(), gaps=barmerge.gaps_off, lookahead=onlyClosedBar ? barmerge.lookahead_off : barmerge.lookahead_on, ignore_invalid_symbol=true, calc_bars_count=atcBars+30)
+    AtcPair h4Pair = request.security(requestedSymbol, "240", f_atc_pair(), gaps=barmerge.gaps_off, lookahead=onlyClosedBar ? barmerge.lookahead_off : barmerge.lookahead_on, ignore_invalid_symbol=true, calc_bars_count=atcBars+30)
+    AtcPair dPair = request.security(requestedSymbol, "D", f_atc_pair(), gaps=barmerge.gaps_off, lookahead=onlyClosedBar ? barmerge.lookahead_off : barmerge.lookahead_on, ignore_invalid_symbol=true, calc_bars_count=atcBars+30)
+    AtcPair wPair = request.security(requestedSymbol, "W", f_atc_pair(), gaps=barmerge.gaps_off, lookahead=onlyClosedBar ? barmerge.lookahead_off : barmerge.lookahead_on, ignore_invalid_symbol=true, calc_bars_count=atcBars+30)
+    AtcPacket h1 = f_atc_select(h1Pair, closedCutoff, emissionTime)
+    AtcPacket h4 = f_atc_select(h4Pair, closedCutoff, emissionTime)
+    AtcPacket daily = f_atc_select(dPair, closedCutoff, emissionTime)
+    AtcPacket weekly = f_atc_select(wPair, closedCutoff, emissionTime)
+    bool allLong = f_atc_long(h1) and f_atc_long(h4) and f_atc_long(daily) and f_atc_long(weekly)
+    bool allShort = f_atc_short(h1) and f_atc_short(h4) and f_atc_short(daily) and f_atc_short(weekly)
+    bool sourceReady = f_atc_source_ready(h1, requestedSymbol, time_close, closedCutoff, emissionTime)
+    if configValid and humanObserve
+        if sourceReady
+            accepted += 1
+        int frameIndex = i * 4
+        string stockText = f_atc_stock_name(requestedSymbol)
+        f_human_observe(h1, frameIndex, "1 saat", stockText, sourceReady, barstate.isrealtime, humanInitialObservation, emissionTime)
+        f_human_observe(h4, frameIndex + 1, "4 saat", stockText, sourceReady, barstate.isrealtime, humanInitialObservation, emissionTime)
+        f_human_observe(daily, frameIndex + 2, "Günlük", stockText, sourceReady, barstate.isrealtime, humanInitialObservation, emissionTime)
+        f_human_observe(weekly, frameIndex + 3, "Haftalık", stockText, sourceReady, barstate.isrealtime, humanInitialObservation, emissionTime)
+    if barstate.islast
+        int row = i + 1
+        table.cell(batchTable, 0, row, f_atc_stock_name(requestedSymbol), bgcolor=color.rgb(22,53,77), text_color=color.white, text_size=size.small)
+        table.cell(batchTable, 1, row, f_atc_summary(h1), bgcolor=f_atc_color(h1), text_color=color.white, text_size=size.small)
+        table.cell(batchTable, 2, row, f_atc_summary(h4), bgcolor=f_atc_color(h4), text_color=color.white, text_size=size.small)
+        table.cell(batchTable, 3, row, f_atc_summary(daily), bgcolor=f_atc_color(daily), text_color=color.white, text_size=size.small)
+        table.cell(batchTable, 4, row, f_atc_summary(weekly), bgcolor=f_atc_color(weekly), text_color=color.white, text_size=size.small)
+        string common = allLong and allShort ? "↑ ve ↓" : allLong ? "↑ KESISIM" : allShort ? "↓ KESISIM" : "—"
+        color commonColor = allLong and allShort ? color.rgb(170,110,20) : allLong ? color.rgb(15,110,74) : allShort ? color.rgb(155,40,50) : color.rgb(38,48,65)
+        table.cell(batchTable, 5, row, common, bgcolor=commonColor, text_color=color.white, text_size=size.small)
+        string sourceText = "Veri yok"
+        if not na(h1)
+            string sourceBarTime = str.format_time(h1.openTime, "dd.MM HH:mm", "Europe/Istanbul")
+            string sourceBarAge = h1.endTime > emissionTime ? "ACIK MUM" : "KAPALI MUM " + str.tostring(math.max(0, int((emissionTime - h1.endTime) / 60000))) + " dk"
+            sourceText := h1.sourcePrefix + " · " + h1.sourceType + "\n" + sourceBarTime + " · " + sourceBarAge + "\n" + (na(h1.volume) ? "Hacim yok" : "Hacim var") + (sourceReady ? "" : " · GONDERILMIYOR")
+        table.cell(batchTable, 6, row, sourceText, bgcolor=color.rgb(38,48,65), text_color=color.white, text_size=size.small)
+
+// One grouped call per host iteration; <=14 calls in every 180-second window.
+while array.size(humanAlertTimes) > 0
+    if emissionTime - array.get(humanAlertTimes, 0) > 180000
+        array.shift(humanAlertTimes)
+    else
+        break
+if barstate.isrealtime and accepted > 0
+    humanStarted := true
+if atcEnabled and configValid and hourlyClock and barstate.isrealtime and accepted > 0 and array.size(humanAlertTimes) < 14
+    string message = ""
+    array<int> emittedSlots = array.new_int()
+    for slot = 0 to 79
+        // Independent final gate: an odd/bearish slot cannot reach alert().
+        if slot % 2 == 0 and array.get(humanPending, slot) and array.size(emittedSlots) < humanMaxEvents
+            message += (array.size(emittedSlots) > 0 ? "\n\n" : "") + array.get(humanPendingText, slot)
+            array.push(emittedSlots, slot)
+    if array.size(emittedSlots) > 0
+        alert("ATC AL · " + groupId + " · " + str.tostring(array.size(emittedSlots)) + " aday\n" + message, alert.freq_all)
+        array.push(humanAlertTimes, emissionTime)
+        for slot in emittedSlots
+            array.set(humanSeen, slot, true)
+            array.set(humanHighCount, slot, math.max(array.get(humanHighCount, slot), array.get(humanPendingCount, slot)))
+            f_human_clear(slot)
+
+int humanQueueCount = 0
+for slot = 0 to 79
+    humanQueueCount += slot % 2 == 0 and array.get(humanPending, slot) ? 1 : 0
+
+if barstate.islast
+    string status = not configValid ? "HATALI / TEKRARLI HISSE YA DA GRUP ADI" : not hourlyClock ? "ALARM ICIN BIST 1 SAAT NORMAL MUM GRAFIGI" : groupId + " · " + str.tostring(groupSize) + " HISSE · " + (onlyClosedBar ? "KAPALI MUM" : "SON MUM") + " · TASLAK"
+    table.cell(batchTable, 0, 11, status, bgcolor=color.rgb(22,53,77), text_color=configValid and hourlyClock ? color.white : color.yellow, text_size=size.small)
+    table.cell(batchTable, 0, 12, notificationPolicy + "\n" + calibrationCoverage + (calibratedLevelsEnabled ? " · AÇIK" : " · KAPALI") + "\nDiğer eşleşmeler: mevcut referans · Sırada " + str.tostring(humanQueueCount) + " · 14/180sn koruması · hesap eşitliği ayrıca doğrulanır", bgcolor=color.rgb(38,48,65), text_color=color.rgb(255,205,90), text_size=size.small)

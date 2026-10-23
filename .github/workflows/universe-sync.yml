@@ -1,9 +1,7 @@
-name: BIST universe sync
+name: Maintenance - manual BIST universe sync (database)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "30 6 * * 1-5"
 
 permissions:
   contents: read

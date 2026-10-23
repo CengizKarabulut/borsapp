@@ -23,6 +23,7 @@ from scripts.atc_live_packet_contract import (
     VERSION as PACKET_VERSION,
 )
 from scripts.atc_live_packet_contract import (
+    notification_policy,
     packet_files,
     verify_acknowledgements,
 )
@@ -117,7 +118,8 @@ def _verify_packet(folder: Path, slot: dict) -> tuple[dict, str]:
         raise ValueError("prepared_packet_file_hash_changed")
     report = json.loads(report_file.read_bytes())
     names = packet_files(report)
-    if (manifest.get("version") != PACKET_VERSION
+    if (manifest.get("version") != report.get("version")
+            or manifest.get("notification_policy") != notification_policy()
             or set(manifest.get("files", {})) != set(names)):
         raise ValueError("invalid_prepared_packet_manifest")
     for name in names:

@@ -1,57 +1,45 @@
-# GitHub kullanıcı kurulum kontrol listesi
+# GitHub Actions kurulumu
 
-## Actions secrets
+Güncel iş adları ve elle kullanım:
+[Actions kullanım rehberi](../ACTIONS_ISLETIM_REHBERI.md).
+Tarama zamanları:
+[otomatik tarama takvimi](../ATC_AUTOMATIC_SCHEDULE.md).
 
-Repository > Settings > Secrets and variables > Actions > **Secrets**:
+## Grup raporları
 
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `DATABASE_URL` — üretim PostgreSQL adresi hazır olduğunda
+1. Repository → Settings → Secrets and variables → Actions → Secrets:
+   `TELEGRAM_BOT_TOKEN` ve `TELEGRAM_CHAT_ID`.
+2. Variables altında mevcut zaman dilimi konu yönlendirmelerini ve
+   `TELEGRAM_TOPIC_REPORTS` değerini koruyun.
+3. Actions → **ATC manual live candle snapshot** → Run workflow →
+   Branch **main**, seçilen zaman dilimi, `delivery=preview`.
+4. Kapsam ve kaynak zamanını inceleyin. Gruba göndermek için
+   `delivery=publish` seçin. Yayın yalnız main üzerinden yapılır.
+5. Otomatik sekiz zaman dilimi raporu ve sabah raporu main üzerindeki
+   workflow takvimleriyle çalışır. Eski `ENABLE_SCHEDULED_SCANS` veya
+   `SCAN_DELIVERY_MODE` bu RAM akışının açma/kapama anahtarı değildir.
 
-Token ve parola yalnız secret olarak tutulur. Topic ID değerleri gizli değildir,
-ancak ortamlar arasında değiştiğinden Actions **Variables** altında tutulur.
+Her zaman dilimi kendi mevcut Telegram konusuna gider. Güncel yön bildirim
+politikası uygulanır; koşullar, kesişimler ve tam CSV aynı paketten üretilir.
+Destek/direnç raporu tüm 630 hisseyi en çok 20 satırlık sayfalarla gönderir.
+Token/parola/oturum bilgilerini dosyalara, iş günlüklerine veya artifact'a
+koymayın. Rapor artifact'larının public depoda erişilebilir olduğunu unutmayın.
 
-## Actions variables
+## Ayrı kalıcı bot ve finansal arşiv
 
-- `APP_TIMEZONE=Europe/Istanbul`
-- `TELEGRAM_ALLOWED_USERS`: Telegram'da kendi botunuza `/kimlik` göndererek
-  aldığınız gerçek kullanıcı ID'si; bot ID'si değildir
-- `TELEGRAM_ALLOW_CHAT_ADMINS=true`: Komut Merkezi'nde grup yöneticilerini
-  dinamik olarak yetkilendirir; yanlış statik kullanıcı ID'sinin botu kilitlemesini önler
-- `TELEGRAM_ALLOW_CHAT_MEMBERS=true`: yalnız yapılandırılmış özel gruptaki tüm
-  üyelerin komut vermesine izin verir; başka gruplar kabul edilmez
-- sekiz adet `TELEGRAM_TOPIC_...` değeri
+PostgreSQL'e bağlı komut botu, haberler, MA araştırması, sonuç ölçümü ve evren
+eşitleme işleri **Maintenance** altında yalnız elle kullanılabilir.
+Güncel grup taramaları bunlara bağlı değildir. Bu işlerin yeniden otomatik
+çalışması için veritabanı kapasitesi ve tek dinleyici ayrıca doğrulanmalıdır.
 
-İlk kurulum tamamlanınca `/kimlik` yanıtındaki kullanıcı ID'sini kaydedin ve
-dar yetkilendirme için `TELEGRAM_ALLOW_CHAT_MEMBERS=false` ile
-`TELEGRAM_ALLOW_CHAT_ADMINS=false` yapın. `true` değerleri yalnız ilk kimlik
-tespiti veya bilinçli grup-geneli kullanım içindir.
-
-Canlı zamanlanmış tarama yalnız `1h`, `4h` ve `1d` sonuçlarını Taramalar
-konusuna yollar. `15m`, `30m`, `45m` ve `2h` hesaplanır ve saklanır fakat
-Telegram'a yayınlanmaz.
+`DATABASE_URL` yalnız bu ayrı hizmetler için gerekir. Komut yetkileri için
+`TELEGRAM_ALLOWED_USERS` gerçek kullanıcı ID'lerini içermelidir.
+`TELEGRAM_ALLOW_CHAT_ADMINS` / `TELEGRAM_ALLOW_CHAT_MEMBERS` geniş yetki
+ayarları bilinçli olarak kullanılmalıdır. Aynı bot için iki listener açmayın.
 
 ## Repo ayarları
 
-1. Settings > Branches altında `main` için branch protection açın.
-2. Merge öncesi **CI** kontrolünü zorunlu yapın.
-3. Actions izinlerini başlangıçta **Read repository contents** düzeyinde tutun.
-4. Legacy workflow dosyaları `_legacy` altında olduğundan otomatik çalışmaz;
-   eski dört repodaki workflow'ları şimdilik kapatmayın.
-
-Zamanlanmış yeni akışlar ayrı repo değişkenleriyle açılır:
-
-- `ENABLE_SCHEDULED_SCANS=true`: kapanmış mum taramaları
-- `ENABLE_SCHEDULED_RESEARCH=true`: MA Research yenilemesi
-- `ENABLE_SCHEDULED_NEWS=true`: KAP haber eşitlemesi
-- `NEWS_DELIVERY_MODE=live`: yeni KAP kayıtlarını Haberler & KAP konusuna yayınlar
-- `SCAN_DELIVERY_MODE=shadow`: taramaları saklar fakat doğrulanmış sinyal yayını yapmaz
-- `SCAN_DELIVERY_MODE=live`: yalnız parity kapısı ve `notification_timeframes`
-  izni bulunan scanner'ların yeni bulgularını yayınlar
-- `ENABLE_SHADOW_PARITY=true`: aynı snapshot üzerinde legacy ve yeni motoru
-  birlikte çalıştırıp karşılaştırmaları PostgreSQL'e yazar
-- `ENABLE_TELEGRAM_PULSE=true`: kalıcı host kurulana kadar gecikmeli canlı komut botu
-
-Son değişken eklenmezse veya `disabled` kalırsa haberler yalnız Neon'a yazılır.
-5. PostgreSQL barındırma hedefi seçilmeden `DATABASE_URL` üretim secret'ı
-   oluşturmayın.
+Main için branch protection ve CI kontrollerini koruyun. Actions varsayılan
+izinlerini salt okunur tutun; yayın işleri yalnız gerekli bot değerlerini
+kullanır. `_legacy` altındaki dosyalar Actions girişleri değildir ve bir
+bölümü compatibility/parite kodu tarafından hâlâ kullanılır.

@@ -193,6 +193,26 @@ class DeliveryStateTests(unittest.TestCase):
     def test_exact_three_ack_receipt_is_accepted(self):
         self.assertIs(validate_delivery_state(self.state), self.state)
 
+    def test_legacy_direction_watermark_remains_readable_and_current_policy_is_pinned(self):
+        from scripts.atc_live_packet_contract import LEGACY_VERSION, VERSION, notification_policy
+        receipt = self.state["receipt"]
+        receipt["packet_version"] = LEGACY_VERSION
+        keys = ["text", "photo-tf-15m-LONG-001", "photo-tf-15m-SHORT-001",
+                "photo-same-tf-15m-LONG-001", "photo-same-tf-15m-SHORT-001", "csv"]
+        receipt["expected_acknowledgements"] = keys
+        receipt["acknowledged"] = dict(zip(keys, range(101, 107), strict=True))
+        self.assertIs(validate_delivery_state(self.state), self.state)
+        receipt.update(packet_version=VERSION, notification_policy=notification_policy())
+        with self.assertRaises(ValueError):
+            validate_delivery_state(self.state)
+        keys = [key for key in keys if "-SHORT-" not in key]
+        receipt["expected_acknowledgements"] = keys
+        receipt["acknowledged"] = dict(zip(keys, range(101, 105), strict=True))
+        self.assertIs(validate_delivery_state(self.state), self.state)
+        receipt["notification_policy"]["notification_directions"].append("bearish")
+        with self.assertRaises(ValueError):
+            validate_delivery_state(self.state)
+
     def test_invalid_identity_or_missing_ack_cannot_suppress_delivery(self):
         corruptions = [
             lambda s: s.update(schema="other"),

@@ -1,4 +1,4 @@
-name: MA research refresh
+name: Maintenance - manual MA research (database)
 
 on:
   workflow_dispatch:
@@ -20,8 +20,6 @@ on:
         default: 1d
         type: choice
         options: [1h, 4h, 1d]
-  schedule:
-    - cron: "30 15 * * 1-5"
 
 permissions:
   contents: read
@@ -32,7 +30,6 @@ concurrency:
 
 jobs:
   research:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SCHEDULED_RESEARCH == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:

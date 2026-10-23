@@ -7,21 +7,26 @@ import zipfile
 from hashlib import sha256
 
 from scripts import atc_live_packet_restore as restore
-from scripts.atc_live_packet_contract import direction_metadata
+from scripts.atc_live_packet_contract import LEGACY_VERSION, direction_metadata, notification_policy
 
 
-def packet_archive(*, change=None, extra=None):
+def packet_archive(*, change=None, extra=None, version=None):
+    version = restore.VERSION if version is None else version
     files = {name: b"test" for name in restore.FILES}
-    data = {"version": restore.VERSION,
+    data = {"version": version, "notification_policy": notification_policy(),
         "timeframe": "45m", "provisional": True, "confirmed_store_writes": 0,
         "rows": [], "orders_sent": 0, "observation_end": "2026-10-20T18:45:00+03:00"}
+    if version == LEGACY_VERSION:
+        data.pop("notification_policy")
     data["direction_groups"] = direction_metadata(data)
     files["live-snapshot.json"] = json.dumps(data).encode()
-    files["prepared-packet.json"] = json.dumps({"version": restore.VERSION,
+    files["prepared-packet.json"] = json.dumps({"version": version,
+        "notification_policy": notification_policy(),
         "files": {name: sha256(files[name]).hexdigest() for name in restore.FILES}}).encode()
     files["publication-receipt.json"] = json.dumps({"status": "sent", "chat_id": restore.CHAT,
         "topic_id": 9, "packet_sha256": sha256(files["prepared-packet.json"]).hexdigest(),
-        "packet_version": restore.VERSION, "expected_acknowledgements": ["text", "csv"],
+        "packet_version": version, "notification_policy": notification_policy(),
+        "expected_acknowledgements": ["text", "csv"],
         "acknowledged": {"text": 1, "csv": 3}}).encode()
     files["scheduled-slot.json"] = b'{"timeframe":"45m"}'
     if change:
@@ -59,6 +64,10 @@ class PacketRestoreTests(unittest.TestCase):
         files, observed = restore.unpack_packet(packet_archive(), "45m")
         self.assertEqual(set(files), restore.NAMES)
         self.assertEqual(observed.isoformat(), "2026-10-20T18:45:00+03:00")
+
+    def test_legacy_v2_packet_is_still_readable_without_becoming_publishable(self):
+        files, _ = restore.unpack_packet(packet_archive(version=LEGACY_VERSION), "45m")
+        self.assertEqual(json.loads(files["live-snapshot.json"])["version"], LEGACY_VERSION)
 
     def test_tampered_source_or_missing_ack_is_rejected(self):
         def no_ack(files):
