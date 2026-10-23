@@ -45,3 +45,40 @@ Seviyeler standart referanstır; geçmiş testten kalibre edilmiş değildir.
 Grafik durum göstergesi BIST için hazırlanmıştır. Coin ve ABD sembollerinde
 önizleme yapılabilir; piyasa eşikleri ve veri eşitliği ayrıca doğrulanmadan
 bu piyasalar için alarm veya kalibrasyon hazır sayılmaz.
+
+`ATC_GLOBAL_18_COKLU_ZAMAN.pine` açılan **ABD hissesi, coin, VİOP/vadeli,
+emtia veya diğer sembolü** aynı altı zaman diliminde gösterir. Yeni bir
+sembol listesi taramaz; grafikte seçtiğiniz sembolün 18 koşulunu hesaplar.
+BIST göstergesi ve mevcut BIST AL alarmları ayrı dosyalarda kalır.
+GLOBAL gösterge bildirim ya da emir üretmez. Negatif durum Düşüş/İzle'dir;
+işlem açılabilirliği veya açığa satış yetkisi anlamına gelmez.
+
+GLOBAL'ın BIST pay/fon/depo sertifikası ve TRY kotasyonu bağlamında mevcut
+1 TRY fiyat ve 20 milyon TRY ortalama işlem tutarı filtresi korunur.
+Diğer piyasalarda 10–16. koşullar pozitif fiyat ve aynı kaynağın geçerli
+göreli hacmini kullanır; bu bir nakit likidite garantisi değildir. Kotasyon
+para biriminde verilmiş coin hacmi ikinci kez fiyatla çarpılmaz. Vadeli
+kontrat adedi nakit tutarı kabul edilmez. 17. koşulun göreli puanlaması
+yalnız günlükte; 18. koşulun MA araştırması kendi kaynak geçmişindedir.
+Bu piyasaların eşikleri ve Stop/TP'leri henüz piyasaya özel kalibre edilmiş
+veya geriye dönük başarıyla doğrulanmış değildir.
+
+Hacim türü ve seans bilgisi tablonun altında/ipuçlarında görülür. `n/a`
+hacim metaverisi tek başına veri yok demek değildir; mevcut sonlu hacim
+kullanılır. Gerçek hacim yoksa veya kaynak yalnız tik sayısı veriyorsa
+hacme bağlı koşullar `HACİM YOK`/`TİK HACMİ` gösterir; eşleşme yok sonucuyla
+karışmaz. Fiyat temelli 1–2 koşulu uygun geçmiş varsa devam eder. Eksik veya
+gecikmiş veri için abonelik/veri kaynağı ayrıca belirleyicidir.
+
+Grafik seansı ve sembolün fiyat düzeltmeleri korunur; 24 saatlik coin ile
+ABD veya VİOP seanslarına BIST çalışma saatleri uygulanmaz. Zamanlar ilgili
+borsanın saat dilimindedir. Vadeli Stop/TP fiyat kotasyonudur; kontrat puan
+değeriyle çarpılmış kar/zarar veya teminat değildir. Sürekli vadeli sembolde
+kontrat geçişi/geriye düzeltme geçmişi etkileyebilir; işlemde gerçek vadeyi
+kontrol edin. Referans planlar fiyat adımına yuvarlandıktan sonra pozitif ve
+sıralı değilse gösterilmez.
+
+Pine metaverisi ve seans davranışı için resmi kaynaklar:
+[Sembol bilgileri](https://www.tradingview.com/pine-script-docs/concepts/chart-information/),
+[seanslar](https://www.tradingview.com/pine-script-docs/concepts/sessions/),
+[sürekli vadeli düzeltmesi](https://www.tradingview.com/support/solutions/43000685266-how-can-i-enable-backadjustment-for-continuous-futures/).
