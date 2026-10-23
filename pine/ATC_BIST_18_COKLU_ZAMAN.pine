@@ -1,5 +1,5 @@
 //@version=6
-indicator("ATC BIST 18 ÇOKLU ZAMAN · 20261023", shorttitle="ATC 18 × 6", overlay=true, max_bars_back=3500)
+indicator("ATC BIST 18 ÇOKLU ZAMAN · 20261023", shorttitle="ATC 18 × 6", overlay=true, behind_chart=false, max_bars_back=3500)
 
 // Current symbol, six independent source contexts: 5m, 15m, 1h, 4h, D1, W1.
 // The 30 bounded numeric functions below are copied unchanged from ATC 18 DURUM.
