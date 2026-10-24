@@ -24,6 +24,7 @@ TEMPLATE = Path(__file__).with_name("pine_templates") / "global_market_groups_di
 GROUP_SIZE = 10
 TIMEFRAMES = ("60", "240", "D", "W")
 MAX_SYMBOLS_PER_PART = 1000
+MAX_ARRAY_FROM_ARGUMENTS = 500
 LIMITS_URL = "https://www.tradingview.com/pine-script-docs/writing/limitations/"
 APPROVED_SOURCES = frozenset({
     "tradingview-screener", "tradingview-symbol-pages", "tradingview-components",
@@ -129,6 +130,21 @@ def _pine(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _pine_string_array(values: list[str]) -> str:
+    """Keep each variadic constructor below Pine's 999-argument ceiling."""
+    if not values or len(values) > MAX_SYMBOLS_PER_PART:
+        raise ValueError("String array must contain between 1 and 1000 values")
+    chunks = [values[start:start + MAX_ARRAY_FROM_ARGUMENTS]
+              for start in range(0, len(values), MAX_ARRAY_FROM_ARGUMENTS)]
+    calls = ["array.from(\n    " + ",\n    ".join(_pine(value) for value in chunk) + ")"
+             for chunk in chunks]
+    if len(calls) == 1:
+        return calls[0]
+    # Each part contains at most 1000 values, so concat always has two arrays.
+    return "array.concat(\n    " + ",\n    ".join(
+        call.replace("\n", "\n    ") for call in calls) + ")"
+
+
 def render_part(catalogue: dict[str, Any], records: list[dict[str, str]], *,
                 source: str, part_index: int, part_count: int,
                 global_group_start: int) -> str:
@@ -150,8 +166,8 @@ def render_part(catalogue: dict[str, Any], records: list[dict[str, str]], *,
         "GLOBAL_GROUP_START": str(global_group_start),
         "TOTAL_GROUP_COUNT": str(math.ceil(len(catalogue["symbols"]) / GROUP_SIZE)),
         "TOTAL_SYMBOL_COUNT": str(len(catalogue["symbols"])),
-        "SYMBOLS": ",\n    ".join(_pine(record["symbol"]) for record in records),
-        "NAMES": ",\n    ".join(_pine(record["name"]) for record in records),
+        "SYMBOL_ARRAY": _pine_string_array([record["symbol"] for record in records]),
+        "NAME_ARRAY": _pine_string_array([record["name"] for record in records]),
     }
     template = TEMPLATE.read_text(encoding="utf-8")
     expected = set(re.findall(r"@@([A-Z_]+)@@", template))

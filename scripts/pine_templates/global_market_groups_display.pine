@@ -100,10 +100,9 @@ f_group_state(AtcMtfFrame frame, int id, int tfIndex, bool standardChart) =>
     string state = not standardChart ? "MUM?" : disabled ? "KAPALI" : id == 17 and tfIndex != 2 ? "1G ÖZEL" : not present ? "VERİ YOK" : missingVolume ? (frame.volumeState == 3 ? "TİK HACMİ" : "HACİM YOK") : not known ? (historyShort ? str.tostring(f_mtf_min_bars(id)) + " MUM" : id == 18 and frame.r18Unavailable == 2 ? "MA YOK" : id == 18 and frame.r18Unavailable == 3 ? "SKOR?" : "VERİ?") : up and down ? (showBearish ? "AL+↓" : "AL") : up ? "AL" : down ? (showBearish ? "↓ İZLE" : "↓ GİZLİ") : watch ? "NÖTR" : "—"
     [state, known and standardChart, up and standardChart, down and standardChart, watch and standardChart]
 
-var array<string> groupUniverse = array.from(
-    @@SYMBOLS@@)
-var array<string> groupNames = array.from(
-    @@NAMES@@)
+// Split long literals into bounded constructors; part/group ordering is intact.
+var array<string> groupUniverse = @@SYMBOL_ARRAY@@
+var array<string> groupNames = @@NAME_ARRAY@@
 var array<string> frameLabels = array.from("1 sa", "4 sa", "1 gün", "1 hafta")
 var array<string> chartRuleNames = array.from("MACD kesişim", "SMI/MACD mom.", "SMI hacim", "EMA trend/hacim", "RSI/MACD hacim", "SMA/MACD hacim", "SMI Full", "SMI erken", "RSI momentum", "Hacim patlaması", "Sıkışma/hacim", "Uç RSI", "Başarısız kırılım", "Karar bölgesi", "Trend devamı", "Tükenme", "Karar Paneli · 1G", "MA yakınlık")
 int groupStart = (selectedGroup - 1) * 10

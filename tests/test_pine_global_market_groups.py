@@ -121,6 +121,51 @@ class PineGlobalMarketGroupTests(unittest.TestCase):
         self.assertIn('"Bu dosyadaki grup", minval=1, maxval=100', content)
         self.assertNotIn("maxval=64", content)
 
+    def test_large_catalogue_constructors_bound_arguments_and_preserve_each_value(self):
+        def constructor_values(expression):
+            """Parse emitted string arguments without splitting commas in names."""
+            decoder = json.JSONDecoder()
+            chunks = []
+            for match in re.finditer(r"\barray\.from\(", expression):
+                cursor = match.end()
+                values = []
+                while True:
+                    while expression[cursor].isspace():
+                        cursor += 1
+                    value, cursor = decoder.raw_decode(expression, cursor)
+                    self.assertIsInstance(value, str)
+                    values.append(value)
+                    while expression[cursor].isspace():
+                        cursor += 1
+                    if expression[cursor] == ")":
+                        break
+                    self.assertEqual(expression[cursor], ",")
+                    cursor += 1
+                chunks.append(values)
+            return chunks
+
+        for count in (499, 500, 501, 999, 1000):
+            with self.subTest(count=count):
+                catalogue = fixture(count)
+                catalogue["symbols"][0]["name"] = 'A (name), with "quotes"'
+                artifacts = builder.build_artifacts(catalogue, self.source)
+                manifest = json.loads(artifacts["manifest.json"])
+                self.assertEqual(len(manifest["parts"]), 1)
+                self.assertEqual(manifest["parts"][0]["symbol_count"], count)
+                content = artifacts[manifest["parts"][0]["file"]].decode()
+                for variable, key, next_declaration in (
+                        ("groupUniverse", "symbol", "groupNames"),
+                        ("groupNames", "name", "frameLabels")):
+                    expression = content.split(f"var array<string> {variable} = ", 1)[1]
+                    expression = expression.split(f"\nvar array<string> {next_declaration}", 1)[0]
+                    chunks = constructor_values(expression)
+                    self.assertEqual([len(chunk) for chunk in chunks],
+                                     [count] if count <= 500 else [500, count - 500])
+                    self.assertTrue(all(len(chunk) <= 500 for chunk in chunks))
+                    self.assertEqual([value for chunk in chunks for value in chunk],
+                                     [record[key] for record in catalogue["symbols"]])
+                    self.assertEqual(expression.count("array.concat("), int(count > 500))
+
     def test_part_size_cannot_break_global_group_boundaries_or_resource_bound(self):
         for size in (0, 9, 11, 1001, 10000, True):
             with self.subTest(size=size), self.assertRaises(ValueError):

@@ -37,7 +37,7 @@
   "parts": [
     {
       "file": "ATC_CRYPTO_COINS_GRUP_18_01.pine",
-      "sha256": "b55f5c0ad2e761ce51e12a9503c9937b1fee8786691139d7b35ada289858e83c",
+      "sha256": "905b2d030c7c078bb05c2174f20cdefc73c1fc8a97f0d0a4ed015deaa66e31d7",
       "symbol_count": 1000,
       "group_count": 100,
       "global_group_first": 1,
@@ -1047,7 +1047,7 @@
     },
     {
       "file": "ATC_CRYPTO_COINS_GRUP_18_02.pine",
-      "sha256": "2d48e6408e222b6052f1048787d697423c32dd0b9293e0ebf831b9329892ab79",
+      "sha256": "29927ed97cfd81abc449a4d215e433ba29ae9aafb322262c1f6e9a071d7613ad",
       "symbol_count": 1000,
       "group_count": 100,
       "global_group_first": 101,
@@ -2057,7 +2057,7 @@
     },
     {
       "file": "ATC_CRYPTO_COINS_GRUP_18_03.pine",
-      "sha256": "354fa3e2fbf2d216738d1509f1cbea6b88b45edf2e712829d2323d72a3bc6d04",
+      "sha256": "e6c270c9c32df4132de7cb585023294e59c6c47c882d5ccef5c54d341408f58e",
       "symbol_count": 454,
       "group_count": 46,
       "global_group_first": 201,
