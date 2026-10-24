@@ -1,0 +1,679 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-24T02:01:53+03:00",
+  "method": "Read-only public official TradingView symbol pages through web tool. Required visible heading, Continuous contract label, Istanbul Exchange and exact ticker line. No private APIs/session data used.",
+  "official_underlyings_url": "https://www.borsaistanbul.com/piyasalar/viop/sozlesme-ozellikleri/dayanak-varliklar",
+  "official_underlying_count": 67,
+  "verified_continuous_count": 65,
+  "unmapped_underlyings": [
+    {
+      "name": "Türk Lirası Gecelik Referans Faiz Oranı",
+      "code": "TLREF",
+      "reason": "No continuous futures TradingView symbol verified; do not substitute cash index or bond.",
+      "attempted_url": "https://www.tradingview.com/symbols/BIST-TLREF1!/"
+    },
+    {
+      "name": "Devlet İç Borçlanma Senetleri",
+      "code": "TRT131130T14",
+      "reason": "No continuous futures TradingView symbol verified; do not substitute cash index or bond.",
+      "attempted_url": "https://www.tradingview.com/symbols/BIST-TRT131130T141!/"
+    }
+  ],
+  "qualified_namespace": "BIST (as explicitly shown in public TradingView source page titles/URLs). Account feed routing to BISTMIXED can still omit volume; not claimed verified.",
+  "continuous_series_policy": "Nearest 1! only; no second continuous/dated-expiry duplication. Continuous series are synthetic roll series and not executable contract identifiers.",
+  "chart_feed_validated": false,
+  "coverage": "partial",
+  "records": [
+    {
+      "symbol": "BIST:AEFES1!",
+      "name": "ANADOLU EFES BIRACILIK VE MALT SANA FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-AEFES1%21/",
+      "evidence_file": "viop-public-pages-01.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "AEFES",
+      "underlying_name": "Anadolu Efes Biracılık ve Malt Sanayii A.Ş."
+    },
+    {
+      "symbol": "BIST:AKBNK1!",
+      "name": "AK BANK FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-AKBNK1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "AKBNK",
+      "underlying_name": "Akbank T.A.Ş."
+    },
+    {
+      "symbol": "BIST:AKSEN1!",
+      "name": "AKSA ENERJI URETIM FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-AKSEN1%21/",
+      "evidence_file": "viop-public-pages-01.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "AKSEN",
+      "underlying_name": "Aksa Enerji Üretim A.Ş."
+    },
+    {
+      "symbol": "BIST:ALARK1!",
+      "name": "ALARKO HLDG FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ALARK1%21/",
+      "evidence_file": "viop-public-pages-01.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ALARK",
+      "underlying_name": "Alarko Holding A.Ş."
+    },
+    {
+      "symbol": "BIST:ARCLK1!",
+      "name": "ARCELIK ANONIM SIRKETI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ARCLK1%21/",
+      "evidence_file": "viop-public-pages-01.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ARCLK",
+      "underlying_name": "Arçelik A.Ş."
+    },
+    {
+      "symbol": "BIST:ASELS1!",
+      "name": "ASELSAN ELEKTRONIK SANAYI VE TICARET FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ASELS1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ASELS",
+      "underlying_name": "Aselsan A.Ş."
+    },
+    {
+      "symbol": "BIST:ASTOR1!",
+      "name": "ASTOR FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ASTOR1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ASTOR",
+      "underlying_name": "Astor Eneji A.Ş."
+    },
+    {
+      "symbol": "BIST:BIMAS1!",
+      "name": "BIM UNITED STORES INC. FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-BIMAS1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "BIMAS",
+      "underlying_name": "BİM Birleşik Mağazalar A.Ş."
+    },
+    {
+      "symbol": "BIST:BRSAN1!",
+      "name": "BRSAN FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-BRSAN1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "BRSAN",
+      "underlying_name": "Borusan Birleşik Boru Fabrikaları Sanayi ve Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:CIMSA1!",
+      "name": "CIMSA FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-CIMSA1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "CIMSA",
+      "underlying_name": "Çimsa Çimento Sanayi ve Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:DOAS1!",
+      "name": "DOAS FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-DOAS1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "DOAS",
+      "underlying_name": "Doğuş Otomotiv Servis ve Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:DOHOL1!",
+      "name": "DOGAN HOLDING FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-DOHOL1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "DOHOL",
+      "underlying_name": "Doğan Holding A.Ş."
+    },
+    {
+      "symbol": "BIST:EKGYO1!",
+      "name": "EMLAK KONUT GAYRIMENKUL YATRIM ORTAKLIGI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-EKGYO1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "EKGYO",
+      "underlying_name": "Emlak Konut Gayrimenkul Yatırım Ortaklığı A.Ş."
+    },
+    {
+      "symbol": "BIST:ENJSA1!",
+      "name": "ENERJISA ENERGY INC FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ENJSA1%21/",
+      "evidence_file": "viop-public-pages-02.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ENJSA",
+      "underlying_name": "Enerjisa Enerji A.Ş."
+    },
+    {
+      "symbol": "BIST:ENKAI1!",
+      "name": "ENKA CONSTRUCTION AND INDUSTRY FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ENKAI1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ENKAI",
+      "underlying_name": "Enka İnşaat Sanayi A.Ş."
+    },
+    {
+      "symbol": "BIST:EREGL1!",
+      "name": "Eregli Demir ve Celik Fabrikalari Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-EREGL1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "EREGL",
+      "underlying_name": "Ereğli Demir ve Çelik Fabrikaları T.A.Ş."
+    },
+    {
+      "symbol": "BIST:FROTO1!",
+      "name": "FORD OTOMOTIV SANAYI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-FROTO1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "FROTO",
+      "underlying_name": "Ford Otomotiv Sanayi A.Ş."
+    },
+    {
+      "symbol": "BIST:GUBRF1!",
+      "name": "GUBRE FABRIKALARI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-GUBRF1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "GUBRF",
+      "underlying_name": "Gübre Fabrikaları T.A.Ş."
+    },
+    {
+      "symbol": "BIST:HEKTS1!",
+      "name": "HEKTAS TICARET FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-HEKTS1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "HEKTS",
+      "underlying_name": "Hektaş Ticaret T.A.Ş."
+    },
+    {
+      "symbol": "BIST:SAHOL1!",
+      "name": "HACI OMER SABANCI HOLDING FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-SAHOL1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "SAHOL",
+      "underlying_name": "H.Ö. Sabancı Holding A.Ş."
+    },
+    {
+      "symbol": "BIST:KRDMD1!",
+      "name": "KARDEMIR KARABUK DEMIR CELIK SAN FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-KRDMD1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "KRDMD",
+      "underlying_name": "Kardemir Karabük Demir Çelik Sanayi ve Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:KCHOL1!",
+      "name": "KOC HOLDING FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-KCHOL1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "KCHOL",
+      "underlying_name": "Koç Holding A.Ş."
+    },
+    {
+      "symbol": "BIST:MGROS1!",
+      "name": "MIGROS TICARET FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-MGROS1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "MGROS",
+      "underlying_name": "Migros Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:ODAS1!",
+      "name": "ODAS ELEKTRIK URETIM SANAYI TICARET FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ODAS1%21/",
+      "evidence_file": "viop-public-pages-03.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ODAS",
+      "underlying_name": "Odaş Elektrik Üretim Sanayi Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:OYAKC1!",
+      "name": "OYAK CIMENTO FABRIKALARI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-OYAKC1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "OYAKC",
+      "underlying_name": "Oyak Çimento Fabrikaları A.Ş."
+    },
+    {
+      "symbol": "BIST:PGSUS1!",
+      "name": "PEGASUS HAVA TASIMACILIGI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-PGSUS1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "PGSUS",
+      "underlying_name": "Pegasus Hava Taşımacılığı A.Ş."
+    },
+    {
+      "symbol": "BIST:PETKM1!",
+      "name": "PETKIM PETROKIMYA HOLDING FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-PETKM1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "PETKM",
+      "underlying_name": "Petkim Petrokimya Holding A.Ş."
+    },
+    {
+      "symbol": "BIST:SASA1!",
+      "name": "SASA POLYESTER SANAYI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-SASA1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "SASA",
+      "underlying_name": "Sasa Polyester Sanayi A.Ş."
+    },
+    {
+      "symbol": "BIST:SOKM1!",
+      "name": "SOK MARKETLER TICARET FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-SOKM1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "SOKM",
+      "underlying_name": "Şok Marketler Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:GARAN1!",
+      "name": "TURKIYE GARANTI BANKASI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-GARAN1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "GARAN",
+      "underlying_name": "T. Garanti Bankası A.Ş"
+    },
+    {
+      "symbol": "BIST:ISCTR1!",
+      "name": "TURKIYE IS BANKASI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ISCTR1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ISCTR",
+      "underlying_name": "T. İş Bankası A.Ş"
+    },
+    {
+      "symbol": "BIST:TOASO1!",
+      "name": "TOFAS TURK OTOMOBIL FABRIKASI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TOASO1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TOASO",
+      "underlying_name": "Tofaş Türk Otomobil Fabrikası A.Ş."
+    },
+    {
+      "symbol": "BIST:TRMET1!",
+      "name": "TRMET FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TRMET1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TRMET",
+      "underlying_name": "TR Anadolu Metal Madencilik İşletmeleri A.Ş."
+    },
+    {
+      "symbol": "BIST:TUPRS1!",
+      "name": "TUPRAS TURKIYE PETROL RAFINERILERI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TUPRS1%21/",
+      "evidence_file": "viop-public-pages-04.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TUPRS",
+      "underlying_name": "Tüpraş Türkiye Petrol Rafinerileri A.Ş."
+    },
+    {
+      "symbol": "BIST:TRALT1!",
+      "name": "TRALT FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TRALT1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TRALT",
+      "underlying_name": "Türk Altın İşletmeleri A.Ş."
+    },
+    {
+      "symbol": "BIST:THYAO1!",
+      "name": "TURK HAVA YOLLARI AO FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-THYAO1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "THYAO",
+      "underlying_name": "Türk Hava Yolları A.O."
+    },
+    {
+      "symbol": "BIST:TTKOM1!",
+      "name": "TURK TELEKOMUNIKASYON FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TTKOM1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TTKOM",
+      "underlying_name": "Türk Telekomünikasyon A.Ş."
+    },
+    {
+      "symbol": "BIST:TCELL1!",
+      "name": "TURKCELL ILETISIM HIZMETLERI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TCELL1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TCELL",
+      "underlying_name": "Turkcell İletişim Hizmetleri A.Ş."
+    },
+    {
+      "symbol": "BIST:HALKB1!",
+      "name": "TURKIYE HALK BANKASI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-HALKB1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "HALKB",
+      "underlying_name": "Türkiye Halk Bankası A.Ş."
+    },
+    {
+      "symbol": "BIST:TSKB1!",
+      "name": "TURKIYE SINAI KALKINMA BANKASI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TSKB1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TSKB",
+      "underlying_name": "Türkiye Sınai Kalkınma Bankası A.Ş."
+    },
+    {
+      "symbol": "BIST:SISE1!",
+      "name": "TURKIYE SISE VE CAM FABRIKALARI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-SISE1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "SISE",
+      "underlying_name": "Türkiye Şişe ve Cam Fabrikaları A.Ş."
+    },
+    {
+      "symbol": "BIST:TAVHL1!",
+      "name": "TAV AIRPORTS FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TAVHL1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TAVHL",
+      "underlying_name": "TAV Havalimanları A.Ş."
+    },
+    {
+      "symbol": "BIST:TKFEN1!",
+      "name": "TEKFEN HOLDING FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-TKFEN1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "TKFEN",
+      "underlying_name": "Tekfen Holding A.Ş."
+    },
+    {
+      "symbol": "BIST:VAKBN1!",
+      "name": "TURKIYE VAKIFLAR BANKASI TAO FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-VAKBN1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "VAKBN",
+      "underlying_name": "Türkiye Vakıflar Bankası T.A.O."
+    },
+    {
+      "symbol": "BIST:ULKER1!",
+      "name": "ULKER BISCUITS INDUSTRY INC. FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ULKER1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ULKER",
+      "underlying_name": "Ülker Bisküvi Sanayi A.Ş."
+    },
+    {
+      "symbol": "BIST:VESTL1!",
+      "name": "VESTEL ELECTRONIK SANAYI VE TICARET FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-VESTL1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "VESTL",
+      "underlying_name": "Vestel Elektronik Sanayi ve Ticaret A.Ş."
+    },
+    {
+      "symbol": "BIST:YKBNK1!",
+      "name": "YAPI VE KREDI BANKASI FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-YKBNK1%21/",
+      "evidence_file": "viop-public-pages-05.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "YKBNK",
+      "underlying_name": "Yapı ve Kredi Bankası A.Ş."
+    },
+    {
+      "symbol": "BIST:XU030D1!",
+      "name": "BIST 30 FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XU030D1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XU030D",
+      "underlying_name": "BIST 30 Fiyat Endeksi"
+    },
+    {
+      "symbol": "BIST:XLBNKD1!",
+      "name": "BIST LIQUID BANKS FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XLBNKD1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XLBNKD",
+      "underlying_name": "BIST Likit Banka Endeksi"
+    },
+    {
+      "symbol": "BIST:X10XBD1!",
+      "name": "BIST LIQUID 10 EX BANKS FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-X10XBD1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "X10XBD",
+      "underlying_name": "BIST Banka Dışı Likit 10 Endeksi"
+    },
+    {
+      "symbol": "BIST:XSD25D1!",
+      "name": "BIST XSD25 FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XSD25D1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XSD25D",
+      "underlying_name": "BIST Sürdürebilirlik 25 Endeksi"
+    },
+    {
+      "symbol": "BIST:USDTRY1!",
+      "name": "USD/Turkish Lira Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-USDTRY1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "USDTRY",
+      "underlying_name": "Türk Lirası/ABD Doları kuru"
+    },
+    {
+      "symbol": "BIST:EURTRY1!",
+      "name": "Euro/Turkish Lira Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-EURTRY1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "EURTRY",
+      "underlying_name": "Türk Lirası/Euro kuru"
+    },
+    {
+      "symbol": "BIST:EURUSD1!",
+      "name": "EURO/USD Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-EURUSD1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "EURUSD",
+      "underlying_name": "Euro/Amerikan (ABD) Doları (EUR/USD) çapraz kuru"
+    },
+    {
+      "symbol": "BIST:RUBTRY1!",
+      "name": "RUB/TRY Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-RUBTRY1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "RUBTRY",
+      "underlying_name": "Rus Rublesi/Türk Lirası kuru"
+    },
+    {
+      "symbol": "BIST:CNHTRY1!",
+      "name": "CNH/TRY Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-CNHTRY1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "CNHTRY",
+      "underlying_name": "Offshore Çin Yuanı/Türk Lirası kuru"
+    },
+    {
+      "symbol": "BIST:GBPUSD1!",
+      "name": "GBP/USD Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-GBPUSD1%21/",
+      "evidence_file": "viop-public-pages-06.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "GBPUSD",
+      "underlying_name": "İngiliz Sterlini/Amerikan (ABD) Doları çapraz kuru"
+    },
+    {
+      "symbol": "BIST:XAUTRY1!",
+      "name": "Gold TRY per gram Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XAUTRY1%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XAUTRY",
+      "underlying_name": "Saf Altın (TL/gram)"
+    },
+    {
+      "symbol": "BIST:XAUUSD1!",
+      "name": "Gold USD per ounce Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XAUUSD1%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XAUUSD",
+      "underlying_name": "Saf Altın (USD/ons)"
+    },
+    {
+      "symbol": "BIST:XAGUSD1!",
+      "name": "Silver USD per ounce Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XAGUSD1%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XAGUSD",
+      "underlying_name": "Saf Gümüş (USD/ons)"
+    },
+    {
+      "symbol": "BIST:XPDUSD1!",
+      "name": "Palladium USD per ounce Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XPDUSD1%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XPDUSD",
+      "underlying_name": "Paladyum (USD/ons)"
+    },
+    {
+      "symbol": "BIST:XPTUSD1!",
+      "name": "Platinum USD per ounce Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XPTUSD1%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XPTUSD",
+      "underlying_name": "Platin (USD/ons)"
+    },
+    {
+      "symbol": "BIST:XCUUSD1!",
+      "name": "TON BAKIR FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-XCUUSD1%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "XCUUSD",
+      "underlying_name": "Bakır (USD/ton)"
+    },
+    {
+      "symbol": "BIST:ELCBASY1!",
+      "name": "Base-Load Electricity Futures",
+      "source_url": "https://www.tradingview.com/symbols/BIST-ELCBASY1%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "ELCBAS",
+      "underlying_name": "Baz Yük Elektrik"
+    },
+    {
+      "symbol": "BIST:SASX101!",
+      "name": "SASX 10 INDEX FUTURES",
+      "source_url": "https://www.tradingview.com/symbols/BIST-SASX101%21/",
+      "evidence_file": "viop-public-pages-07.txt",
+      "continuous_contract": true,
+      "chart_feed_validated": false,
+      "underlying_code": "SASX 10",
+      "underlying_name": "Saraybosna Borsası Fiyat Endeksi"
+    }
+  ]
+}
+

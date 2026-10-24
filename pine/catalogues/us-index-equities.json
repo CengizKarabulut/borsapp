@@ -1,0 +1,2087 @@
+{
+  "schema_version": 1,
+  "universe_id": "us-index-equities",
+  "title": "ABD endeks hisseleri",
+  "catalogue": {
+    "source": "tradingview-components",
+    "url": "https://www.tradingview.com/symbols/SPX/components/",
+    "captured_at": "2026-10-23T23:13:54.152852+00:00",
+    "scope": "Authenticated TradingView component tables: SP:SPX (503), NASDAQ:NDX (101), DJ:DJI (30). Complete union of these three captured component lists; exact exchange-qualified symbols deduplicated. Not all US-listed equities. The accompanying provenance document records every source URL and index membership.",
+    "coverage": "complete",
+    "row_count": 518
+  },
+  "symbols": [
+    {
+      "symbol": "NASDAQ:NVDA",
+      "name": "NVIDIA Corporation"
+    },
+    {
+      "symbol": "NASDAQ:AAPL",
+      "name": "Apple Inc."
+    },
+    {
+      "symbol": "NASDAQ:GOOG",
+      "name": "Alphabet Inc."
+    },
+    {
+      "symbol": "NASDAQ:GOOGL",
+      "name": "Alphabet Inc."
+    },
+    {
+      "symbol": "NASDAQ:MSFT",
+      "name": "Microsoft Corporation"
+    },
+    {
+      "symbol": "NASDAQ:AMZN",
+      "name": "Amazon.com, Inc."
+    },
+    {
+      "symbol": "NASDAQ:META",
+      "name": "Meta Platforms, Inc."
+    },
+    {
+      "symbol": "NASDAQ:AVGO",
+      "name": "Broadcom Inc."
+    },
+    {
+      "symbol": "NASDAQ:TSLA",
+      "name": "Tesla, Inc."
+    },
+    {
+      "symbol": "NYSE:LLY",
+      "name": "Eli Lilly and Company"
+    },
+    {
+      "symbol": "NYSE:BRK.B",
+      "name": "Berkshire Hathaway Inc. New"
+    },
+    {
+      "symbol": "NASDAQ:MU",
+      "name": "Micron Technology, Inc."
+    },
+    {
+      "symbol": "NASDAQ:WMT",
+      "name": "Walmart Inc."
+    },
+    {
+      "symbol": "NYSE:JPM",
+      "name": "JP Morgan Chase & Co."
+    },
+    {
+      "symbol": "NASDAQ:AMD",
+      "name": "Advanced Micro Devices, Inc."
+    },
+    {
+      "symbol": "NYSE:V",
+      "name": "Visa Inc."
+    },
+    {
+      "symbol": "NYSE:XOM",
+      "name": "ExxonMobil Holdings Corporation"
+    },
+    {
+      "symbol": "NYSE:JNJ",
+      "name": "Johnson & Johnson"
+    },
+    {
+      "symbol": "NYSE:MA",
+      "name": "Mastercard Incorporated"
+    },
+    {
+      "symbol": "NYSE:ABBV",
+      "name": "AbbVie Inc."
+    },
+    {
+      "symbol": "NASDAQ:PLTR",
+      "name": "Palantir Technologies Inc."
+    },
+    {
+      "symbol": "NYSE:CVX",
+      "name": "Chevron Corporation"
+    },
+    {
+      "symbol": "NASDAQ:INTC",
+      "name": "Intel Corporation"
+    },
+    {
+      "symbol": "NASDAQ:COST",
+      "name": "Costco Wholesale Corporation"
+    },
+    {
+      "symbol": "NASDAQ:CSCO",
+      "name": "Cisco Systems, Inc."
+    },
+    {
+      "symbol": "NYSE:KO",
+      "name": "Coca-Cola Company (The)"
+    },
+    {
+      "symbol": "NYSE:ORCL",
+      "name": "Oracle Corporation"
+    },
+    {
+      "symbol": "NYSE:UNH",
+      "name": "UnitedHealth Group Incorporated"
+    },
+    {
+      "symbol": "NYSE:PG",
+      "name": "Procter & Gamble Company (The)"
+    },
+    {
+      "symbol": "NYSE:MRK",
+      "name": "Merck & Company, Inc."
+    },
+    {
+      "symbol": "NYSE:BAC",
+      "name": "Bank of America Corporation"
+    },
+    {
+      "symbol": "NYSE:HD",
+      "name": "Home Depot, Inc. (The)"
+    },
+    {
+      "symbol": "NYSE:CAT",
+      "name": "Caterpillar, Inc."
+    },
+    {
+      "symbol": "NASDAQ:PANW",
+      "name": "Palo Alto Networks, Inc."
+    },
+    {
+      "symbol": "NYSE:PM",
+      "name": "Philip Morris International Inc"
+    },
+    {
+      "symbol": "NASDAQ:AMAT",
+      "name": "Applied Materials, Inc."
+    },
+    {
+      "symbol": "NYSE:GE",
+      "name": "GE Aerospace"
+    },
+    {
+      "symbol": "NYSE:DELL",
+      "name": "Dell Technologies Inc."
+    },
+    {
+      "symbol": "NASDAQ:LRCX",
+      "name": "Lam Research Corporation"
+    },
+    {
+      "symbol": "NYSE:MS",
+      "name": "Morgan Stanley"
+    },
+    {
+      "symbol": "NASDAQ:NFLX",
+      "name": "Netflix, Inc."
+    },
+    {
+      "symbol": "NASDAQ:CRWD",
+      "name": "CrowdStrike Holdings, Inc."
+    },
+    {
+      "symbol": "NASDAQ:TXN",
+      "name": "Texas Instruments Incorporated"
+    },
+    {
+      "symbol": "NYSE:RTX",
+      "name": "RTX Corporation"
+    },
+    {
+      "symbol": "NYSE:GS",
+      "name": "Goldman Sachs Group, Inc. (The)"
+    },
+    {
+      "symbol": "NYSE:TMO",
+      "name": "Thermo Fisher Scientific Inc"
+    },
+    {
+      "symbol": "NYSE:WFC",
+      "name": "Wells Fargo & Company"
+    },
+    {
+      "symbol": "NYSE:IBM",
+      "name": "International Business Machines Corporation"
+    },
+    {
+      "symbol": "NASDAQ:AMGN",
+      "name": "Amgen Inc."
+    },
+    {
+      "symbol": "NASDAQ:LIN",
+      "name": "Linde plc"
+    },
+    {
+      "symbol": "NYSE:ANET",
+      "name": "Arista Networks, Inc."
+    },
+    {
+      "symbol": "NYSE:GEV",
+      "name": "GE Vernova Inc."
+    },
+    {
+      "symbol": "NYSE:AXP",
+      "name": "American Express Company"
+    },
+    {
+      "symbol": "NYSE:CRM",
+      "name": "Salesforce, Inc."
+    },
+    {
+      "symbol": "NYSE:C",
+      "name": "Citigroup, Inc."
+    },
+    {
+      "symbol": "NASDAQ:MRVL",
+      "name": "Marvell Technology, Inc."
+    },
+    {
+      "symbol": "NYSE:DIS",
+      "name": "Walt Disney Company (The)"
+    },
+    {
+      "symbol": "NASDAQ:GILD",
+      "name": "Gilead Sciences, Inc."
+    },
+    {
+      "symbol": "NASDAQ:KLAC",
+      "name": "KLA Corporation"
+    },
+    {
+      "symbol": "NASDAQ:ADI",
+      "name": "Analog Devices, Inc."
+    },
+    {
+      "symbol": "NASDAQ:QCOM",
+      "name": "QUALCOMM Incorporated"
+    },
+    {
+      "symbol": "NYSE:VZ",
+      "name": "Verizon Communications Inc."
+    },
+    {
+      "symbol": "NASDAQ:PEP",
+      "name": "PepsiCo, Inc."
+    },
+    {
+      "symbol": "NYSE:APH",
+      "name": "Amphenol Corporation"
+    },
+    {
+      "symbol": "NYSE:BLK",
+      "name": "BlackRock, Inc."
+    },
+    {
+      "symbol": "NYSE:COP",
+      "name": "ConocoPhillips"
+    },
+    {
+      "symbol": "NYSE:ABT",
+      "name": "Abbott Laboratories"
+    },
+    {
+      "symbol": "NASDAQ:SNDK",
+      "name": "Sandisk Corporation"
+    },
+    {
+      "symbol": "NYSE:MCD",
+      "name": "McDonald's Corporation"
+    },
+    {
+      "symbol": "NYSE:DE",
+      "name": "Deere & Company"
+    },
+    {
+      "symbol": "NYSE:UNP",
+      "name": "Union Pacific Corporation"
+    },
+    {
+      "symbol": "NYSE:NEE",
+      "name": "NextEra Energy, Inc."
+    },
+    {
+      "symbol": "NYSE:PFE",
+      "name": "Pfizer, Inc."
+    },
+    {
+      "symbol": "NYSE:WELL",
+      "name": "Welltower Inc."
+    },
+    {
+      "symbol": "NYSE:NOW",
+      "name": "ServiceNow, Inc."
+    },
+    {
+      "symbol": "NYSE:DHR",
+      "name": "Danaher Corporation"
+    },
+    {
+      "symbol": "NYSE:TJX",
+      "name": "TJX Companies, Inc. (The)"
+    },
+    {
+      "symbol": "NASDAQ:TMUS",
+      "name": "T-Mobile US, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ISRG",
+      "name": "Intuitive Surgical, Inc."
+    },
+    {
+      "symbol": "NYSE:SCHW",
+      "name": "Charles Schwab Corporation (The)"
+    },
+    {
+      "symbol": "NYSE:BA",
+      "name": "Boeing Company (The)"
+    },
+    {
+      "symbol": "NYSE:ACN",
+      "name": "Accenture plc"
+    },
+    {
+      "symbol": "NYSE:BX",
+      "name": "Blackstone Inc."
+    },
+    {
+      "symbol": "NASDAQ:STX",
+      "name": "Seagate Technology Holdings PLC"
+    },
+    {
+      "symbol": "NYSE:ETN",
+      "name": "Eaton Corporation, PLC"
+    },
+    {
+      "symbol": "NYSE:T",
+      "name": "AT&T Inc."
+    },
+    {
+      "symbol": "NYSE:LMT",
+      "name": "Lockheed Martin Corporation"
+    },
+    {
+      "symbol": "NYSE:CB",
+      "name": "Chubb Limited"
+    },
+    {
+      "symbol": "NASDAQ:IBKR",
+      "name": "Interactive Brokers Group, Inc."
+    },
+    {
+      "symbol": "NYSE:UBER",
+      "name": "Uber Technologies, Inc."
+    },
+    {
+      "symbol": "NASDAQ:VRTX",
+      "name": "Vertex Pharmaceuticals Incorporated"
+    },
+    {
+      "symbol": "NYSE:SPGI",
+      "name": "S&P Global Inc."
+    },
+    {
+      "symbol": "NYSE:PGR",
+      "name": "Progressive Corporation (The)"
+    },
+    {
+      "symbol": "NASDAQ:FTNT",
+      "name": "Fortinet, Inc."
+    },
+    {
+      "symbol": "NASDAQ:WDC",
+      "name": "Western Digital Corporation"
+    },
+    {
+      "symbol": "NYSE:MPC",
+      "name": "Marathon Petroleum Corporation"
+    },
+    {
+      "symbol": "NYSE:BMY",
+      "name": "Bristol-Myers Squibb Company"
+    },
+    {
+      "symbol": "NYSE:MO",
+      "name": "Altria Group, Inc."
+    },
+    {
+      "symbol": "NYSE:COF",
+      "name": "Capital One Financial Corporation"
+    },
+    {
+      "symbol": "NYSE:PLD",
+      "name": "Prologis, Inc."
+    },
+    {
+      "symbol": "NYSE:MDT",
+      "name": "Medtronic plc."
+    },
+    {
+      "symbol": "NYSE:VLO",
+      "name": "Valero Energy Corporation"
+    },
+    {
+      "symbol": "NASDAQ:ADP",
+      "name": "Automatic Data Processing, Inc."
+    },
+    {
+      "symbol": "NYSE:CVS",
+      "name": "CVS Health Corporation"
+    },
+    {
+      "symbol": "NYSE:SYK",
+      "name": "Stryker Corporation"
+    },
+    {
+      "symbol": "NASDAQ:BKNG",
+      "name": "Booking Holdings Inc. Common Stock"
+    },
+    {
+      "symbol": "NYSE:MCK",
+      "name": "McKesson Corporation"
+    },
+    {
+      "symbol": "NASDAQ:SBUX",
+      "name": "Starbucks Corporation"
+    },
+    {
+      "symbol": "NYSE:NEM",
+      "name": "Newmont Corporation"
+    },
+    {
+      "symbol": "NYSE:PSX",
+      "name": "Phillips 66"
+    },
+    {
+      "symbol": "NYSE:LOW",
+      "name": "Lowe's Companies, Inc."
+    },
+    {
+      "symbol": "NYSE:PH",
+      "name": "Parker-Hannifin Corporation"
+    },
+    {
+      "symbol": "NASDAQ:CME",
+      "name": "CME Group Inc."
+    },
+    {
+      "symbol": "NYSE:SO",
+      "name": "Southern Company (The)"
+    },
+    {
+      "symbol": "NYSE:GLW",
+      "name": "Corning Incorporated"
+    },
+    {
+      "symbol": "NASDAQ:ABNB",
+      "name": "Airbnb, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ADBE",
+      "name": "Adobe Inc."
+    },
+    {
+      "symbol": "NASDAQ:MAR",
+      "name": "Marriott International"
+    },
+    {
+      "symbol": "NYSE:HCA",
+      "name": "HCA Healthcare, Inc."
+    },
+    {
+      "symbol": "NYSE:BNY",
+      "name": "The Bank of New York Mellon Corporation"
+    },
+    {
+      "symbol": "NYSE:TT",
+      "name": "Trane Technologies plc"
+    },
+    {
+      "symbol": "NYSE:DUK",
+      "name": "Duke Energy Corporation (Holding Company)"
+    },
+    {
+      "symbol": "NASDAQ:DDOG",
+      "name": "Datadog, Inc."
+    },
+    {
+      "symbol": "NYSE:WM",
+      "name": "Waste Management, Inc."
+    },
+    {
+      "symbol": "NYSE:ELV",
+      "name": "Elevance Health, Inc."
+    },
+    {
+      "symbol": "NYSE:GD",
+      "name": "General Dynamics Corporation"
+    },
+    {
+      "symbol": "NASDAQ:EQIX",
+      "name": "Equinix, Inc."
+    },
+    {
+      "symbol": "NYSE:MRSH",
+      "name": "Marsh"
+    },
+    {
+      "symbol": "NASDAQ:CSX",
+      "name": "CSX Corporation"
+    },
+    {
+      "symbol": "NYSE:FCX",
+      "name": "Freeport-McMoRan, Inc."
+    },
+    {
+      "symbol": "NYSE:USB",
+      "name": "U.S. Bancorp"
+    },
+    {
+      "symbol": "NASDAQ:INTU",
+      "name": "Intuit Inc."
+    },
+    {
+      "symbol": "NYSE:ICE",
+      "name": "Intercontinental Exchange Inc."
+    },
+    {
+      "symbol": "NASDAQ:MNST",
+      "name": "Monster Beverage Corporation"
+    },
+    {
+      "symbol": "NYSE:EMR",
+      "name": "Emerson Electric Company"
+    },
+    {
+      "symbol": "NASDAQ:CEG",
+      "name": "Constellation Energy Corporation"
+    },
+    {
+      "symbol": "NYSE:MMM",
+      "name": "3M Company"
+    },
+    {
+      "symbol": "NYSE:PNC",
+      "name": "PNC Financial Services Group, Inc. (The)"
+    },
+    {
+      "symbol": "NASDAQ:CTAS",
+      "name": "Cintas Corporation"
+    },
+    {
+      "symbol": "NYSE:AMT",
+      "name": "American Tower Corporation (REIT)"
+    },
+    {
+      "symbol": "NYSE:WMB",
+      "name": "Williams Companies, Inc. (The)"
+    },
+    {
+      "symbol": "NYSE:JCI",
+      "name": "Johnson Controls International plc"
+    },
+    {
+      "symbol": "NASDAQ:CDNS",
+      "name": "Cadence Design Systems, Inc."
+    },
+    {
+      "symbol": "NASDAQ:APP",
+      "name": "Applovin Corporation"
+    },
+    {
+      "symbol": "NYSE:UPS",
+      "name": "United Parcel Service, Inc."
+    },
+    {
+      "symbol": "NYSE:EOG",
+      "name": "EOG Resources, Inc."
+    },
+    {
+      "symbol": "NASDAQ:HOOD",
+      "name": "Robinhood Markets, Inc."
+    },
+    {
+      "symbol": "NYSE:MCO",
+      "name": "Moody's Corporation"
+    },
+    {
+      "symbol": "NASDAQ:REGN",
+      "name": "Regeneron Pharmaceuticals, Inc."
+    },
+    {
+      "symbol": "NASDAQ:SNPS",
+      "name": "Synopsys, Inc."
+    },
+    {
+      "symbol": "NYSE:PWR",
+      "name": "Quanta Services, Inc."
+    },
+    {
+      "symbol": "NYSE:KKR",
+      "name": "KKR & Co. Inc."
+    },
+    {
+      "symbol": "NYSE:SHW",
+      "name": "Sherwin-Williams Company (The)"
+    },
+    {
+      "symbol": "NYSE:TRV",
+      "name": "The Travelers Companies, Inc."
+    },
+    {
+      "symbol": "NASDAQ:MDLZ",
+      "name": "Mondelez International, Inc."
+    },
+    {
+      "symbol": "NYSE:CI",
+      "name": "The Cigna Group"
+    },
+    {
+      "symbol": "NYSE:ECL",
+      "name": "Ecolab Inc."
+    },
+    {
+      "symbol": "NASDAQ:CMCSA",
+      "name": "Comcast Corporation"
+    },
+    {
+      "symbol": "NASDAQ:MRNA",
+      "name": "Moderna, Inc."
+    },
+    {
+      "symbol": "NYSE:MSI",
+      "name": "Motorola Solutions, Inc."
+    },
+    {
+      "symbol": "NYSE:SLB",
+      "name": "SLB Limited"
+    },
+    {
+      "symbol": "NYSE:HLT",
+      "name": "Hilton Worldwide Holdings Inc."
+    },
+    {
+      "symbol": "NYSE:ITW",
+      "name": "Illinois Tool Works Inc."
+    },
+    {
+      "symbol": "NYSE:NOC",
+      "name": "Northrop Grumman Corporation"
+    },
+    {
+      "symbol": "NASDAQ:DASH",
+      "name": "DoorDash, Inc."
+    },
+    {
+      "symbol": "NYSE:KMI",
+      "name": "Kinder Morgan, Inc."
+    },
+    {
+      "symbol": "NYSE:HPE",
+      "name": "Hewlett Packard Enterprise Company"
+    },
+    {
+      "symbol": "NYSE:CL",
+      "name": "Colgate-Palmolive Company"
+    },
+    {
+      "symbol": "NYSE:VRT",
+      "name": "Vertiv Holdings, LLC"
+    },
+    {
+      "symbol": "NYSE:HWM",
+      "name": "Howmet Aerospace Inc."
+    },
+    {
+      "symbol": "NYSE:NSC",
+      "name": "Norfolk Southern Corporation"
+    },
+    {
+      "symbol": "NYSE:RCL",
+      "name": "Royal Caribbean Cruises Ltd."
+    },
+    {
+      "symbol": "NYSE:RSG",
+      "name": "Republic Services, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ROST",
+      "name": "Ross Stores, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ORLY",
+      "name": "O'Reilly Automotive, Inc."
+    },
+    {
+      "symbol": "NYSE:CMI",
+      "name": "Cummins Inc."
+    },
+    {
+      "symbol": "NYSE:FDX",
+      "name": "FedEx Corporation"
+    },
+    {
+      "symbol": "NASDAQ:AEP",
+      "name": "American Electric Power Company, Inc."
+    },
+    {
+      "symbol": "NASDAQ:HON",
+      "name": "Honeywell International Inc."
+    },
+    {
+      "symbol": "NYSE:TGT",
+      "name": "Target Corporation"
+    },
+    {
+      "symbol": "NYSE:AJG",
+      "name": "Arthur J. Gallagher & Co."
+    },
+    {
+      "symbol": "NASDAQ:LITE",
+      "name": "Lumentum Holdings Inc."
+    },
+    {
+      "symbol": "NYSE:SPG",
+      "name": "Simon Property Group, Inc."
+    },
+    {
+      "symbol": "NYSE:APD",
+      "name": "Air Products and Chemicals, Inc."
+    },
+    {
+      "symbol": "NYSE:URI",
+      "name": "United Rentals, Inc."
+    },
+    {
+      "symbol": "NYSE:APO",
+      "name": "Apollo Global Management, Inc. (New)"
+    },
+    {
+      "symbol": "NYSE:BSX",
+      "name": "Boston Scientific Corporation"
+    },
+    {
+      "symbol": "NYSE:TRGP",
+      "name": "Targa Resources, Inc."
+    },
+    {
+      "symbol": "NYSE:AON",
+      "name": "Aon plc"
+    },
+    {
+      "symbol": "NYSE:OXY",
+      "name": "Occidental Petroleum Corporation"
+    },
+    {
+      "symbol": "NYSE:GM",
+      "name": "General Motors Company"
+    },
+    {
+      "symbol": "NYSE:ALL",
+      "name": "Allstate Corporation (The)"
+    },
+    {
+      "symbol": "NYSE:DLR",
+      "name": "Digital Realty Trust, Inc."
+    },
+    {
+      "symbol": "NYSE:CVNA",
+      "name": "Carvana Co."
+    },
+    {
+      "symbol": "NYSE:GWW",
+      "name": "W.W. Grainger, Inc."
+    },
+    {
+      "symbol": "NYSE:COR",
+      "name": "Cencora, Inc."
+    },
+    {
+      "symbol": "NYSE:MET",
+      "name": "MetLife, Inc."
+    },
+    {
+      "symbol": "NYSE:TDG",
+      "name": "Transdigm Group Inc."
+    },
+    {
+      "symbol": "NYSE:AFL",
+      "name": "AFLAC Incorporated"
+    },
+    {
+      "symbol": "NYSE:OKE",
+      "name": "ONEOK, Inc."
+    },
+    {
+      "symbol": "NYSE:TEL",
+      "name": "TE Connectivity plc"
+    },
+    {
+      "symbol": "NASDAQ:FAST",
+      "name": "Fastenal Company"
+    },
+    {
+      "symbol": "NASDAQ:NXPI",
+      "name": "NXP Semiconductors N.V."
+    },
+    {
+      "symbol": "NYSE:TFC",
+      "name": "Truist Financial Corporation"
+    },
+    {
+      "symbol": "NYSE:NUE",
+      "name": "Nucor Corporation"
+    },
+    {
+      "symbol": "NYSE:PSA",
+      "name": "Public Storage"
+    },
+    {
+      "symbol": "NYSE:CAH",
+      "name": "Cardinal Health, Inc."
+    },
+    {
+      "symbol": "NASDAQ:FANG",
+      "name": "Diamondback Energy, Inc."
+    },
+    {
+      "symbol": "NYSE:D",
+      "name": "Dominion Energy, Inc."
+    },
+    {
+      "symbol": "NASDAQ:NDAQ",
+      "name": "Nasdaq, Inc."
+    },
+    {
+      "symbol": "NYSE:BE",
+      "name": "Bloom Energy Corporation"
+    },
+    {
+      "symbol": "NYSE:GRMN",
+      "name": "Garmin Ltd."
+    },
+    {
+      "symbol": "NYSE:DVN",
+      "name": "Devon Energy Corporation"
+    },
+    {
+      "symbol": "NYSE:CRH",
+      "name": "CRH PLC"
+    },
+    {
+      "symbol": "NASDAQ:PCAR",
+      "name": "PACCAR Inc."
+    },
+    {
+      "symbol": "NASDAQ:MPWR",
+      "name": "Monolithic Power Systems, Inc."
+    },
+    {
+      "symbol": "NASDAQ:BKR",
+      "name": "Baker Hughes Company"
+    },
+    {
+      "symbol": "NYSE:NKE",
+      "name": "Nike, Inc."
+    },
+    {
+      "symbol": "NYSE:AME",
+      "name": "AMETEK, Inc."
+    },
+    {
+      "symbol": "NYSE:SRE",
+      "name": "DBA Sempra"
+    },
+    {
+      "symbol": "NYSE:BDX",
+      "name": "Becton, Dickinson and Company"
+    },
+    {
+      "symbol": "NASDAQ:EBAY",
+      "name": "eBay Inc."
+    },
+    {
+      "symbol": "NYSE:O",
+      "name": "Realty Income Corporation"
+    },
+    {
+      "symbol": "NYSE:KEYS",
+      "name": "Keysight Technologies Inc."
+    },
+    {
+      "symbol": "NASDAQ:ADSK",
+      "name": "Autodesk, Inc."
+    },
+    {
+      "symbol": "NYSE:VEEV",
+      "name": "Veeva Systems Inc."
+    },
+    {
+      "symbol": "NYSE:AZO",
+      "name": "AutoZone, Inc."
+    },
+    {
+      "symbol": "NASDAQ:HONA",
+      "name": "Honeywell Aerospace Inc."
+    },
+    {
+      "symbol": "NYSE:EW",
+      "name": "Edwards Lifesciences Corporation"
+    },
+    {
+      "symbol": "NYSE:ETR",
+      "name": "Entergy Corporation"
+    },
+    {
+      "symbol": "NYSE:HUM",
+      "name": "Humana Inc."
+    },
+    {
+      "symbol": "NASDAQ:WDAY",
+      "name": "Workday, Inc."
+    },
+    {
+      "symbol": "NYSE:DAL",
+      "name": "Delta Air Lines, Inc."
+    },
+    {
+      "symbol": "NYSE:VYLR",
+      "name": "Vylor Inc."
+    },
+    {
+      "symbol": "NYSE:A",
+      "name": "Agilent Technologies, Inc."
+    },
+    {
+      "symbol": "NASDAQ:PYPL",
+      "name": "PayPal Holdings, Inc."
+    },
+    {
+      "symbol": "NYSE:VMRK",
+      "name": "Vivmark Residential"
+    },
+    {
+      "symbol": "NASDAQ:XEL",
+      "name": "Xcel Energy Inc."
+    },
+    {
+      "symbol": "NASDAQ:TER",
+      "name": "Teradyne, Inc."
+    },
+    {
+      "symbol": "NYSE:FITB",
+      "name": "Fifth Third Bancorp"
+    },
+    {
+      "symbol": "NYSE:ROK",
+      "name": "Rockwell Automation, Inc."
+    },
+    {
+      "symbol": "NYSE:LHX",
+      "name": "L3Harris Technologies, Inc."
+    },
+    {
+      "symbol": "NASDAQ:KDP",
+      "name": "Keurig Dr Pepper Inc."
+    },
+    {
+      "symbol": "NYSE:VST",
+      "name": "Vistra Corp."
+    },
+    {
+      "symbol": "NYSE:CARR",
+      "name": "Carrier Global Corporation"
+    },
+    {
+      "symbol": "NYSE:F",
+      "name": "Ford Motor Company"
+    },
+    {
+      "symbol": "NYSE:IQV",
+      "name": "IQVIA Holdings, Inc."
+    },
+    {
+      "symbol": "NYSE:XYZ",
+      "name": "Block, Inc."
+    },
+    {
+      "symbol": "NASDAQ:EXC",
+      "name": "Exelon Corporation"
+    },
+    {
+      "symbol": "NYSE:STT",
+      "name": "State Street Corporation"
+    },
+    {
+      "symbol": "NYSE:WAB",
+      "name": "Westinghouse Air Brake Technologies Corporation"
+    },
+    {
+      "symbol": "NYSE:VTR",
+      "name": "Ventas, Inc."
+    },
+    {
+      "symbol": "NYSE:CIEN",
+      "name": "Ciena Corporation"
+    },
+    {
+      "symbol": "NYSE:WAT",
+      "name": "Waters Corporation"
+    },
+    {
+      "symbol": "NASDAQ:IDXX",
+      "name": "IDEXX Laboratories, Inc."
+    },
+    {
+      "symbol": "NYSE:MSCI",
+      "name": "MSCI Inc."
+    },
+    {
+      "symbol": "NYSE:FERG",
+      "name": "Ferguson Enterprises Inc."
+    },
+    {
+      "symbol": "NYSE:AMP",
+      "name": "Ameriprise Financial, Inc."
+    },
+    {
+      "symbol": "NASDAQ:COIN",
+      "name": "Coinbase Global, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ROP",
+      "name": "Roper Technologies, Inc."
+    },
+    {
+      "symbol": "NYSE:ED",
+      "name": "Consolidated Edison, Inc."
+    },
+    {
+      "symbol": "NYSE:AIG",
+      "name": "American International Group, Inc. New"
+    },
+    {
+      "symbol": "NASDAQ:NTAP",
+      "name": "NetApp, Inc."
+    },
+    {
+      "symbol": "NASDAQ:PAYX",
+      "name": "Paychex, Inc."
+    },
+    {
+      "symbol": "NYSE:DHI",
+      "name": "D.R. Horton, Inc."
+    },
+    {
+      "symbol": "NYSE:COHR",
+      "name": "Coherent Corp."
+    },
+    {
+      "symbol": "NYSE:P",
+      "name": "Everpure, Inc."
+    },
+    {
+      "symbol": "NYSE:LYV",
+      "name": "Live Nation Entertainment, Inc."
+    },
+    {
+      "symbol": "NYSE:FIX",
+      "name": "Comfort Systems USA, Inc."
+    },
+    {
+      "symbol": "NYSE:YUM",
+      "name": "Yum! Brands, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ILMN",
+      "name": "Illumina, Inc."
+    },
+    {
+      "symbol": "NASDAQ:MCHP",
+      "name": "Microchip Technology Incorporated"
+    },
+    {
+      "symbol": "NYSE:TWLO",
+      "name": "Twilio Inc."
+    },
+    {
+      "symbol": "NYSE:SYY",
+      "name": "Sysco Corporation"
+    },
+    {
+      "symbol": "NYSE:PRU",
+      "name": "Prudential Financial, Inc."
+    },
+    {
+      "symbol": "NYSE:KR",
+      "name": "Kroger Company (The)"
+    },
+    {
+      "symbol": "NYSE:EL",
+      "name": "Estee Lauder Companies, Inc. (The)"
+    },
+    {
+      "symbol": "NYSE:ADM",
+      "name": "Archer-Daniels-Midland Company"
+    },
+    {
+      "symbol": "NASDAQ:TTWO",
+      "name": "Take-Two Interactive Software, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ODFL",
+      "name": "Old Dominion Freight Line, Inc."
+    },
+    {
+      "symbol": "NYSE:KVUE",
+      "name": "Kenvue Inc."
+    },
+    {
+      "symbol": "NYSE:HIG",
+      "name": "The Hartford Insurance Group, Inc."
+    },
+    {
+      "symbol": "NASDAQ:BIIB",
+      "name": "Biogen Inc."
+    },
+    {
+      "symbol": "NASDAQ:KMB",
+      "name": "Kimberly-Clark Corporation"
+    },
+    {
+      "symbol": "NYSE:CCI",
+      "name": "Crown Castle Inc."
+    },
+    {
+      "symbol": "NYSE:WEC",
+      "name": "WEC Energy Group, Inc."
+    },
+    {
+      "symbol": "NYSE:MLM",
+      "name": "Martin Marietta Materials, Inc."
+    },
+    {
+      "symbol": "NYSE:PEG",
+      "name": "Public Service Enterprise Group Incorporated"
+    },
+    {
+      "symbol": "NYSE:CBRE",
+      "name": "CBRE Group Inc"
+    },
+    {
+      "symbol": "NYSE:RMD",
+      "name": "ResMed Inc."
+    },
+    {
+      "symbol": "CBOE:CBOE",
+      "name": "Cboe Global Markets, Inc."
+    },
+    {
+      "symbol": "NYSE:CCL",
+      "name": "Carnival Corporation Ltd."
+    },
+    {
+      "symbol": "NYSE:CMG",
+      "name": "Chipotle Mexican Grill, Inc."
+    },
+    {
+      "symbol": "NYSE:EQT",
+      "name": "EQT Corporation"
+    },
+    {
+      "symbol": "NASDAQ:ACGL",
+      "name": "Arch Capital Group Ltd."
+    },
+    {
+      "symbol": "NASDAQ:EXPE",
+      "name": "Expedia Group, Inc."
+    },
+    {
+      "symbol": "NYSE:CNC",
+      "name": "Centene Corporation"
+    },
+    {
+      "symbol": "NASDAQ:STLD",
+      "name": "Steel Dynamics, Inc."
+    },
+    {
+      "symbol": "NASDAQ:AXON",
+      "name": "Axon Enterprise, Inc."
+    },
+    {
+      "symbol": "NYSE:HSY",
+      "name": "The Hershey Company"
+    },
+    {
+      "symbol": "NYSE:VMC",
+      "name": "Vulcan Materials Company (Holding Company)"
+    },
+    {
+      "symbol": "NYSE:ZTS",
+      "name": "Zoetis Inc."
+    },
+    {
+      "symbol": "NYSE:MTD",
+      "name": "Mettler-Toledo International, Inc."
+    },
+    {
+      "symbol": "NYSE:TKO",
+      "name": "TKO Group Holdings, Inc."
+    },
+    {
+      "symbol": "NYSE:IRM",
+      "name": "Iron Mountain Incorporated (Delaware)"
+    },
+    {
+      "symbol": "NASDAQ:GEHC",
+      "name": "GE HealthCare Technologies Inc."
+    },
+    {
+      "symbol": "NYSE:MTB",
+      "name": "M&T Bank Corporation"
+    },
+    {
+      "symbol": "NASDAQ:UAL",
+      "name": "United Airlines Holdings, Inc."
+    },
+    {
+      "symbol": "NASDAQ:HBAN",
+      "name": "Huntington Bancshares Incorporated"
+    },
+    {
+      "symbol": "NASDAQ:CTSH",
+      "name": "Cognizant Technology Solutions Corporation"
+    },
+    {
+      "symbol": "NASDAQ:NTRS",
+      "name": "Northern Trust Corporation"
+    },
+    {
+      "symbol": "NYSE:HPQ",
+      "name": "HP Inc."
+    },
+    {
+      "symbol": "NYSE:RJF",
+      "name": "Raymond James Financial, Inc."
+    },
+    {
+      "symbol": "NYSE:EXR",
+      "name": "Extra Space Storage Inc"
+    },
+    {
+      "symbol": "NASDAQ:WTW",
+      "name": "Willis Towers Watson Public Limited Company"
+    },
+    {
+      "symbol": "NYSE:AEE",
+      "name": "Ameren Corporation"
+    },
+    {
+      "symbol": "NYSE:WSM",
+      "name": "Williams-Sonoma, Inc."
+    },
+    {
+      "symbol": "NASDAQ:DXCM",
+      "name": "DexCom, Inc."
+    },
+    {
+      "symbol": "NYSE:KHC",
+      "name": "The Kraft Heinz Company"
+    },
+    {
+      "symbol": "NYSE:DG",
+      "name": "Dollar General Corporation"
+    },
+    {
+      "symbol": "NYSE:ATO",
+      "name": "Atmos Energy Corporation"
+    },
+    {
+      "symbol": "NYSE:HAL",
+      "name": "Halliburton Company"
+    },
+    {
+      "symbol": "NYSE:TDY",
+      "name": "Teledyne Technologies Incorporated"
+    },
+    {
+      "symbol": "NYSE:JBL",
+      "name": "Jabil Inc."
+    },
+    {
+      "symbol": "NYSE:OTIS",
+      "name": "Otis Worldwide Corporation"
+    },
+    {
+      "symbol": "NYSE:EME",
+      "name": "EMCOR Group, Inc."
+    },
+    {
+      "symbol": "NYSE:IR",
+      "name": "Ingersoll Rand Inc."
+    },
+    {
+      "symbol": "NYSE:AWK",
+      "name": "American Water Works Company, Inc."
+    },
+    {
+      "symbol": "NASDAQ:FLEX",
+      "name": "Flex Ltd."
+    },
+    {
+      "symbol": "NASDAQ:ON",
+      "name": "ON Semiconductor Corporation"
+    },
+    {
+      "symbol": "NYSE:PCG",
+      "name": "Pacific Gas & Electric Co."
+    },
+    {
+      "symbol": "NYSE:RDDT",
+      "name": "Reddit, Inc."
+    },
+    {
+      "symbol": "NYSE:WST",
+      "name": "West Pharmaceutical Services, Inc."
+    },
+    {
+      "symbol": "NYSE:DTE",
+      "name": "DTE Energy Company"
+    },
+    {
+      "symbol": "NYSE:CFG",
+      "name": "Citizens Financial Group, Inc."
+    },
+    {
+      "symbol": "NYSE:ARES",
+      "name": "Ares Management Corporation"
+    },
+    {
+      "symbol": "NYSE:WRB",
+      "name": "W.R. Berkley Corporation"
+    },
+    {
+      "symbol": "NASDAQ:VRSN",
+      "name": "VeriSign, Inc."
+    },
+    {
+      "symbol": "NASDAQ:CINF",
+      "name": "Cincinnati Financial Corporation"
+    },
+    {
+      "symbol": "NYSE:CNP",
+      "name": "CenterPoint Energy, Inc (Holding Co)"
+    },
+    {
+      "symbol": "NASDAQ:CPRT",
+      "name": "Copart, Inc."
+    },
+    {
+      "symbol": "NYSE:DOV",
+      "name": "Dover Corporation"
+    },
+    {
+      "symbol": "NYSE:CPAY",
+      "name": "Corpay, Inc."
+    },
+    {
+      "symbol": "NYSE:FE",
+      "name": "FirstEnergy Corp."
+    },
+    {
+      "symbol": "NASDAQ:ULTA",
+      "name": "Ulta Beauty, Inc."
+    },
+    {
+      "symbol": "NYSE:DGX",
+      "name": "Quest Diagnostics Incorporated"
+    },
+    {
+      "symbol": "NYSE:LH",
+      "name": "Labcorp Holdings Inc."
+    },
+    {
+      "symbol": "NASDAQ:FOX",
+      "name": "Fox Corporation"
+    },
+    {
+      "symbol": "NASDAQ:FISV",
+      "name": "Fiserv, Inc."
+    },
+    {
+      "symbol": "NASDAQ:FOXA",
+      "name": "Fox Corporation"
+    },
+    {
+      "symbol": "NYSE:PPL",
+      "name": "PPL Corporation"
+    },
+    {
+      "symbol": "NYSE:VICI",
+      "name": "VICI Properties Inc."
+    },
+    {
+      "symbol": "NASDAQ:ECHO",
+      "name": "EchoStar Corporation"
+    },
+    {
+      "symbol": "NASDAQ:CASY",
+      "name": "Caseys General Stores, Inc."
+    },
+    {
+      "symbol": "NASDAQ:FFIV",
+      "name": "F5, Inc."
+    },
+    {
+      "symbol": "NYSE:EXPD",
+      "name": "Expeditors International of Washington, Inc."
+    },
+    {
+      "symbol": "NASDAQ:VRSK",
+      "name": "Verisk Analytics, Inc."
+    },
+    {
+      "symbol": "NYSE:VLTO",
+      "name": "Veralto Corp"
+    },
+    {
+      "symbol": "NYSE:ES",
+      "name": "Eversource Energy (D/B/A)"
+    },
+    {
+      "symbol": "NYSE:XYL",
+      "name": "Xylem Inc."
+    },
+    {
+      "symbol": "NYSE:CHD",
+      "name": "Church & Dwight Company, Inc."
+    },
+    {
+      "symbol": "NYSE:PPG",
+      "name": "PPG Industries, Inc."
+    },
+    {
+      "symbol": "NYSE:BRO",
+      "name": "Brown & Brown, Inc."
+    },
+    {
+      "symbol": "NYSE:RF",
+      "name": "Regions Financial Corporation"
+    },
+    {
+      "symbol": "NYSE:DRI",
+      "name": "Darden Restaurants, Inc."
+    },
+    {
+      "symbol": "NYSE:IFF",
+      "name": "International Flavors & Fragrances, Inc."
+    },
+    {
+      "symbol": "NYSE:SYF",
+      "name": "Synchrony Financial"
+    },
+    {
+      "symbol": "NYSE:HUBB",
+      "name": "Hubbell Inc"
+    },
+    {
+      "symbol": "NYSE:DOW",
+      "name": "Dow Inc."
+    },
+    {
+      "symbol": "NASDAQ:DLTR",
+      "name": "Dollar Tree, Inc."
+    },
+    {
+      "symbol": "NYSE:STZ",
+      "name": "Constellation Brands, Inc."
+    },
+    {
+      "symbol": "NASDAQ:INCY",
+      "name": "Incyte Corporation"
+    },
+    {
+      "symbol": "NYSE:TPL",
+      "name": "Texas Pacific Land Corporation"
+    },
+    {
+      "symbol": "NASDAQ:PFG",
+      "name": "Principal Financial Group Inc"
+    },
+    {
+      "symbol": "NYSE:LVS",
+      "name": "Las Vegas Sands Corp."
+    },
+    {
+      "symbol": "NYSE:Q",
+      "name": "Qnity Electronics, Inc."
+    },
+    {
+      "symbol": "NYSE:L",
+      "name": "Loews Corporation"
+    },
+    {
+      "symbol": "NYSE:PHM",
+      "name": "PulteGroup, Inc."
+    },
+    {
+      "symbol": "NYSE:OMC",
+      "name": "Omnicom Group Inc."
+    },
+    {
+      "symbol": "NYSE:STE",
+      "name": "STERIS plc (Ireland)"
+    },
+    {
+      "symbol": "NYSE:KEY",
+      "name": "KeyCorp"
+    },
+    {
+      "symbol": "NYSE:RL",
+      "name": "Ralph Lauren Corporation"
+    },
+    {
+      "symbol": "NASDAQ:TROW",
+      "name": "T. Rowe Price Group, Inc."
+    },
+    {
+      "symbol": "NYSE:EIX",
+      "name": "Edison International"
+    },
+    {
+      "symbol": "NYSE:PKG",
+      "name": "Packaging Corporation of America"
+    },
+    {
+      "symbol": "NYSE:GPN",
+      "name": "Global Payments Inc."
+    },
+    {
+      "symbol": "NYSE:TPR",
+      "name": "Tapestry, Inc."
+    },
+    {
+      "symbol": "NYSE:SW",
+      "name": "Smurfit WestRock plc"
+    },
+    {
+      "symbol": "NYSE:CMS",
+      "name": "CMS Energy Corporation"
+    },
+    {
+      "symbol": "NASDAQ:SMCI",
+      "name": "Super Micro Computer, Inc."
+    },
+    {
+      "symbol": "NASDAQ:EXE",
+      "name": "Expand Energy Corporation"
+    },
+    {
+      "symbol": "NYSE:LYB",
+      "name": "LyondellBasell Industries NV"
+    },
+    {
+      "symbol": "NYSE:EFX",
+      "name": "Equifax, Inc."
+    },
+    {
+      "symbol": "NYSE:AMCR",
+      "name": "Amcor plc"
+    },
+    {
+      "symbol": "NASDAQ:JBHT",
+      "name": "J.B. Hunt Transport Services, Inc."
+    },
+    {
+      "symbol": "NASDAQ:PTC",
+      "name": "PTC Inc."
+    },
+    {
+      "symbol": "NYSE:BBY",
+      "name": "Best Buy Co., Inc."
+    },
+    {
+      "symbol": "NYSE:NI",
+      "name": "NiSource Inc"
+    },
+    {
+      "symbol": "NYSE:BR",
+      "name": "Broadridge Financial Solutions, Inc."
+    },
+    {
+      "symbol": "NASDAQ:VTRS",
+      "name": "Viatris Inc."
+    },
+    {
+      "symbol": "NASDAQ:CDW",
+      "name": "CDW Corporation"
+    },
+    {
+      "symbol": "NYSE:LUV",
+      "name": "Southwest Airlines Company"
+    },
+    {
+      "symbol": "NYSE:LEN",
+      "name": "Lennar Corporation"
+    },
+    {
+      "symbol": "NYSE:BG",
+      "name": "Bunge Limited"
+    },
+    {
+      "symbol": "NASDAQ:SWKS",
+      "name": "Skyworks Solutions, Inc."
+    },
+    {
+      "symbol": "NASDAQ:SBAC",
+      "name": "SBA Communications Corporation"
+    },
+    {
+      "symbol": "NYSE:TSN",
+      "name": "Tyson Foods, Inc."
+    },
+    {
+      "symbol": "NASDAQ:EVRG",
+      "name": "Evergy, Inc."
+    },
+    {
+      "symbol": "NYSE:NRG",
+      "name": "NRG Energy, Inc."
+    },
+    {
+      "symbol": "NYSE:FIS",
+      "name": "Fidelity National Information Services, Inc."
+    },
+    {
+      "symbol": "NASDAQ:CHTR",
+      "name": "Charter Communications, Inc."
+    },
+    {
+      "symbol": "NYSE:ZBH",
+      "name": "Zimmer Biomet Holdings, Inc."
+    },
+    {
+      "symbol": "NASDAQ:FSLR",
+      "name": "First Solar, Inc."
+    },
+    {
+      "symbol": "NYSE:SNA",
+      "name": "Snap-On Incorporated"
+    },
+    {
+      "symbol": "NYSE:DD",
+      "name": "DuPont de Nemours, Inc."
+    },
+    {
+      "symbol": "NYSE:GIS",
+      "name": "General Mills, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ZBRA",
+      "name": "Zebra Technologies Corporation"
+    },
+    {
+      "symbol": "NYSE:CF",
+      "name": "CF Industries Holdings, Inc."
+    },
+    {
+      "symbol": "NYSE:FTV",
+      "name": "Fortive Corporation"
+    },
+    {
+      "symbol": "NASDAQ:APA",
+      "name": "APA Corporation"
+    },
+    {
+      "symbol": "NASDAQ:LNT",
+      "name": "Alliant Energy Corporation"
+    },
+    {
+      "symbol": "NYSE:ESS",
+      "name": "Essex Property Trust, Inc."
+    },
+    {
+      "symbol": "NASDAQ:NDSN",
+      "name": "Nordson Corporation"
+    },
+    {
+      "symbol": "NYSE:RVTY",
+      "name": "Revvity, Inc."
+    },
+    {
+      "symbol": "NYSE:FICO",
+      "name": "Fair Isaac Corporation"
+    },
+    {
+      "symbol": "NYSE:IP",
+      "name": "International Paper Company"
+    },
+    {
+      "symbol": "NASDAQ:TSCO",
+      "name": "Tractor Supply Company"
+    },
+    {
+      "symbol": "NASDAQ:NWS",
+      "name": "News Corporation"
+    },
+    {
+      "symbol": "NYSE:BALL",
+      "name": "Ball Corporation"
+    },
+    {
+      "symbol": "NASDAQ:NWSA",
+      "name": "News Corporation"
+    },
+    {
+      "symbol": "NYSE:LDOS",
+      "name": "Leidos Holdings, Inc."
+    },
+    {
+      "symbol": "NYSE:J",
+      "name": "Jacobs Solutions Inc."
+    },
+    {
+      "symbol": "NYSE:GPC",
+      "name": "Genuine Parts Company"
+    },
+    {
+      "symbol": "NASDAQ:HST",
+      "name": "Host Hotels & Resorts, Inc."
+    },
+    {
+      "symbol": "NYSE:IEX",
+      "name": "IDEX Corporation"
+    },
+    {
+      "symbol": "NYSE:ROL",
+      "name": "Rollins, Inc."
+    },
+    {
+      "symbol": "NASDAQ:HAS",
+      "name": "Hasbro, Inc."
+    },
+    {
+      "symbol": "NYSE:CRL",
+      "name": "Charles River Laboratories International, Inc."
+    },
+    {
+      "symbol": "NYSE:FDXF",
+      "name": "FedEx Freight Holding Company, Inc."
+    },
+    {
+      "symbol": "NASDAQ:CHRW",
+      "name": "C.H. Robinson Worldwide, Inc."
+    },
+    {
+      "symbol": "NYSE:INVH",
+      "name": "Invitation Homes Inc."
+    },
+    {
+      "symbol": "NYSE:TYL",
+      "name": "Tyler Technologies, Inc."
+    },
+    {
+      "symbol": "NYSE:NVR",
+      "name": "NVR, Inc."
+    },
+    {
+      "symbol": "NYSE:KIM",
+      "name": "Kimco Realty Corporation (HC)"
+    },
+    {
+      "symbol": "NYSE:BEN",
+      "name": "Franklin Templeton, Inc."
+    },
+    {
+      "symbol": "NYSE:EG",
+      "name": "Everest Group, Ltd."
+    },
+    {
+      "symbol": "NYSE:ALLE",
+      "name": "Allegion plc"
+    },
+    {
+      "symbol": "NYSE:MAS",
+      "name": "Masco Corporation"
+    },
+    {
+      "symbol": "NYSE:SWK",
+      "name": "Stanley Black & Decker, Inc."
+    },
+    {
+      "symbol": "NASDAQ:GEN",
+      "name": "Gen Digital Inc."
+    },
+    {
+      "symbol": "NASDAQ:TRMB",
+      "name": "Trimble Inc."
+    },
+    {
+      "symbol": "NYSE:IT",
+      "name": "Gartner, Inc."
+    },
+    {
+      "symbol": "NYSE:SOLV",
+      "name": "Solventum Corporation"
+    },
+    {
+      "symbol": "NYSE:GDDY",
+      "name": "GoDaddy Inc."
+    },
+    {
+      "symbol": "NYSE:WY",
+      "name": "Weyerhaeuser Company"
+    },
+    {
+      "symbol": "NYSE:AIZ",
+      "name": "Assurant, Inc."
+    },
+    {
+      "symbol": "NYSE:MAA",
+      "name": "Mid-America Apartment Communities, Inc."
+    },
+    {
+      "symbol": "NYSE:SJM",
+      "name": "The J.M. Smucker Company"
+    },
+    {
+      "symbol": "NYSE:CPT",
+      "name": "Camden Property Trust"
+    },
+    {
+      "symbol": "NYSE:AVY",
+      "name": "Avery Dennison Corporation"
+    },
+    {
+      "symbol": "NASDAQ:CSGP",
+      "name": "CoStar Group, Inc."
+    },
+    {
+      "symbol": "NYSE:BF.B",
+      "name": "Brown Forman Inc"
+    },
+    {
+      "symbol": "NYSE:DOC",
+      "name": "Healthpeak Properties, Inc."
+    },
+    {
+      "symbol": "NASDAQ:REG",
+      "name": "Regency Centers Corporation"
+    },
+    {
+      "symbol": "NASDAQ:AKAM",
+      "name": "Akamai Technologies, Inc."
+    },
+    {
+      "symbol": "NYSE:TXT",
+      "name": "Textron Inc."
+    },
+    {
+      "symbol": "NYSE:BAX",
+      "name": "Baxter International Inc."
+    },
+    {
+      "symbol": "NYSE:LII",
+      "name": "Lennox International, Inc."
+    },
+    {
+      "symbol": "NYSE:MKC",
+      "name": "McCormick & Company, Incorporated"
+    },
+    {
+      "symbol": "NYSE:PNW",
+      "name": "Pinnacle West Capital Corporation"
+    },
+    {
+      "symbol": "NYSE:IVZ",
+      "name": "Invesco Ltd"
+    },
+    {
+      "symbol": "NYSE:GL",
+      "name": "Globe Life Inc."
+    },
+    {
+      "symbol": "NASDAQ:ERIE",
+      "name": "Erie Indemnity Company"
+    },
+    {
+      "symbol": "NYSE:DVA",
+      "name": "DaVita Inc."
+    },
+    {
+      "symbol": "NYSE:FDS",
+      "name": "FactSet Research Systems Inc."
+    },
+    {
+      "symbol": "NASDAQ:COO",
+      "name": "The Cooper Companies, Inc."
+    },
+    {
+      "symbol": "NYSE:HRL",
+      "name": "Hormel Foods Corporation"
+    },
+    {
+      "symbol": "NYSE:UDR",
+      "name": "UDR, Inc."
+    },
+    {
+      "symbol": "NASDAQ:LULU",
+      "name": "lululemon athletica inc."
+    },
+    {
+      "symbol": "NASDAQ:JKHY",
+      "name": "Jack Henry & Associates, Inc."
+    },
+    {
+      "symbol": "NASDAQ:TECH",
+      "name": "Bio-Techne Corp"
+    },
+    {
+      "symbol": "NYSE:ALB",
+      "name": "Albemarle Corporation"
+    },
+    {
+      "symbol": "NYSE:DECK",
+      "name": "Deckers Outdoor Corporation"
+    },
+    {
+      "symbol": "NYSE:GNRC",
+      "name": "Generac Holdings Inc."
+    },
+    {
+      "symbol": "NYSE:UHS",
+      "name": "Universal Health Services, Inc."
+    },
+    {
+      "symbol": "NASDAQ:ALGN",
+      "name": "Align Technology, Inc."
+    },
+    {
+      "symbol": "NYSE:HII",
+      "name": "Huntington Ingalls Industries, Inc."
+    },
+    {
+      "symbol": "NYSE:AES",
+      "name": "The AES Corporation"
+    },
+    {
+      "symbol": "NYSE:CLX",
+      "name": "Clorox Company (The)"
+    },
+    {
+      "symbol": "NASDAQ:PODD",
+      "name": "Insulet Corporation"
+    },
+    {
+      "symbol": "NASDAQ:DPZ",
+      "name": "Domino's Pizza Inc"
+    },
+    {
+      "symbol": "NYSE:BXP",
+      "name": "BXP, Inc."
+    },
+    {
+      "symbol": "NYSE:FRT",
+      "name": "Federal Realty Investment Trust"
+    },
+    {
+      "symbol": "NASDAQ:HSIC",
+      "name": "Henry Schein, Inc."
+    },
+    {
+      "symbol": "NYSE:APTV",
+      "name": "Aptiv PLC"
+    },
+    {
+      "symbol": "NYSE:PNR",
+      "name": "Pentair plc."
+    },
+    {
+      "symbol": "NYSE:SKYD",
+      "name": "Skydance Corporation"
+    },
+    {
+      "symbol": "NYSE:AOS",
+      "name": "A.O. Smith Corporation"
+    },
+    {
+      "symbol": "NYSE:ARE",
+      "name": "Alexandria Real Estate Equities, Inc."
+    },
+    {
+      "symbol": "NASDAQ:WYNN",
+      "name": "Wynn Resorts, Limited"
+    },
+    {
+      "symbol": "NYSE:MGM",
+      "name": "MGM Resorts International"
+    },
+    {
+      "symbol": "NYSE:NCLH",
+      "name": "Norwegian Cruise Line Holdings Ltd."
+    },
+    {
+      "symbol": "NYSE:MOS",
+      "name": "Mosaic Company (The)"
+    },
+    {
+      "symbol": "NASDAQ:SPCX",
+      "name": "Space Exploration Technologies Corp"
+    },
+    {
+      "symbol": "NASDAQ:ASML",
+      "name": "ASML Holding N.V. - New York Registry Shares"
+    },
+    {
+      "symbol": "NASDAQ:ARM",
+      "name": "Arm Holdings plc"
+    },
+    {
+      "symbol": "NASDAQ:SHOP",
+      "name": "Shopify Inc."
+    },
+    {
+      "symbol": "NASDAQ:PDD",
+      "name": "PDD Holdings Inc."
+    },
+    {
+      "symbol": "NASDAQ:MELI",
+      "name": "MercadoLibre, Inc."
+    },
+    {
+      "symbol": "NASDAQ:MSTR",
+      "name": "Strategy Inc"
+    },
+    {
+      "symbol": "NASDAQ:TRI",
+      "name": "Thomson Reuters Corp"
+    },
+    {
+      "symbol": "NASDAQ:CCEP",
+      "name": "Coca-Cola Europacific Partners plc"
+    },
+    {
+      "symbol": "NASDAQ:ALAB",
+      "name": "Astera Labs, Inc."
+    },
+    {
+      "symbol": "NASDAQ:NBIS",
+      "name": "Nebius Group N.V."
+    },
+    {
+      "symbol": "NASDAQ:FER",
+      "name": "Ferrovial N.V."
+    },
+    {
+      "symbol": "NASDAQ:RKLB",
+      "name": "Rocket Lab Corporation"
+    },
+    {
+      "symbol": "NASDAQ:ALNY",
+      "name": "Alnylam Pharmaceuticals, Inc."
+    },
+    {
+      "symbol": "NASDAQ:CRWV",
+      "name": "CoreWeave, Inc."
+    }
+  ]
+}

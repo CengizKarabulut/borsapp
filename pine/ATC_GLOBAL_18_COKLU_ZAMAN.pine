@@ -1642,6 +1642,7 @@ type AtcMtfFrame
     float sourceVolume
     int volumeState
     int r18Unavailable
+    int sourceBars
     float nLongStop
     float nLongTp1
     float nLongTp2
@@ -1668,6 +1669,24 @@ f_mtf_count(int mask) =>
         result += f_mtf_bit(mask, id) ? 1 : 0
     result
 
+// Minimum source history required by the unchanged rule formulas. A 600-bar
+// input cannot create history before an instrument's listing date.
+f_mtf_min_bars(int id) =>
+    switch id
+        1 => 35
+        2 => 200
+        3 => 200
+        4 => 200
+        5 => 35
+        6 => 200
+        7 => 200
+        8 => 200
+        9 => 30
+        10 => 6
+        17 => 252
+        18 => 30
+        => 60
+
 // Runs in the requested context. No chart-frame price or clock is substituted.
 // The formulas rebuild a full atcBars window; only the final three source bars
 // need expensive work. Returning na on older bars bounds copied object history.
@@ -1679,6 +1698,7 @@ f_mtf_snapshot() =>
         int neutral = 0
         int known = 0
         int r18Unavailable = 1
+        int sourceBars = math.min(atcBars, bar_index + 1)
         // n/a is unspecified metadata, not proof of missing volume. Actual
         // finite non-negative values remain usable; tick counts are not lots.
         int volumeState = na(volume) or volume < 0.0 ? 0 : syminfo.volumetype == "tick" ? 3 : volume == 0.0 ? 1 : 2
@@ -1689,7 +1709,7 @@ f_mtf_snapshot() =>
         nativePlans := legacyPlans
         for i = 0 to 8
             int bit = int(math.pow(2.0, i))
-            bool ruleReady = array.get(legacyKnown, i) and (i < 2 or volumeTrusted)
+            bool ruleReady = array.get(legacyKnown, i) and sourceBars >= f_mtf_min_bars(i + 1) and (i < 2 or volumeTrusted)
             if ruleReady
                 known += bit
             if ruleReady and array.get(legacyFlags, i)
@@ -1722,7 +1742,7 @@ f_mtf_snapshot() =>
                     bull += 131072
                 if r18Bear
                     bear += 131072
-        result := AtcMtfFrame.new(bull, bear, neutral, known, time, time_close, close, volume, volumeState, r18Unavailable, array.get(nativePlans, 0), array.get(nativePlans, 1), array.get(nativePlans, 2), array.get(nativePlans, 3), array.get(nativePlans, 4), array.get(nativePlans, 5), array.get(nativePlans, 6), array.get(nativePlans, 7), array.get(genericPlans, 0), array.get(genericPlans, 1), array.get(genericPlans, 2), array.get(genericPlans, 3), array.get(genericPlans, 4), array.get(genericPlans, 5), array.get(genericPlans, 6), array.get(genericPlans, 7))
+        result := AtcMtfFrame.new(bull, bear, neutral, known, time, time_close, close, volume, volumeState, r18Unavailable, sourceBars, array.get(nativePlans, 0), array.get(nativePlans, 1), array.get(nativePlans, 2), array.get(nativePlans, 3), array.get(nativePlans, 4), array.get(nativePlans, 5), array.get(nativePlans, 6), array.get(nativePlans, 7), array.get(genericPlans, 0), array.get(genericPlans, 1), array.get(genericPlans, 2), array.get(genericPlans, 3), array.get(genericPlans, 4), array.get(genericPlans, 5), array.get(genericPlans, 6), array.get(genericPlans, 7))
     result
 
 // Request calls execute on all chart bars, preloading the same six contexts before
@@ -1763,14 +1783,14 @@ f_mtf_cell(table target, int column, int row, string value, color background, co
 var array<string> chartRuleNames = array.from("MACD kesişim", "SMI/MACD mom.", "SMI hacim", "EMA trend/hacim", "RSI/MACD hacim", "SMA/MACD hacim", "SMI Full", "SMI erken", "RSI momentum", "Hacim patlaması", "Sıkışma/hacim", "Uç RSI", "Başarısız kırılım", "Karar bölgesi", "Trend devamı", "Tükenme", "Karar Paneli · 1G", "MA yakınlık")
 var array<string> frameLabels = array.from("5 dk", "15 dk", "1 sa", "4 sa", "1 gün", "1 hafta")
 var table statusTable = table.new(panelPosition, 7, 26, border_width=1, border_color=color.rgb(64, 80, 100))
-var table matchTable = table.new(matchedPosition, 8, matchPageSize + 3, border_width=1, border_color=color.rgb(64, 80, 100))
+var table matchTable = table.new(matchedPosition, 9, matchPageSize + 3, border_width=1, border_color=color.rgb(64, 80, 100))
 if barstate.isfirst
     table.merge_cells(statusTable, 0, 0, 6, 0)
     table.merge_cells(statusTable, 0, 23, 6, 23)
     table.merge_cells(statusTable, 0, 24, 6, 24)
     table.merge_cells(statusTable, 0, 25, 6, 25)
-    table.merge_cells(matchTable, 0, 0, 7, 0)
-    table.merge_cells(matchTable, 0, matchPageSize + 2, 7, matchPageSize + 2)
+    table.merge_cells(matchTable, 0, 0, 8, 0)
+    table.merge_cells(matchTable, 0, matchPageSize + 2, 8, matchPageSize + 2)
 
 // Tables expose only the current observation. No past-bar decision series exists.
 if barstate.islast
@@ -1785,7 +1805,7 @@ if barstate.islast
     bool standardChart = chart.is_standard
     bool bistChart = f_global_bist_reference()
     table.clear(statusTable, 0, 0, 6, 25)
-    table.clear(matchTable, 0, 0, 7, matchPageSize + 2)
+    table.clear(matchTable, 0, 0, 8, matchPageSize + 2)
     // Display the readable symbol; request IDs may encode settlement/session
     // modifiers. The six requests keep the original ticker ID and its settings.
     f_mtf_cell(statusTable, 0, 0, syminfo.prefix + ":" + syminfo.ticker + " · GLOBAL 18 TARAMA × 6 ZAMAN", headerBg, color.white)
@@ -1811,10 +1831,13 @@ if barstate.islast
             bool disabled = (id >= 10 and id <= 17 and not atcComplex) or (id == 18 and not atcR18)
             bool otherFrame = id == 17 and frameIndex != 4
             bool volumeUnavailable = present and id >= 3 and (frame.volumeState == 0 or frame.volumeState == 3)
+            int requiredBars = f_mtf_min_bars(id)
+            bool historyShort = present and frame.sourceBars < requiredBars
+            string historyReason = present ? "KULLANILAN PENCERE: " + str.tostring(frame.sourceBars) + " MUM; GEREKEN EN AZ " + str.tostring(requiredBars) + " MUM" : "KAYNAK YOK"
             string volumeReason = present and frame.volumeState == 3 ? "TİK SAYISI: GERÇEK HACİM DOĞRULANMADI" : "KAYNAKTA HACİM YOK / GEÇERSİZ"
             string r18Reason = not present or frame.r18Unavailable == 1 ? "VERİ/GEÇMİŞ YETERSİZ" : frame.r18Unavailable == 3 ? "SKOR SINIRI BELİRSİZ" : "AKTİF NİTELİKLİ MA YOK"
-            string reason = not standardChart ? "NORMAL MUM SEÇ" : disabled ? "HESAPLAMA KAPALI" : otherFrame ? "17 YALNIZ 1 GÜNLÜKTE" : not present ? "KAYNAK MUM ALINAMADI" : volumeUnavailable ? volumeReason : not available ? (id == 18 ? r18Reason : "VERİ YETERSİZ") : up and down ? "AL VE DÜŞÜŞ EŞLEŞTİ" : up ? "AL EŞLEŞTİ" : down ? "DÜŞÜŞ/İZLE EŞLEŞTİ" : watch ? "NÖTR/İZLE" : "KOŞUL YOK"
-            string state = not standardChart ? "MUM?" : disabled ? "KAPALI" : otherFrame ? "1G ÖZEL" : not present ? "VERİ YOK" : volumeUnavailable ? (frame.volumeState == 3 ? "TİK HACMİ" : "HACİM YOK") : not available ? (id == 18 and frame.r18Unavailable == 2 ? "MA YOK" : id == 18 and frame.r18Unavailable == 3 ? "SKOR?" : "VERİ?") : up and down ? (showBearish ? "AL+↓" : "AL") : up ? "AL" : down ? (showBearish ? "↓ İZLE" : "↓ GİZLİ") : watch ? "NÖTR" : "—"
+            string reason = not standardChart ? "NORMAL MUM SEÇ" : disabled ? "HESAPLAMA KAPALI" : otherFrame ? "17 YALNIZ 1 GÜNLÜKTE" : not present ? "KAYNAK MUM ALINAMADI" : volumeUnavailable ? volumeReason : historyShort ? historyReason : not available ? (id == 18 ? r18Reason : "VERİ YETERSİZ; " + historyReason) : up and down ? "AL VE DÜŞÜŞ EŞLEŞTİ" : up ? "AL EŞLEŞTİ" : down ? "DÜŞÜŞ/İZLE EŞLEŞTİ" : watch ? "NÖTR/İZLE" : "KOŞUL YOK"
+            string state = not standardChart ? "MUM?" : disabled ? "KAPALI" : otherFrame ? "1G ÖZEL" : not present ? "VERİ YOK" : volumeUnavailable ? (frame.volumeState == 3 ? "TİK HACMİ" : "HACİM YOK") : historyShort ? str.tostring(requiredBars) + " MUM" : not available ? (id == 18 and frame.r18Unavailable == 2 ? "MA YOK" : id == 18 and frame.r18Unavailable == 3 ? "SKOR?" : "VERİ?") : up and down ? (showBearish ? "AL+↓" : "AL") : up ? "AL" : down ? (showBearish ? "↓ İZLE" : "↓ GİZLİ") : watch ? "NÖTR" : "—"
             color rowBg = up and down ? neutralBg : up ? longBg : down and showBearish ? bearBg : watch ? neutralBg : available ? baseBg : inactiveBg
             f_mtf_cell(statusTable, frameIndex + 1, id + 1, state, rowBg, available ? color.white : muted, frameLabel + " · " + reason)
             if showMatched and (up or (down and showBearish) or watch)
@@ -1833,7 +1856,7 @@ if barstate.islast
         string counts = present ? str.tostring(f_mtf_count(frame.bull)) + "/" + (showBearish ? str.tostring(f_mtf_count(frame.bear)) : "·") + "/" + str.tostring(f_mtf_count(frame.known)) : "—"
         string clock = present ? str.format_time(frame.openTime, "dd.MM HH:mm", syminfo.timezone) : "—"
         string candleState = present ? (frame.endTime > timenow ? "AÇIK MUM" : "KAPALI MUM") : "KAYNAK YOK"
-        string frameHint = present ? frameLabel + " · " + candleState + "\nMum sonu: " + str.format_time(frame.endTime, "dd.MM HH:mm", syminfo.timezone) + "\n" + f_global_volume_label(frame.volumeState) + ": " + str.tostring(frame.sourceVolume, format.volume) + "\nSaat dilimi: " + syminfo.timezone + " · Seans: " + syminfo.session : "Kaynak mum alınamadı"
+        string frameHint = present ? frameLabel + " · " + candleState + "\nMum sonu: " + str.format_time(frame.endTime, "dd.MM HH:mm", syminfo.timezone) + "\nHesaplama penceresi: " + str.tostring(frame.sourceBars) + " mum\n" + f_global_volume_label(frame.volumeState) + ": " + str.tostring(frame.sourceVolume, format.volume) + "\nSaat dilimi: " + syminfo.timezone + " · Seans: " + syminfo.session : "Kaynak mum alınamadı"
         f_mtf_cell(statusTable, frameIndex + 1, 20, counts, headerBg, color.white, "AL / Düşüş / hesaplanabilen kural sayısı")
         f_mtf_cell(statusTable, frameIndex + 1, 21, present ? f_mtf_number(frame.price) : "—", baseBg, color.white, frameHint)
         f_mtf_cell(statusTable, frameIndex + 1, 22, clock + (present and frame.endTime > timenow ? " *" : ""), baseBg, color.white, frameHint)
@@ -1849,8 +1872,8 @@ if barstate.islast
         int start = (page - 1) * matchPageSize
         int shown = math.min(matchPageSize, matchingRows - start)
         f_mtf_cell(matchTable, 0, 0, syminfo.ticker + " · KOŞUL / REFERANS · " + str.tostring(shown) + "/" + str.tostring(matchingRows), headerBg, color.white)
-        array<string> headers = array.from("ZAMAN", "TARAMA", "YÖN", "GİRİŞ", "STOP", "TP1", "TP2", "TP3")
-        for column = 0 to 7
+        array<string> headers = array.from("ZAMAN", "TARAMA", "YÖN", "GİRİŞ", "STOP", "TP1", "TP2", "TP3", "STOP %")
+        for column = 0 to 8
             f_mtf_cell(matchTable, column, 1, array.get(headers, column), headerBg, color.white)
         for offset = 0 to shown - 1
             int rowIndex = start + offset
@@ -1871,4 +1894,6 @@ if barstate.islast
             f_mtf_cell(matchTable, 5, offset + 2, withPlan ? f_mtf_number(t1) : "—", rowBg, color.white)
             f_mtf_cell(matchTable, 6, offset + 2, withPlan ? f_mtf_number(t2) : "—", rowBg, color.white)
             f_mtf_cell(matchTable, 7, offset + 2, withPlan ? f_mtf_number(t3) : "—", rowBg, color.white)
+            string stopDistance = withPlan ? str.tostring(100.0 * math.abs(frame.price - s) / frame.price, "#.##") + "%" : "—"
+            f_mtf_cell(matchTable, 8, offset + 2, stopDistance, rowBg, color.white, "Giriş fiyatına göre referans stop mesafesi. Son 7 mumun tepe/dibi ve ATR ile hesaplanır; hesap bakiyesinin riski veya kalibre edilmiş başarı tahmini değildir.")
         f_mtf_cell(matchTable, 0, matchPageSize + 2, "Sayfa " + str.tostring(page) + "/" + str.tostring(pages) + " · Ayarlardan sayfa seçin · Fiyat adımına yuvarlı", baseBg, color.rgb(255, 205, 95))

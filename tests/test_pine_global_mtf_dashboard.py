@@ -120,6 +120,41 @@ class PineGlobalMtfDashboardTests(unittest.TestCase):
         self.assertIn("syminfo.timezone", code)
         self.assertIn("syminfo.session", code)
 
+    def test_newly_listed_symbols_explain_history_without_lowering_rule_thresholds(self):
+        body = self.functions["f_mtf_min_bars"]
+        requirements = {int(rule): int(bars) for rule, bars in
+                        re.findall(r"^        (\d+) => (\d+)$", body, re.MULTILINE)}
+        default = int(re.search(r"^        => (\d+)$", body, re.MULTILINE)[1])
+        expected = (35, 200, 200, 200, 35, 200, 200, 200, 30, 6,
+                    60, 60, 60, 60, 60, 60, 252, 30)
+        actual = tuple(requirements.get(rule, default) for rule in range(1, 19))
+        self.assertEqual(actual, expected)
+        snapshot = self.functions["f_mtf_snapshot"]
+        self.assertIn("int sourceBars = math.min(atcBars, bar_index + 1)", snapshot)
+        self.assertIn("sourceBars >= f_mtf_min_bars(i + 1)", snapshot)
+        # Rule2's original trigger requires200 even though its core known mask
+        # is ready earlier. Displaying it as a definite no-match would mislead.
+        core = self.functions["f_native_legacy_snapshot"]
+        self.assertIn("array.get(known, 1) and n >= 200", core)
+        self.assertIn("array.get(known, 8) and n >= 30", core)
+        for bars, expected_missing in (
+                (29, {1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18}),
+                (41, {2, 3, 4, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17}),
+                (199, {2, 3, 4, 6, 7, 8, 17}), (200, {17}), (252, set())):
+            missing = {rule for rule, minimum in enumerate(actual, 1) if bars < minimum}
+            self.assertEqual(missing, expected_missing)
+        self.assertIn('str.tostring(requiredBars) + " MUM"', self.source)
+        self.assertIn('"KULLANILAN PENCERE: "', self.source)
+
+    def test_stop_distance_is_price_relative_and_does_not_modify_the_plan(self):
+        self.assertIn('"STOP %"', self.source)
+        self.assertIn('100.0 * math.abs(frame.price - s) / frame.price', self.source)
+        self.assertIn("hesap bakiyesinin riski", self.source)
+        # Screenshot case: the wide bearish reference is18.5654%, not a
+        # negative target or account risk. The displayed absolute levels stay.
+        self.assertAlmostEqual(100 * abs(11.85 - 14.05) / 11.85, 18.56540084388187)
+        self.assertEqual(self.functions["f_mtf_plan"], self.original["f_mtf_plan"])
+
 
 if __name__ == "__main__":
     unittest.main()
