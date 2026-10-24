@@ -37,7 +37,7 @@
   "parts": [
     {
       "file": "ATC_US_INDEX_EQUITIES_GRUP_18_01.pine",
-      "sha256": "8b8ce560086b164c8f75ff2eb4e6135148417d0a5bbd40d0dd9258aee16c3522",
+      "sha256": "87a1dc7eb90bb154ab51bc8ff1d3c4d44b477c821b4af9fdf88f63438dde2d6f",
       "symbol_count": 518,
       "group_count": 52,
       "global_group_first": 1,
