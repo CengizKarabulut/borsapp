@@ -1,0 +1,236 @@
+//@version=6
+indicator(@@TITLE@@, shorttitle="ATC GRUP 18", overlay=true, behind_chart=false, max_bars_back=3500, dynamic_requests=true)
+
+// Generated from an explicitly captured TradingView catalogue. Do not invent
+// symbols or treat a partial catalogue as complete. Change the group input to
+// examine the next page; the script does NOT scan all groups simultaneously.
+// Source: @@CATALOGUE_URL@@
+// Ten symbols x four source frames = at most 40 unique request contexts.
+// Display only: no alarms, webhook, Telegram delivery, or orders in this script.
+// Open source candles can change. Stop/TP values are uncalibrated references.
+
+atcBars = input.int(600, "Hesaplamada kullanılan mum", minval=252, maxval=3000, group="Hesaplama")
+atcComplex = input.bool(true, "10–17 hesaplarını çalıştır", group="Hesaplama")
+atcR18 = input.bool(true, "18 · Tarihsel MA yakınlığı", group="Hesaplama")
+selectedGroup = input.int(1, "Bu dosyadaki grup", minval=1, maxval=@@GROUP_COUNT@@, group="Grup")
+detailMember = input.int(1, "Ayrıntı için gruptaki sıra", minval=1, maxval=10, group="Görünüm")
+showDetail = input.bool(false, "Seçili üyenin 18 kuralını göster", group="Görünüm")
+showBearish = input.bool(true, "Düşüş/İzle durumlarını göster", group="Görünüm")
+showMatched = input.bool(true, "Eşleşmelerin referans planlarını göster", group="Görünüm")
+matchPageSize = input.int(4, "Bir sayfadaki eşleşme", minval=1, maxval=8, group="Görünüm")
+matchPageInput = input.int(1, "Eşleşme sayfası", minval=1, maxval=2160, group="Görünüm")
+panelSizeOpt = input.string("Mini", "Yazı boyutu", options=["Mini", "Küçük", "Normal"], group="Görünüm")
+panelTextSize = panelSizeOpt == "Mini" ? size.tiny : panelSizeOpt == "Normal" ? size.normal : size.small
+
+@@CORE@@
+
+// Rounding is explicitly tied to EACH requested symbol, never the host chart.
+f_group_round(float value, float tick) =>
+    not na(value) and not na(tick) and tick > 0.0 ? math.round(value / tick) * tick : na
+
+f_group_tick_digits(float tick) =>
+    int digits = 0
+    float scaled = tick
+    while digits < 16 and (scaled < 1.0 or math.abs(scaled - math.round(scaled)) > 0.00000001)
+        scaled *= 10.0
+        digits += 1
+    digits
+
+f_group_number(float value, float tick) =>
+    float rounded = f_group_round(value, tick)
+    int digits = f_group_tick_digits(tick)
+    string formatted = switch digits
+        0 => str.tostring(rounded, "#")
+        1 => str.tostring(rounded, "#.0")
+        2 => str.tostring(rounded, "#.00")
+        3 => str.tostring(rounded, "#.000")
+        4 => str.tostring(rounded, "#.0000")
+        5 => str.tostring(rounded, "#.00000")
+        6 => str.tostring(rounded, "#.000000")
+        7 => str.tostring(rounded, "#.0000000")
+        8 => str.tostring(rounded, "#.00000000")
+        9 => str.tostring(rounded, "#.000000000")
+        10 => str.tostring(rounded, "#.0000000000")
+        11 => str.tostring(rounded, "#.00000000000")
+        12 => str.tostring(rounded, "#.000000000000")
+        13 => str.tostring(rounded, "#.0000000000000")
+        14 => str.tostring(rounded, "#.00000000000000")
+        15 => str.tostring(rounded, "#.000000000000000")
+        => str.tostring(rounded, "#.0000000000000000")
+    na(rounded) ? "—" : str.replace(formatted, ".", ",")
+
+f_group_plan(AtcMtfFrame frame, int id, bool up) =>
+    bool native = id <= 9 or id >= 17
+    float s = native ? (up ? frame.nLongStop : frame.nBearStop) : (up ? frame.gLongStop : frame.gBearStop)
+    float t1 = native ? (up ? frame.nLongTp1 : frame.nBearTp1) : (up ? frame.gLongTp1 : frame.gBearTp1)
+    float t2 = native ? (up ? frame.nLongTp2 : frame.nBearTp2) : (up ? frame.gLongTp2 : frame.gBearTp2)
+    float t3 = native ? (up ? frame.nLongTp3 : frame.nBearTp3) : (up ? frame.gLongTp3 : frame.gBearTp3)
+    float price = frame.price
+    bool rawValid = price > 0 and s > 0 and t1 > 0 and t2 > 0 and t3 > 0 and (up ? s < price and price < t1 and t1 < t2 and t2 < t3 : t3 < t2 and t2 < t1 and t1 < price and price < s)
+    float p = f_group_round(price, frame.sourceTick)
+    s := f_group_round(s, frame.sourceTick)
+    t1 := f_group_round(t1, frame.sourceTick)
+    t2 := f_group_round(t2, frame.sourceTick)
+    t3 := f_group_round(t3, frame.sourceTick)
+    bool roundedValid = p > 0 and s > 0 and t1 > 0 and t2 > 0 and t3 > 0 and (up ? s < p and p < t1 and t1 < t2 and t2 < t3 : t3 < t2 and t2 < t1 and t1 < p and p < s)
+    [rawValid and roundedValid, s, t1, t2, t3]
+
+f_group_cell(table target, int column, int row, string value, color background, string hint = "") =>
+    table.cell(target, column, row, value, bgcolor=background, text_color=color.white, text_size=panelTextSize, tooltip=hint)
+
+f_group_present(AtcMtfFrame frame) =>
+    not na(frame) and not na(frame.openTime) and not na(frame.endTime) and not na(frame.price) and frame.openTime <= timenow
+
+f_group_rules(int mask) =>
+    string result = ""
+    for id = 1 to 18
+        if f_mtf_bit(mask, id)
+            result += (result == "" ? "" : ", ") + str.tostring(id)
+    result == "" ? "—" : result
+
+f_group_state(AtcMtfFrame frame, int id, int tfIndex, bool standardChart) =>
+    bool present = f_group_present(frame)
+    bool known = present and f_mtf_bit(frame.known, id)
+    bool up = known and f_mtf_bit(frame.bull, id)
+    bool down = known and f_mtf_bit(frame.bear, id)
+    bool watch = known and f_mtf_bit(frame.neutral, id)
+    bool disabled = (id >= 10 and id <= 17 and not atcComplex) or (id == 18 and not atcR18)
+    bool missingVolume = present and id >= 3 and (frame.volumeState == 0 or frame.volumeState == 3)
+    bool historyShort = present and frame.sourceBars < f_mtf_min_bars(id)
+    string state = not standardChart ? "MUM?" : disabled ? "KAPALI" : id == 17 and tfIndex != 2 ? "1G ÖZEL" : not present ? "VERİ YOK" : missingVolume ? (frame.volumeState == 3 ? "TİK HACMİ" : "HACİM YOK") : not known ? (historyShort ? str.tostring(f_mtf_min_bars(id)) + " MUM" : id == 18 and frame.r18Unavailable == 2 ? "MA YOK" : id == 18 and frame.r18Unavailable == 3 ? "SKOR?" : "VERİ?") : up and down ? (showBearish ? "AL+↓" : "AL") : up ? "AL" : down ? (showBearish ? "↓ İZLE" : "↓ GİZLİ") : watch ? "NÖTR" : "—"
+    [state, known and standardChart, up and standardChart, down and standardChart, watch and standardChart]
+
+var array<string> groupUniverse = array.from(
+    @@SYMBOLS@@)
+var array<string> groupNames = array.from(
+    @@NAMES@@)
+var array<string> frameLabels = array.from("1 sa", "4 sa", "1 gün", "1 hafta")
+var array<string> chartRuleNames = array.from("MACD kesişim", "SMI/MACD mom.", "SMI hacim", "EMA trend/hacim", "RSI/MACD hacim", "SMA/MACD hacim", "SMI Full", "SMI erken", "RSI momentum", "Hacim patlaması", "Sıkışma/hacim", "Uç RSI", "Başarısız kırılım", "Karar bölgesi", "Trend devamı", "Tükenme", "Karar Paneli · 1G", "MA yakınlık")
+int groupStart = (selectedGroup - 1) * 10
+int groupSize = math.min(10, array.size(groupUniverse) - groupStart)
+int globalGroup = @@GLOBAL_GROUP_START@@ + selectedGroup - 1
+int selectedMember = math.min(detailMember, groupSize) - 1
+var array<AtcMtfFrame> groupFrames = array.new<AtcMtfFrame>()
+array.clear(groupFrames)
+
+// Every chart bar visits the same input-selected contexts. No request is first
+// introduced on a realtime bar. Invalid/delisted symbols return na, not the host.
+for memberIndex = 0 to groupSize - 1
+    string requestedSymbol = array.get(groupUniverse, groupStart + memberIndex)
+    AtcMtfFrame frame60 = request.security(requestedSymbol, "60", f_mtf_snapshot(), gaps=barmerge.gaps_off, lookahead=timeframe.in_seconds("60") > timeframe.in_seconds() ? barmerge.lookahead_on : barmerge.lookahead_off, ignore_invalid_symbol=true, calc_bars_count=atcBars + 30)
+    AtcMtfFrame frame240 = request.security(requestedSymbol, "240", f_mtf_snapshot(), gaps=barmerge.gaps_off, lookahead=timeframe.in_seconds("240") > timeframe.in_seconds() ? barmerge.lookahead_on : barmerge.lookahead_off, ignore_invalid_symbol=true, calc_bars_count=atcBars + 30)
+    AtcMtfFrame frameD = request.security(requestedSymbol, "D", f_mtf_snapshot(), gaps=barmerge.gaps_off, lookahead=timeframe.in_seconds("D") > timeframe.in_seconds() ? barmerge.lookahead_on : barmerge.lookahead_off, ignore_invalid_symbol=true, calc_bars_count=atcBars + 30)
+    AtcMtfFrame frameW = request.security(requestedSymbol, "W", f_mtf_snapshot(), gaps=barmerge.gaps_off, lookahead=timeframe.in_seconds("W") > timeframe.in_seconds() ? barmerge.lookahead_on : barmerge.lookahead_off, ignore_invalid_symbol=true, calc_bars_count=atcBars + 30)
+    array.push(groupFrames, frame60)
+    array.push(groupFrames, frame240)
+    array.push(groupFrames, frameD)
+    array.push(groupFrames, frameW)
+
+var table groupTable = table.new(position.top_left, 6, 14, border_width=1, border_color=color.rgb(64, 80, 100))
+var table detailTable = table.new(position.top_right, 5, 22, border_width=1, border_color=color.rgb(64, 80, 100))
+var table matchTable = table.new(position.bottom_left, 9, matchPageSize + 3, border_width=1, border_color=color.rgb(64, 80, 100))
+if barstate.isfirst
+    table.merge_cells(groupTable, 0, 0, 5, 0)
+    table.merge_cells(groupTable, 0, 12, 5, 12)
+    table.merge_cells(groupTable, 0, 13, 5, 13)
+    table.merge_cells(detailTable, 0, 0, 4, 0)
+    table.merge_cells(detailTable, 0, 21, 4, 21)
+    table.merge_cells(matchTable, 0, 0, 8, 0)
+    table.merge_cells(matchTable, 0, matchPageSize + 2, 8, matchPageSize + 2)
+
+if barstate.islast
+    color headerBg = color.rgb(20, 43, 65)
+    color baseBg = color.rgb(30, 40, 55)
+    color mutedBg = color.rgb(48, 53, 62)
+    color longBg = color.rgb(15, 100, 70)
+    color bearBg = color.rgb(145, 55, 50)
+    color mixedBg = color.rgb(125, 95, 35)
+    bool standardChart = chart.is_standard
+    table.clear(groupTable, 0, 0, 5, 13)
+    table.clear(detailTable, 0, 0, 4, 21)
+    table.clear(matchTable, 0, 0, 8, matchPageSize + 2)
+    string coverage = @@COVERAGE_LABEL@@
+    string scopeHint = @@CATALOGUE_SCOPE@@ + "\nKatalog: " + @@CAPTURED_AT@@ + "\n" + coverage + " · @@TOTAL_SYMBOL_COUNT@@ sembol / @@TOTAL_GROUP_COUNT@@ grup\nYalnız seçili grup hesaplanır. Veriler kaynağın seans/veri hakkına bağlıdır."
+    f_group_cell(groupTable, 0, 0, @@CATALOGUE_ID@@ + " · GRUP " + str.tostring(globalGroup) + "/@@TOTAL_GROUP_COUNT@@ · " + str.tostring(groupSize) + " SEMBOL", headerBg, scopeHint)
+    f_group_cell(groupTable, 0, 1, "SEMBOL", headerBg)
+    f_group_cell(groupTable, 1, 1, "1 SA FİYAT", headerBg)
+    for tfIndex = 0 to 3
+        f_group_cell(groupTable, tfIndex + 2, 1, array.get(frameLabels, tfIndex), headerBg, "↑ AL / ↓ Düşüş-İzle / hesaplanabilen kural")
+    array<int> matches = array.new<int>()
+    array<int> matchRules = array.new<int>()
+    array<int> matchDirections = array.new<int>()
+    for memberIndex = 0 to groupSize - 1
+        string symbol = array.get(groupUniverse, groupStart + memberIndex)
+        AtcMtfFrame firstFrame = array.get(groupFrames, memberIndex * 4)
+        f_group_cell(groupTable, 0, memberIndex + 2, symbol, baseBg, array.get(groupNames, groupStart + memberIndex))
+        f_group_cell(groupTable, 1, memberIndex + 2, f_group_present(firstFrame) ? f_group_number(firstFrame.price, firstFrame.sourceTick) : "—", baseBg, f_group_present(firstFrame) ? "Kotasyon: " + firstFrame.sourceCurrency + " · Fiyat adımı: " + str.tostring(firstFrame.sourceTick) : "Kaynak mum alınamadı; sembol/geçmiş/veri hakkı kontrolü gerekir.")
+        for tfIndex = 0 to 3
+            int frameIndex = memberIndex * 4 + tfIndex
+            AtcMtfFrame frame = array.get(groupFrames, frameIndex)
+            bool present = f_group_present(frame)
+            string clock = present ? str.format_time(frame.openTime, "dd.MM HH:mm", frame.sourceZone) : "—"
+            string counts = not standardChart ? "MUM?" : present ? "↑" + str.tostring(f_mtf_count(frame.bull)) + (showBearish ? " ↓" + str.tostring(f_mtf_count(frame.bear)) : "") + " · " + str.tostring(f_mtf_count(frame.known)) : "VERİ YOK"
+            string hint = symbol + " · " + array.get(frameLabels, tfIndex) + "\nKaynak mum: " + clock + (present and frame.endTime > timenow ? " · AÇIK" : "") + (present ? "\nKaynak saat: " + frame.sourceZone + "\nHesaplama penceresi: " + str.tostring(frame.sourceBars) + " mum\nHacim türü: " + frame.sourceVolumeKind + (frame.volumeState == 0 ? " · HACİM YOK" : frame.volumeState == 3 ? " · TİK SAYISI" : "\nHacim: " + str.tostring(frame.sourceVolume, format.volume)) + "\nAL kuralları: " + f_group_rules(frame.bull) + (showBearish ? "\nDüşüş kuralları: " + f_group_rules(frame.bear) : "") + "\nHesaplanan kurallar: " + f_group_rules(frame.known) : "\nKaynak alınamadı; boş sonuç kabul edilmez.")
+            color cellBg = not present or not standardChart ? mutedBg : frame.bull > 0 and frame.bear > 0 and showBearish ? mixedBg : frame.bull > 0 ? longBg : frame.bear > 0 and showBearish ? bearBg : baseBg
+            f_group_cell(groupTable, tfIndex + 2, memberIndex + 2, counts, cellBg, hint)
+            for id = 1 to 18
+                [state, known, up, down, watch] = f_group_state(frame, id, tfIndex, standardChart)
+                if showDetail and memberIndex == selectedMember
+                    color ruleBg = up and down ? mixedBg : up ? longBg : down and showBearish ? bearBg : watch ? mixedBg : known ? baseBg : mutedBg
+                    f_group_cell(detailTable, tfIndex + 1, id + 1, state, ruleBg, hint)
+                if showMatched and (up or (down and showBearish) or watch)
+                    if up
+                        array.push(matches, frameIndex)
+                        array.push(matchRules, id)
+                        array.push(matchDirections, 1)
+                    if down and showBearish
+                        array.push(matches, frameIndex)
+                        array.push(matchRules, id)
+                        array.push(matchDirections, -1)
+                    if watch
+                        array.push(matches, frameIndex)
+                        array.push(matchRules, id)
+                        array.push(matchDirections, 0)
+    f_group_cell(groupTable, 0, 12, coverage + " · Seçili grup anlık görünüm · Alarm/emir yok", baseBg, scopeHint)
+    f_group_cell(groupTable, 0, 13, "↑ AL / ↓ Düşüş-İzle / hesaplanan kural · Kapanmamış mum değişebilir", baseBg, "17 yalnız günlükte. Eksik/tik hacminde hacim koşulları hesaplanmaz. Başka gruplar eşzamanlı taranmaz.")
+    if showDetail
+        f_group_cell(detailTable, 0, 0, array.get(groupUniverse, groupStart + selectedMember) + " · 18 KURAL", headerBg)
+        f_group_cell(detailTable, 0, 1, "TARAMA", headerBg)
+        for tfIndex = 0 to 3
+            f_group_cell(detailTable, tfIndex + 1, 1, array.get(frameLabels, tfIndex), headerBg)
+        for id = 1 to 18
+            f_group_cell(detailTable, 0, id + 1, str.tostring(id) + " · " + array.get(chartRuleNames, id - 1), baseBg)
+        f_group_cell(detailTable, 0, 21, "Düşüş/İzle işlem yetkisi değildir · Referans plan", baseBg)
+    int matchingRows = array.size(matches)
+    if showMatched and matchingRows > 0
+        int pages = int(math.ceil(float(matchingRows) / matchPageSize))
+        int page = math.min(matchPageInput, pages)
+        int start = (page - 1) * matchPageSize
+        int shown = math.min(matchPageSize, matchingRows - start)
+        f_group_cell(matchTable, 0, 0, "GRUP " + str.tostring(globalGroup) + " · KOŞUL / REFERANS · " + str.tostring(shown) + "/" + str.tostring(matchingRows), headerBg)
+        array<string> headers = array.from("SEMBOL", "ZAMAN", "TARAMA", "YÖN", "GİRİŞ", "STOP", "TP1", "TP2", "TP3")
+        for column = 0 to 8
+            f_group_cell(matchTable, column, 1, array.get(headers, column), headerBg)
+        for offset = 0 to shown - 1
+            int matchIndex = start + offset
+            int frameIndex = array.get(matches, matchIndex)
+            int memberIndex = int(math.floor(frameIndex / 4))
+            int tfIndex = frameIndex % 4
+            int id = array.get(matchRules, matchIndex)
+            int direction = array.get(matchDirections, matchIndex)
+            AtcMtfFrame frame = array.get(groupFrames, frameIndex)
+            [valid, s, t1, t2, t3] = f_group_plan(frame, id, direction > 0)
+            bool withPlan = direction != 0 and valid
+            color rowBg = direction > 0 ? longBg : direction < 0 ? bearBg : mixedBg
+            string riskText = withPlan ? "\nStop mesafesi: %" + str.replace(str.tostring(math.abs(s - frame.price) / frame.price * 100.0, "#.##"), ".", ",") : ""
+            string hint = "Kaynak: " + str.format_time(frame.openTime, "dd.MM.yyyy HH:mm", frame.sourceZone) + " · " + frame.sourceZone + (frame.endTime > timenow ? " · AÇIK MUM" : "") + "\nKotasyon: " + frame.sourceCurrency + " · Kademe: " + str.tostring(frame.sourceTick) + riskText + (withPlan ? "\nKalibre edilmemiş referans. Fiyat planıdır; kontrat teminatı/KZ değil." : "\nPozitif ve kademe sıralı yönlü referans plan yok.")
+            f_group_cell(matchTable, 0, offset + 2, array.get(groupUniverse, groupStart + memberIndex), rowBg, hint)
+            f_group_cell(matchTable, 1, offset + 2, array.get(frameLabels, tfIndex), rowBg, hint)
+            f_group_cell(matchTable, 2, offset + 2, str.tostring(id) + " · " + array.get(chartRuleNames, id - 1), rowBg)
+            f_group_cell(matchTable, 3, offset + 2, direction > 0 ? "AL" : direction < 0 ? "↓ İZLE" : "NÖTR", rowBg)
+            f_group_cell(matchTable, 4, offset + 2, f_group_number(frame.price, frame.sourceTick), rowBg, hint)
+            f_group_cell(matchTable, 5, offset + 2, withPlan ? f_group_number(s, frame.sourceTick) : "—", rowBg)
+            f_group_cell(matchTable, 6, offset + 2, withPlan ? f_group_number(t1, frame.sourceTick) : "—", rowBg)
+            f_group_cell(matchTable, 7, offset + 2, withPlan ? f_group_number(t2, frame.sourceTick) : "—", rowBg)
+            f_group_cell(matchTable, 8, offset + 2, withPlan ? f_group_number(t3, frame.sourceTick) : "—", rowBg)
+        f_group_cell(matchTable, 0, matchPageSize + 2, "Sayfa " + str.tostring(page) + "/" + str.tostring(pages) + " · Ayarlardan sayfa seçin · Referans Stop/TP", baseBg)

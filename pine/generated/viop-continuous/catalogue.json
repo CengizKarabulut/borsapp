@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "universe_id": "viop-continuous",
+  "title": "VİOP SÜREKLİ VADELİ",
+  "catalogue": {
+    "source": "tradingview-symbol-pages",
+    "url": "https://www.tradingview.com/symbols/BIST-XU030D1%21/",
+    "captured_at": "2026-10-24T02:01:53+03:00",
+    "scope": "Borsa İstanbul resmi güncel VİOP dayanak listesine göre bir dayanak için bir yakın-vade sürekli (1!) TradingView serisi. 67 dayanağın 65'i TradingView sembol sayfasında doğrulandı; TLREF ve TRT131130T14 için sürekli vadeli kod doğrulanamadı. Vade ayları ayrı üye olarak çoğaltılmadı. Kaynak sayfa doğrulaması; grafik veri/hacim erişimi ayrıca ölçülmelidir.",
+    "coverage": "partial",
+    "row_count": 65
+  },
+  "symbols": [
+    {
+      "symbol": "BIST:AEFES1!",
+      "name": "ANADOLU EFES BIRACILIK VE MALT SANA FUTURES"
+    },
+    {
+      "symbol": "BIST:AKBNK1!",
+      "name": "AK BANK FUTURES"
+    },
+    {
+      "symbol": "BIST:AKSEN1!",
+      "name": "AKSA ENERJI URETIM FUTURES"
+    },
+    {
+      "symbol": "BIST:ALARK1!",
+      "name": "ALARKO HLDG FUTURES"
+    },
+    {
+      "symbol": "BIST:ARCLK1!",
+      "name": "ARCELIK ANONIM SIRKETI FUTURES"
+    },
+    {
+      "symbol": "BIST:ASELS1!",
+      "name": "ASELSAN ELEKTRONIK SANAYI VE TICARET FUTURES"
+    },
+    {
+      "symbol": "BIST:ASTOR1!",
+      "name": "ASTOR FUTURES"
+    },
+    {
+      "symbol": "BIST:BIMAS1!",
+      "name": "BIM UNITED STORES INC. FUTURES"
+    },
+    {
+      "symbol": "BIST:BRSAN1!",
+      "name": "BRSAN FUTURES"
+    },
+    {
+      "symbol": "BIST:CIMSA1!",
+      "name": "CIMSA FUTURES"
+    },
+    {
+      "symbol": "BIST:DOAS1!",
+      "name": "DOAS FUTURES"
+    },
+    {
+      "symbol": "BIST:DOHOL1!",
+      "name": "DOGAN HOLDING FUTURES"
+    },
+    {
+      "symbol": "BIST:EKGYO1!",
+      "name": "EMLAK KONUT GAYRIMENKUL YATRIM ORTAKLIGI FUTURES"
+    },
+    {
+      "symbol": "BIST:ENJSA1!",
+      "name": "ENERJISA ENERGY INC FUTURES"
+    },
+    {
+      "symbol": "BIST:ENKAI1!",
+      "name": "ENKA CONSTRUCTION AND INDUSTRY FUTURES"
+    },
+    {
+      "symbol": "BIST:EREGL1!",
+      "name": "Eregli Demir ve Celik Fabrikalari Futures"
+    },
+    {
+      "symbol": "BIST:FROTO1!",
+      "name": "FORD OTOMOTIV SANAYI FUTURES"
+    },
+    {
+      "symbol": "BIST:GUBRF1!",
+      "name": "GUBRE FABRIKALARI FUTURES"
+    },
+    {
+      "symbol": "BIST:HEKTS1!",
+      "name": "HEKTAS TICARET FUTURES"
+    },
+    {
+      "symbol": "BIST:SAHOL1!",
+      "name": "HACI OMER SABANCI HOLDING FUTURES"
+    },
+    {
+      "symbol": "BIST:KRDMD1!",
+      "name": "KARDEMIR KARABUK DEMIR CELIK SAN FUTURES"
+    },
+    {
+      "symbol": "BIST:KCHOL1!",
+      "name": "KOC HOLDING FUTURES"
+    },
+    {
+      "symbol": "BIST:MGROS1!",
+      "name": "MIGROS TICARET FUTURES"
+    },
+    {
+      "symbol": "BIST:ODAS1!",
+      "name": "ODAS ELEKTRIK URETIM SANAYI TICARET FUTURES"
+    },
+    {
+      "symbol": "BIST:OYAKC1!",
+      "name": "OYAK CIMENTO FABRIKALARI FUTURES"
+    },
+    {
+      "symbol": "BIST:PGSUS1!",
+      "name": "PEGASUS HAVA TASIMACILIGI FUTURES"
+    },
+    {
+      "symbol": "BIST:PETKM1!",
+      "name": "PETKIM PETROKIMYA HOLDING FUTURES"
+    },
+    {
+      "symbol": "BIST:SASA1!",
+      "name": "SASA POLYESTER SANAYI FUTURES"
+    },
+    {
+      "symbol": "BIST:SOKM1!",
+      "name": "SOK MARKETLER TICARET FUTURES"
+    },
+    {
+      "symbol": "BIST:GARAN1!",
+      "name": "TURKIYE GARANTI BANKASI FUTURES"
+    },
+    {
+      "symbol": "BIST:ISCTR1!",
+      "name": "TURKIYE IS BANKASI FUTURES"
+    },
+    {
+      "symbol": "BIST:TOASO1!",
+      "name": "TOFAS TURK OTOMOBIL FABRIKASI FUTURES"
+    },
+    {
+      "symbol": "BIST:TRMET1!",
+      "name": "TRMET FUTURES"
+    },
+    {
+      "symbol": "BIST:TUPRS1!",
+      "name": "TUPRAS TURKIYE PETROL RAFINERILERI FUTURES"
+    },
+    {
+      "symbol": "BIST:TRALT1!",
+      "name": "TRALT FUTURES"
+    },
+    {
+      "symbol": "BIST:THYAO1!",
+      "name": "TURK HAVA YOLLARI AO FUTURES"
+    },
+    {
+      "symbol": "BIST:TTKOM1!",
+      "name": "TURK TELEKOMUNIKASYON FUTURES"
+    },
+    {
+      "symbol": "BIST:TCELL1!",
+      "name": "TURKCELL ILETISIM HIZMETLERI FUTURES"
+    },
+    {
+      "symbol": "BIST:HALKB1!",
+      "name": "TURKIYE HALK BANKASI FUTURES"
+    },
+    {
+      "symbol": "BIST:TSKB1!",
+      "name": "TURKIYE SINAI KALKINMA BANKASI FUTURES"
+    },
+    {
+      "symbol": "BIST:SISE1!",
+      "name": "TURKIYE SISE VE CAM FABRIKALARI FUTURES"
+    },
+    {
+      "symbol": "BIST:TAVHL1!",
+      "name": "TAV AIRPORTS FUTURES"
+    },
+    {
+      "symbol": "BIST:TKFEN1!",
+      "name": "TEKFEN HOLDING FUTURES"
+    },
+    {
+      "symbol": "BIST:VAKBN1!",
+      "name": "TURKIYE VAKIFLAR BANKASI TAO FUTURES"
+    },
+    {
+      "symbol": "BIST:ULKER1!",
+      "name": "ULKER BISCUITS INDUSTRY INC. FUTURES"
+    },
+    {
+      "symbol": "BIST:VESTL1!",
+      "name": "VESTEL ELECTRONIK SANAYI VE TICARET FUTURES"
+    },
+    {
+      "symbol": "BIST:YKBNK1!",
+      "name": "YAPI VE KREDI BANKASI FUTURES"
+    },
+    {
+      "symbol": "BIST:XU030D1!",
+      "name": "BIST 30 FUTURES"
+    },
+    {
+      "symbol": "BIST:XLBNKD1!",
+      "name": "BIST LIQUID BANKS FUTURES"
+    },
+    {
+      "symbol": "BIST:X10XBD1!",
+      "name": "BIST LIQUID 10 EX BANKS FUTURES"
+    },
+    {
+      "symbol": "BIST:XSD25D1!",
+      "name": "BIST XSD25 FUTURES"
+    },
+    {
+      "symbol": "BIST:USDTRY1!",
+      "name": "USD/Turkish Lira Futures"
+    },
+    {
+      "symbol": "BIST:EURTRY1!",
+      "name": "Euro/Turkish Lira Futures"
+    },
+    {
+      "symbol": "BIST:EURUSD1!",
+      "name": "EURO/USD Futures"
+    },
+    {
+      "symbol": "BIST:RUBTRY1!",
+      "name": "RUB/TRY Futures"
+    },
+    {
+      "symbol": "BIST:CNHTRY1!",
+      "name": "CNH/TRY Futures"
+    },
+    {
+      "symbol": "BIST:GBPUSD1!",
+      "name": "GBP/USD Futures"
+    },
+    {
+      "symbol": "BIST:XAUTRY1!",
+      "name": "Gold TRY per gram Futures"
+    },
+    {
+      "symbol": "BIST:XAUUSD1!",
+      "name": "Gold USD per ounce Futures"
+    },
+    {
+      "symbol": "BIST:XAGUSD1!",
+      "name": "Silver USD per ounce Futures"
+    },
+    {
+      "symbol": "BIST:XPDUSD1!",
+      "name": "Palladium USD per ounce Futures"
+    },
+    {
+      "symbol": "BIST:XPTUSD1!",
+      "name": "Platinum USD per ounce Futures"
+    },
+    {
+      "symbol": "BIST:XCUUSD1!",
+      "name": "TON BAKIR FUTURES"
+    },
+    {
+      "symbol": "BIST:ELCBASY1!",
+      "name": "Base-Load Electricity Futures"
+    },
+    {
+      "symbol": "BIST:SASX101!",
+      "name": "SASX 10 INDEX FUTURES"
+    }
+  ]
+}

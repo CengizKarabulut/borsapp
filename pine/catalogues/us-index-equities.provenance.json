@@ -1,0 +1,1722 @@
+{
+  "schema_version": 1,
+  "catalogue_file": "us-index-equities.json",
+  "catalogue_sha256": "40dd7e6c8e0341680da658ada6809e6eee83dbc36cfe33683df72d093d094ed0",
+  "universe_id": "us-index-equities",
+  "sources": [
+    {
+      "index": "SPX",
+      "url": "https://www.tradingview.com/symbols/SPX/components/",
+      "capture_file": "us-spx-rows.json",
+      "capture_method": "authenticated TradingView rendered component-table DOM; actual data-rowkey and displayed company name",
+      "capture_file_written_at": "2026-10-23T23:11:16.232395+00:00",
+      "row_count": 503,
+      "unique_qualified_symbols": 503,
+      "capture_sha256": "f38fe8ce03293efa133be5c093f7e2968955a63ed20b789a0eca6931cd0724fe"
+    },
+    {
+      "index": "NDX",
+      "url": "https://www.tradingview.com/symbols/NASDAQ-NDX/components/",
+      "capture_file": "us-ndx-rows.json",
+      "capture_method": "authenticated TradingView rendered component-table DOM; actual data-rowkey and displayed company name",
+      "capture_file_written_at": "2026-10-23T23:13:28.216278+00:00",
+      "row_count": 101,
+      "unique_qualified_symbols": 101,
+      "capture_sha256": "2a10e86c4161f236295a34b67905efc18e178cdf792dbeb6c19e8b9bc35fff7e"
+    },
+    {
+      "index": "DJI",
+      "url": "https://www.tradingview.com/symbols/DJ-DJI/components/",
+      "capture_file": "us-dji-rows.json",
+      "capture_method": "authenticated TradingView rendered component-table DOM; actual data-rowkey and displayed company name",
+      "capture_file_written_at": "2026-10-23T23:13:54.152852+00:00",
+      "row_count": 30,
+      "unique_qualified_symbols": 30,
+      "capture_sha256": "a7ddf294b84626f04bd323bd24a8a40b2920822e8f31b7276a0cb671cad63d65"
+    }
+  ],
+  "capture_timestamp_policy": "Latest local raw-capture file write in UTC; not a price observation or exchange session timestamp.",
+  "source_rows_total": 634,
+  "unique_qualified_symbol_count": 518,
+  "duplicate_memberships_removed": 116,
+  "symbol_order": "SPX captured order, followed by previously unseen NDX then DJI symbols; no guessed members.",
+  "memberships": {
+    "NASDAQ:NVDA": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NASDAQ:AAPL": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NASDAQ:GOOG": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:GOOGL": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NASDAQ:MSFT": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NASDAQ:AMZN": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NASDAQ:META": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:AVGO": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:TSLA": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:LLY": [
+      "SPX"
+    ],
+    "NYSE:BRK.B": [
+      "SPX"
+    ],
+    "NASDAQ:MU": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:WMT": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NYSE:JPM": [
+      "SPX",
+      "DJI"
+    ],
+    "NASDAQ:AMD": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:V": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:XOM": [
+      "SPX"
+    ],
+    "NYSE:JNJ": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:MA": [
+      "SPX"
+    ],
+    "NYSE:ABBV": [
+      "SPX"
+    ],
+    "NASDAQ:PLTR": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:CVX": [
+      "SPX",
+      "DJI"
+    ],
+    "NASDAQ:INTC": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:COST": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:CSCO": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NYSE:KO": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:ORCL": [
+      "SPX"
+    ],
+    "NYSE:UNH": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:PG": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:MRK": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:BAC": [
+      "SPX"
+    ],
+    "NYSE:HD": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:CAT": [
+      "SPX",
+      "DJI"
+    ],
+    "NASDAQ:PANW": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:PM": [
+      "SPX"
+    ],
+    "NASDAQ:AMAT": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:GE": [
+      "SPX"
+    ],
+    "NYSE:DELL": [
+      "SPX"
+    ],
+    "NASDAQ:LRCX": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MS": [
+      "SPX"
+    ],
+    "NASDAQ:NFLX": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:CRWD": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:TXN": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:RTX": [
+      "SPX"
+    ],
+    "NYSE:GS": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:TMO": [
+      "SPX"
+    ],
+    "NYSE:WFC": [
+      "SPX"
+    ],
+    "NYSE:IBM": [
+      "SPX",
+      "DJI"
+    ],
+    "NASDAQ:AMGN": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NASDAQ:LIN": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:ANET": [
+      "SPX"
+    ],
+    "NYSE:GEV": [
+      "SPX"
+    ],
+    "NYSE:AXP": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:CRM": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:C": [
+      "SPX"
+    ],
+    "NASDAQ:MRVL": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:DIS": [
+      "SPX",
+      "DJI"
+    ],
+    "NASDAQ:GILD": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:KLAC": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:ADI": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:QCOM": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:VZ": [
+      "SPX"
+    ],
+    "NASDAQ:PEP": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:APH": [
+      "SPX"
+    ],
+    "NYSE:BLK": [
+      "SPX"
+    ],
+    "NYSE:COP": [
+      "SPX"
+    ],
+    "NYSE:ABT": [
+      "SPX"
+    ],
+    "NASDAQ:SNDK": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MCD": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:DE": [
+      "SPX"
+    ],
+    "NYSE:UNP": [
+      "SPX"
+    ],
+    "NYSE:NEE": [
+      "SPX"
+    ],
+    "NYSE:PFE": [
+      "SPX"
+    ],
+    "NYSE:WELL": [
+      "SPX"
+    ],
+    "NYSE:NOW": [
+      "SPX"
+    ],
+    "NYSE:DHR": [
+      "SPX"
+    ],
+    "NYSE:TJX": [
+      "SPX"
+    ],
+    "NASDAQ:TMUS": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:ISRG": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:SCHW": [
+      "SPX"
+    ],
+    "NYSE:BA": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:ACN": [
+      "SPX"
+    ],
+    "NYSE:BX": [
+      "SPX"
+    ],
+    "NASDAQ:STX": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:ETN": [
+      "SPX"
+    ],
+    "NYSE:T": [
+      "SPX"
+    ],
+    "NYSE:LMT": [
+      "SPX"
+    ],
+    "NYSE:CB": [
+      "SPX"
+    ],
+    "NASDAQ:IBKR": [
+      "SPX"
+    ],
+    "NYSE:UBER": [
+      "SPX"
+    ],
+    "NASDAQ:VRTX": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:SPGI": [
+      "SPX"
+    ],
+    "NYSE:PGR": [
+      "SPX"
+    ],
+    "NASDAQ:FTNT": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:WDC": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MPC": [
+      "SPX"
+    ],
+    "NYSE:BMY": [
+      "SPX"
+    ],
+    "NYSE:MO": [
+      "SPX"
+    ],
+    "NYSE:COF": [
+      "SPX"
+    ],
+    "NYSE:PLD": [
+      "SPX"
+    ],
+    "NYSE:MDT": [
+      "SPX"
+    ],
+    "NYSE:VLO": [
+      "SPX"
+    ],
+    "NASDAQ:ADP": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:CVS": [
+      "SPX"
+    ],
+    "NYSE:SYK": [
+      "SPX"
+    ],
+    "NASDAQ:BKNG": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MCK": [
+      "SPX"
+    ],
+    "NASDAQ:SBUX": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:NEM": [
+      "SPX"
+    ],
+    "NYSE:PSX": [
+      "SPX"
+    ],
+    "NYSE:LOW": [
+      "SPX"
+    ],
+    "NYSE:PH": [
+      "SPX"
+    ],
+    "NASDAQ:CME": [
+      "SPX"
+    ],
+    "NYSE:SO": [
+      "SPX"
+    ],
+    "NYSE:GLW": [
+      "SPX"
+    ],
+    "NASDAQ:ABNB": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:ADBE": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:MAR": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:HCA": [
+      "SPX"
+    ],
+    "NYSE:BNY": [
+      "SPX"
+    ],
+    "NYSE:TT": [
+      "SPX"
+    ],
+    "NYSE:DUK": [
+      "SPX"
+    ],
+    "NASDAQ:DDOG": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:WM": [
+      "SPX"
+    ],
+    "NYSE:ELV": [
+      "SPX"
+    ],
+    "NYSE:GD": [
+      "SPX"
+    ],
+    "NASDAQ:EQIX": [
+      "SPX"
+    ],
+    "NYSE:MRSH": [
+      "SPX"
+    ],
+    "NASDAQ:CSX": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:FCX": [
+      "SPX"
+    ],
+    "NYSE:USB": [
+      "SPX"
+    ],
+    "NASDAQ:INTU": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:ICE": [
+      "SPX"
+    ],
+    "NASDAQ:MNST": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:EMR": [
+      "SPX"
+    ],
+    "NASDAQ:CEG": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MMM": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:PNC": [
+      "SPX"
+    ],
+    "NASDAQ:CTAS": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:AMT": [
+      "SPX"
+    ],
+    "NYSE:WMB": [
+      "SPX"
+    ],
+    "NYSE:JCI": [
+      "SPX"
+    ],
+    "NASDAQ:CDNS": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:APP": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:UPS": [
+      "SPX"
+    ],
+    "NYSE:EOG": [
+      "SPX"
+    ],
+    "NASDAQ:HOOD": [
+      "SPX"
+    ],
+    "NYSE:MCO": [
+      "SPX"
+    ],
+    "NASDAQ:REGN": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:SNPS": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:PWR": [
+      "SPX"
+    ],
+    "NYSE:KKR": [
+      "SPX"
+    ],
+    "NYSE:SHW": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:TRV": [
+      "SPX",
+      "DJI"
+    ],
+    "NASDAQ:MDLZ": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:CI": [
+      "SPX"
+    ],
+    "NYSE:ECL": [
+      "SPX"
+    ],
+    "NASDAQ:CMCSA": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:MRNA": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MSI": [
+      "SPX"
+    ],
+    "NYSE:SLB": [
+      "SPX"
+    ],
+    "NYSE:HLT": [
+      "SPX"
+    ],
+    "NYSE:ITW": [
+      "SPX"
+    ],
+    "NYSE:NOC": [
+      "SPX"
+    ],
+    "NASDAQ:DASH": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:KMI": [
+      "SPX"
+    ],
+    "NYSE:HPE": [
+      "SPX"
+    ],
+    "NYSE:CL": [
+      "SPX"
+    ],
+    "NYSE:VRT": [
+      "SPX"
+    ],
+    "NYSE:HWM": [
+      "SPX"
+    ],
+    "NYSE:NSC": [
+      "SPX"
+    ],
+    "NYSE:RCL": [
+      "SPX"
+    ],
+    "NYSE:RSG": [
+      "SPX"
+    ],
+    "NASDAQ:ROST": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:ORLY": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:CMI": [
+      "SPX"
+    ],
+    "NYSE:FDX": [
+      "SPX"
+    ],
+    "NASDAQ:AEP": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:HON": [
+      "SPX",
+      "NDX",
+      "DJI"
+    ],
+    "NYSE:TGT": [
+      "SPX"
+    ],
+    "NYSE:AJG": [
+      "SPX"
+    ],
+    "NASDAQ:LITE": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:SPG": [
+      "SPX"
+    ],
+    "NYSE:APD": [
+      "SPX"
+    ],
+    "NYSE:URI": [
+      "SPX"
+    ],
+    "NYSE:APO": [
+      "SPX"
+    ],
+    "NYSE:BSX": [
+      "SPX"
+    ],
+    "NYSE:TRGP": [
+      "SPX"
+    ],
+    "NYSE:AON": [
+      "SPX"
+    ],
+    "NYSE:OXY": [
+      "SPX"
+    ],
+    "NYSE:GM": [
+      "SPX"
+    ],
+    "NYSE:ALL": [
+      "SPX"
+    ],
+    "NYSE:DLR": [
+      "SPX"
+    ],
+    "NYSE:CVNA": [
+      "SPX"
+    ],
+    "NYSE:GWW": [
+      "SPX"
+    ],
+    "NYSE:COR": [
+      "SPX"
+    ],
+    "NYSE:MET": [
+      "SPX"
+    ],
+    "NYSE:TDG": [
+      "SPX"
+    ],
+    "NYSE:AFL": [
+      "SPX"
+    ],
+    "NYSE:OKE": [
+      "SPX"
+    ],
+    "NYSE:TEL": [
+      "SPX"
+    ],
+    "NASDAQ:FAST": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:NXPI": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:TFC": [
+      "SPX"
+    ],
+    "NYSE:NUE": [
+      "SPX"
+    ],
+    "NYSE:PSA": [
+      "SPX"
+    ],
+    "NYSE:CAH": [
+      "SPX"
+    ],
+    "NASDAQ:FANG": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:D": [
+      "SPX"
+    ],
+    "NASDAQ:NDAQ": [
+      "SPX"
+    ],
+    "NYSE:BE": [
+      "SPX"
+    ],
+    "NYSE:GRMN": [
+      "SPX"
+    ],
+    "NYSE:DVN": [
+      "SPX"
+    ],
+    "NYSE:CRH": [
+      "SPX"
+    ],
+    "NASDAQ:PCAR": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:MPWR": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:BKR": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:NKE": [
+      "SPX",
+      "DJI"
+    ],
+    "NYSE:AME": [
+      "SPX"
+    ],
+    "NYSE:SRE": [
+      "SPX"
+    ],
+    "NYSE:BDX": [
+      "SPX"
+    ],
+    "NASDAQ:EBAY": [
+      "SPX"
+    ],
+    "NYSE:O": [
+      "SPX"
+    ],
+    "NYSE:KEYS": [
+      "SPX"
+    ],
+    "NASDAQ:ADSK": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:VEEV": [
+      "SPX"
+    ],
+    "NYSE:AZO": [
+      "SPX"
+    ],
+    "NASDAQ:HONA": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:EW": [
+      "SPX"
+    ],
+    "NYSE:ETR": [
+      "SPX"
+    ],
+    "NYSE:HUM": [
+      "SPX"
+    ],
+    "NASDAQ:WDAY": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:DAL": [
+      "SPX"
+    ],
+    "NYSE:VYLR": [
+      "SPX"
+    ],
+    "NYSE:A": [
+      "SPX"
+    ],
+    "NASDAQ:PYPL": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:VMRK": [
+      "SPX"
+    ],
+    "NASDAQ:XEL": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:TER": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:FITB": [
+      "SPX"
+    ],
+    "NYSE:ROK": [
+      "SPX"
+    ],
+    "NYSE:LHX": [
+      "SPX"
+    ],
+    "NASDAQ:KDP": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:VST": [
+      "SPX"
+    ],
+    "NYSE:CARR": [
+      "SPX"
+    ],
+    "NYSE:F": [
+      "SPX"
+    ],
+    "NYSE:IQV": [
+      "SPX"
+    ],
+    "NYSE:XYZ": [
+      "SPX"
+    ],
+    "NASDAQ:EXC": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:STT": [
+      "SPX"
+    ],
+    "NYSE:WAB": [
+      "SPX"
+    ],
+    "NYSE:VTR": [
+      "SPX"
+    ],
+    "NYSE:CIEN": [
+      "SPX"
+    ],
+    "NYSE:WAT": [
+      "SPX"
+    ],
+    "NASDAQ:IDXX": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MSCI": [
+      "SPX"
+    ],
+    "NYSE:FERG": [
+      "SPX"
+    ],
+    "NYSE:AMP": [
+      "SPX"
+    ],
+    "NASDAQ:COIN": [
+      "SPX"
+    ],
+    "NASDAQ:ROP": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:ED": [
+      "SPX"
+    ],
+    "NYSE:AIG": [
+      "SPX"
+    ],
+    "NASDAQ:NTAP": [
+      "SPX"
+    ],
+    "NASDAQ:PAYX": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:DHI": [
+      "SPX"
+    ],
+    "NYSE:COHR": [
+      "SPX"
+    ],
+    "NYSE:P": [
+      "SPX"
+    ],
+    "NYSE:LYV": [
+      "SPX"
+    ],
+    "NYSE:FIX": [
+      "SPX"
+    ],
+    "NYSE:YUM": [
+      "SPX"
+    ],
+    "NASDAQ:ILMN": [
+      "SPX"
+    ],
+    "NASDAQ:MCHP": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:TWLO": [
+      "SPX"
+    ],
+    "NYSE:SYY": [
+      "SPX"
+    ],
+    "NYSE:PRU": [
+      "SPX"
+    ],
+    "NYSE:KR": [
+      "SPX"
+    ],
+    "NYSE:EL": [
+      "SPX"
+    ],
+    "NYSE:ADM": [
+      "SPX"
+    ],
+    "NASDAQ:TTWO": [
+      "SPX",
+      "NDX"
+    ],
+    "NASDAQ:ODFL": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:KVUE": [
+      "SPX"
+    ],
+    "NYSE:HIG": [
+      "SPX"
+    ],
+    "NASDAQ:BIIB": [
+      "SPX"
+    ],
+    "NASDAQ:KMB": [
+      "SPX"
+    ],
+    "NYSE:CCI": [
+      "SPX"
+    ],
+    "NYSE:WEC": [
+      "SPX"
+    ],
+    "NYSE:MLM": [
+      "SPX"
+    ],
+    "NYSE:PEG": [
+      "SPX"
+    ],
+    "NYSE:CBRE": [
+      "SPX"
+    ],
+    "NYSE:RMD": [
+      "SPX"
+    ],
+    "CBOE:CBOE": [
+      "SPX"
+    ],
+    "NYSE:CCL": [
+      "SPX"
+    ],
+    "NYSE:CMG": [
+      "SPX"
+    ],
+    "NYSE:EQT": [
+      "SPX"
+    ],
+    "NASDAQ:ACGL": [
+      "SPX"
+    ],
+    "NASDAQ:EXPE": [
+      "SPX"
+    ],
+    "NYSE:CNC": [
+      "SPX"
+    ],
+    "NASDAQ:STLD": [
+      "SPX"
+    ],
+    "NASDAQ:AXON": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:HSY": [
+      "SPX"
+    ],
+    "NYSE:VMC": [
+      "SPX"
+    ],
+    "NYSE:ZTS": [
+      "SPX"
+    ],
+    "NYSE:MTD": [
+      "SPX"
+    ],
+    "NYSE:TKO": [
+      "SPX"
+    ],
+    "NYSE:IRM": [
+      "SPX"
+    ],
+    "NASDAQ:GEHC": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:MTB": [
+      "SPX"
+    ],
+    "NASDAQ:UAL": [
+      "SPX"
+    ],
+    "NASDAQ:HBAN": [
+      "SPX"
+    ],
+    "NASDAQ:CTSH": [
+      "SPX"
+    ],
+    "NASDAQ:NTRS": [
+      "SPX"
+    ],
+    "NYSE:HPQ": [
+      "SPX"
+    ],
+    "NYSE:RJF": [
+      "SPX"
+    ],
+    "NYSE:EXR": [
+      "SPX"
+    ],
+    "NASDAQ:WTW": [
+      "SPX"
+    ],
+    "NYSE:AEE": [
+      "SPX"
+    ],
+    "NYSE:WSM": [
+      "SPX"
+    ],
+    "NASDAQ:DXCM": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:KHC": [
+      "SPX"
+    ],
+    "NYSE:DG": [
+      "SPX"
+    ],
+    "NYSE:ATO": [
+      "SPX"
+    ],
+    "NYSE:HAL": [
+      "SPX"
+    ],
+    "NYSE:TDY": [
+      "SPX"
+    ],
+    "NYSE:JBL": [
+      "SPX"
+    ],
+    "NYSE:OTIS": [
+      "SPX"
+    ],
+    "NYSE:EME": [
+      "SPX"
+    ],
+    "NYSE:IR": [
+      "SPX"
+    ],
+    "NYSE:AWK": [
+      "SPX"
+    ],
+    "NASDAQ:FLEX": [
+      "SPX"
+    ],
+    "NASDAQ:ON": [
+      "SPX"
+    ],
+    "NYSE:PCG": [
+      "SPX"
+    ],
+    "NYSE:RDDT": [
+      "SPX"
+    ],
+    "NYSE:WST": [
+      "SPX"
+    ],
+    "NYSE:DTE": [
+      "SPX"
+    ],
+    "NYSE:CFG": [
+      "SPX"
+    ],
+    "NYSE:ARES": [
+      "SPX"
+    ],
+    "NYSE:WRB": [
+      "SPX"
+    ],
+    "NASDAQ:VRSN": [
+      "SPX"
+    ],
+    "NASDAQ:CINF": [
+      "SPX"
+    ],
+    "NYSE:CNP": [
+      "SPX"
+    ],
+    "NASDAQ:CPRT": [
+      "SPX",
+      "NDX"
+    ],
+    "NYSE:DOV": [
+      "SPX"
+    ],
+    "NYSE:CPAY": [
+      "SPX"
+    ],
+    "NYSE:FE": [
+      "SPX"
+    ],
+    "NASDAQ:ULTA": [
+      "SPX"
+    ],
+    "NYSE:DGX": [
+      "SPX"
+    ],
+    "NYSE:LH": [
+      "SPX"
+    ],
+    "NASDAQ:FOX": [
+      "SPX"
+    ],
+    "NASDAQ:FISV": [
+      "SPX"
+    ],
+    "NASDAQ:FOXA": [
+      "SPX"
+    ],
+    "NYSE:PPL": [
+      "SPX"
+    ],
+    "NYSE:VICI": [
+      "SPX"
+    ],
+    "NASDAQ:ECHO": [
+      "SPX"
+    ],
+    "NASDAQ:CASY": [
+      "SPX"
+    ],
+    "NASDAQ:FFIV": [
+      "SPX"
+    ],
+    "NYSE:EXPD": [
+      "SPX"
+    ],
+    "NASDAQ:VRSK": [
+      "SPX"
+    ],
+    "NYSE:VLTO": [
+      "SPX"
+    ],
+    "NYSE:ES": [
+      "SPX"
+    ],
+    "NYSE:XYL": [
+      "SPX"
+    ],
+    "NYSE:CHD": [
+      "SPX"
+    ],
+    "NYSE:PPG": [
+      "SPX"
+    ],
+    "NYSE:BRO": [
+      "SPX"
+    ],
+    "NYSE:RF": [
+      "SPX"
+    ],
+    "NYSE:DRI": [
+      "SPX"
+    ],
+    "NYSE:IFF": [
+      "SPX"
+    ],
+    "NYSE:SYF": [
+      "SPX"
+    ],
+    "NYSE:HUBB": [
+      "SPX"
+    ],
+    "NYSE:DOW": [
+      "SPX"
+    ],
+    "NASDAQ:DLTR": [
+      "SPX"
+    ],
+    "NYSE:STZ": [
+      "SPX"
+    ],
+    "NASDAQ:INCY": [
+      "SPX"
+    ],
+    "NYSE:TPL": [
+      "SPX"
+    ],
+    "NASDAQ:PFG": [
+      "SPX"
+    ],
+    "NYSE:LVS": [
+      "SPX"
+    ],
+    "NYSE:Q": [
+      "SPX"
+    ],
+    "NYSE:L": [
+      "SPX"
+    ],
+    "NYSE:PHM": [
+      "SPX"
+    ],
+    "NYSE:OMC": [
+      "SPX"
+    ],
+    "NYSE:STE": [
+      "SPX"
+    ],
+    "NYSE:KEY": [
+      "SPX"
+    ],
+    "NYSE:RL": [
+      "SPX"
+    ],
+    "NASDAQ:TROW": [
+      "SPX"
+    ],
+    "NYSE:EIX": [
+      "SPX"
+    ],
+    "NYSE:PKG": [
+      "SPX"
+    ],
+    "NYSE:GPN": [
+      "SPX"
+    ],
+    "NYSE:TPR": [
+      "SPX"
+    ],
+    "NYSE:SW": [
+      "SPX"
+    ],
+    "NYSE:CMS": [
+      "SPX"
+    ],
+    "NASDAQ:SMCI": [
+      "SPX"
+    ],
+    "NASDAQ:EXE": [
+      "SPX"
+    ],
+    "NYSE:LYB": [
+      "SPX"
+    ],
+    "NYSE:EFX": [
+      "SPX"
+    ],
+    "NYSE:AMCR": [
+      "SPX"
+    ],
+    "NASDAQ:JBHT": [
+      "SPX"
+    ],
+    "NASDAQ:PTC": [
+      "SPX"
+    ],
+    "NYSE:BBY": [
+      "SPX"
+    ],
+    "NYSE:NI": [
+      "SPX"
+    ],
+    "NYSE:BR": [
+      "SPX"
+    ],
+    "NASDAQ:VTRS": [
+      "SPX"
+    ],
+    "NASDAQ:CDW": [
+      "SPX"
+    ],
+    "NYSE:LUV": [
+      "SPX"
+    ],
+    "NYSE:LEN": [
+      "SPX"
+    ],
+    "NYSE:BG": [
+      "SPX"
+    ],
+    "NASDAQ:SWKS": [
+      "SPX"
+    ],
+    "NASDAQ:SBAC": [
+      "SPX"
+    ],
+    "NYSE:TSN": [
+      "SPX"
+    ],
+    "NASDAQ:EVRG": [
+      "SPX"
+    ],
+    "NYSE:NRG": [
+      "SPX"
+    ],
+    "NYSE:FIS": [
+      "SPX"
+    ],
+    "NASDAQ:CHTR": [
+      "SPX"
+    ],
+    "NYSE:ZBH": [
+      "SPX"
+    ],
+    "NASDAQ:FSLR": [
+      "SPX"
+    ],
+    "NYSE:SNA": [
+      "SPX"
+    ],
+    "NYSE:DD": [
+      "SPX"
+    ],
+    "NYSE:GIS": [
+      "SPX"
+    ],
+    "NASDAQ:ZBRA": [
+      "SPX"
+    ],
+    "NYSE:CF": [
+      "SPX"
+    ],
+    "NYSE:FTV": [
+      "SPX"
+    ],
+    "NASDAQ:APA": [
+      "SPX"
+    ],
+    "NASDAQ:LNT": [
+      "SPX"
+    ],
+    "NYSE:ESS": [
+      "SPX"
+    ],
+    "NASDAQ:NDSN": [
+      "SPX"
+    ],
+    "NYSE:RVTY": [
+      "SPX"
+    ],
+    "NYSE:FICO": [
+      "SPX"
+    ],
+    "NYSE:IP": [
+      "SPX"
+    ],
+    "NASDAQ:TSCO": [
+      "SPX"
+    ],
+    "NASDAQ:NWS": [
+      "SPX"
+    ],
+    "NYSE:BALL": [
+      "SPX"
+    ],
+    "NASDAQ:NWSA": [
+      "SPX"
+    ],
+    "NYSE:LDOS": [
+      "SPX"
+    ],
+    "NYSE:J": [
+      "SPX"
+    ],
+    "NYSE:GPC": [
+      "SPX"
+    ],
+    "NASDAQ:HST": [
+      "SPX"
+    ],
+    "NYSE:IEX": [
+      "SPX"
+    ],
+    "NYSE:ROL": [
+      "SPX"
+    ],
+    "NASDAQ:HAS": [
+      "SPX"
+    ],
+    "NYSE:CRL": [
+      "SPX"
+    ],
+    "NYSE:FDXF": [
+      "SPX"
+    ],
+    "NASDAQ:CHRW": [
+      "SPX"
+    ],
+    "NYSE:INVH": [
+      "SPX"
+    ],
+    "NYSE:TYL": [
+      "SPX"
+    ],
+    "NYSE:NVR": [
+      "SPX"
+    ],
+    "NYSE:KIM": [
+      "SPX"
+    ],
+    "NYSE:BEN": [
+      "SPX"
+    ],
+    "NYSE:EG": [
+      "SPX"
+    ],
+    "NYSE:ALLE": [
+      "SPX"
+    ],
+    "NYSE:MAS": [
+      "SPX"
+    ],
+    "NYSE:SWK": [
+      "SPX"
+    ],
+    "NASDAQ:GEN": [
+      "SPX"
+    ],
+    "NASDAQ:TRMB": [
+      "SPX"
+    ],
+    "NYSE:IT": [
+      "SPX"
+    ],
+    "NYSE:SOLV": [
+      "SPX"
+    ],
+    "NYSE:GDDY": [
+      "SPX"
+    ],
+    "NYSE:WY": [
+      "SPX"
+    ],
+    "NYSE:AIZ": [
+      "SPX"
+    ],
+    "NYSE:MAA": [
+      "SPX"
+    ],
+    "NYSE:SJM": [
+      "SPX"
+    ],
+    "NYSE:CPT": [
+      "SPX"
+    ],
+    "NYSE:AVY": [
+      "SPX"
+    ],
+    "NASDAQ:CSGP": [
+      "SPX"
+    ],
+    "NYSE:BF.B": [
+      "SPX"
+    ],
+    "NYSE:DOC": [
+      "SPX"
+    ],
+    "NASDAQ:REG": [
+      "SPX"
+    ],
+    "NASDAQ:AKAM": [
+      "SPX"
+    ],
+    "NYSE:TXT": [
+      "SPX"
+    ],
+    "NYSE:BAX": [
+      "SPX"
+    ],
+    "NYSE:LII": [
+      "SPX"
+    ],
+    "NYSE:MKC": [
+      "SPX"
+    ],
+    "NYSE:PNW": [
+      "SPX"
+    ],
+    "NYSE:IVZ": [
+      "SPX"
+    ],
+    "NYSE:GL": [
+      "SPX"
+    ],
+    "NASDAQ:ERIE": [
+      "SPX"
+    ],
+    "NYSE:DVA": [
+      "SPX"
+    ],
+    "NYSE:FDS": [
+      "SPX"
+    ],
+    "NASDAQ:COO": [
+      "SPX"
+    ],
+    "NYSE:HRL": [
+      "SPX"
+    ],
+    "NYSE:UDR": [
+      "SPX"
+    ],
+    "NASDAQ:LULU": [
+      "SPX"
+    ],
+    "NASDAQ:JKHY": [
+      "SPX"
+    ],
+    "NASDAQ:TECH": [
+      "SPX"
+    ],
+    "NYSE:ALB": [
+      "SPX"
+    ],
+    "NYSE:DECK": [
+      "SPX"
+    ],
+    "NYSE:GNRC": [
+      "SPX"
+    ],
+    "NYSE:UHS": [
+      "SPX"
+    ],
+    "NASDAQ:ALGN": [
+      "SPX"
+    ],
+    "NYSE:HII": [
+      "SPX"
+    ],
+    "NYSE:AES": [
+      "SPX"
+    ],
+    "NYSE:CLX": [
+      "SPX"
+    ],
+    "NASDAQ:PODD": [
+      "SPX"
+    ],
+    "NASDAQ:DPZ": [
+      "SPX"
+    ],
+    "NYSE:BXP": [
+      "SPX"
+    ],
+    "NYSE:FRT": [
+      "SPX"
+    ],
+    "NASDAQ:HSIC": [
+      "SPX"
+    ],
+    "NYSE:APTV": [
+      "SPX"
+    ],
+    "NYSE:PNR": [
+      "SPX"
+    ],
+    "NYSE:SKYD": [
+      "SPX"
+    ],
+    "NYSE:AOS": [
+      "SPX"
+    ],
+    "NYSE:ARE": [
+      "SPX"
+    ],
+    "NASDAQ:WYNN": [
+      "SPX"
+    ],
+    "NYSE:MGM": [
+      "SPX"
+    ],
+    "NYSE:NCLH": [
+      "SPX"
+    ],
+    "NYSE:MOS": [
+      "SPX"
+    ],
+    "NASDAQ:SPCX": [
+      "NDX"
+    ],
+    "NASDAQ:ASML": [
+      "NDX"
+    ],
+    "NASDAQ:ARM": [
+      "NDX"
+    ],
+    "NASDAQ:SHOP": [
+      "NDX"
+    ],
+    "NASDAQ:PDD": [
+      "NDX"
+    ],
+    "NASDAQ:MELI": [
+      "NDX"
+    ],
+    "NASDAQ:MSTR": [
+      "NDX"
+    ],
+    "NASDAQ:TRI": [
+      "NDX"
+    ],
+    "NASDAQ:CCEP": [
+      "NDX"
+    ],
+    "NASDAQ:ALAB": [
+      "NDX"
+    ],
+    "NASDAQ:NBIS": [
+      "NDX"
+    ],
+    "NASDAQ:FER": [
+      "NDX"
+    ],
+    "NASDAQ:RKLB": [
+      "NDX"
+    ],
+    "NASDAQ:ALNY": [
+      "NDX"
+    ],
+    "NASDAQ:CRWV": [
+      "NDX"
+    ]
+  },
+  "captured_name_variants": {},
+  "not_used_for_membership": [
+    "guest partial 16 rows",
+    "Nasdaq Trader full listing directories",
+    "ETF holdings",
+    "old provider factsheets"
+  ]
+}
