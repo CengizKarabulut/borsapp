@@ -269,7 +269,9 @@ class PineGlobalMarketGroupTests(unittest.TestCase):
             self.assertEqual(digits(tick), expected)
         for value, tick, label in ((70.35000000000001, .01, '70.35'),
                                    (17.830000000000002, .01, '17.83'),
+                                   (0.17133, 1e-5, '0.17133'),
                                    (0.000012345, 1e-9, '0.000012345'),
+                                   (0, 1, '0'),
                                    (13901.25, .25, '13901.25')):
             self.assertEqual(f'{value:.{digits(tick)}f}', label)
         formatter = functions(self.pine)['f_group_number']
@@ -277,8 +279,10 @@ class PineGlobalMarketGroupTests(unittest.TestCase):
         self.assertIn('f_group_tick_digits(tick)', formatter)
         self.assertNotIn('syminfo.', formatter)
         self.assertNotIn('#.################', formatter)
+        self.assertIn('str.tostring(rounded, "0")', formatter)
+        self.assertNotIn('str.tostring(rounded, "#', formatter)
         for precision in range(1, 17):
-            self.assertIn('"#.' + '0' * precision + '"', formatter)
+            self.assertIn('"0.' + '0' * precision + '"', formatter)
 
     def test_grouped_view_cannot_submit_orders_or_send_notifications(self):
         code = "\n".join(line for line in self.pine.splitlines()

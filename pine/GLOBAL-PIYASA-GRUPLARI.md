@@ -22,7 +22,7 @@ kataloğundan gelir; grafiğin sembolünü değiştirmek grubun üyelerini deği
 | --- | ---: | ---: | --- |
 | ABD: S&P 500, Nasdaq-100 ve Dow bileşenlerinin tekrarsız birleşimi | 518 | 52 | `generated/us-index-equities/ATC_US_INDEX_EQUITIES_GRUP_18_01.pine` |
 | VİOP: doğrulanmış yakın-vade sürekli `1!` serileri | 65 | 7 | `generated/viop-continuous/ATC_VIOP_CONTINUOUS_GRUP_18_01.pine` |
-| TradingView Crypto Coins Screener kataloğu | 2454 | 246 | `generated/crypto-coins/ATC_CRYPTO_COINS_GRUP_18_01.pine` ile `_03.pine` |
+| Binance spot USDT: hacme göre seçilmiş, sınıflandırma filtresini geçen çiftler | 378 | 38 | `generated/crypto-coins/ATC_CRYPTO_COINS_GRUP_18_01.pine` |
 
 ABD listesi, bu üç endeksin kaynak tablolarındaki tam birleşimidir; ABD'de
 işlem gören bütün hisseleri kapsamaz. Birden fazla endeksteki aynı sembol bir
@@ -35,17 +35,35 @@ vadeler arasında geçiş yapan serilerdir; işlem yapılacak vadenin emir kodu
 olarak kullanılmaz. Kaynak sayfasının bulunması, hesabın grafik/hacim verisine
 erişebildiğini tek başına kanıtlamaz.
 
-Coin kataloğu, filtresiz Crypto Coins Screener dışa aktarımındaki 2454 kaydın
-tamamıdır; sıralaması olmayan 51 kayıt da dahildir. Gerçek `CRYPTO:` kodları
-TradingView bağlantılarından alınmıştır. Bunlar toplulaştırılmış USD coin
-serileridir; bütün borsaların bütün işlem çiftleri değildir. Örneğin bir
-`CRYPTO:` serisinin fiyatı ve hacmi seçtiğiniz borsanın `BTCUSDT` paritesiyle
-birebir olmak zorunda değildir.
+Coin kataloğunun kaynağı TradingView CEX Screener'daki **Binance / Spot /
+USDT** listesidir. 516 kaynak çiftin geçerli pozitif fiyatı ve son 24 saatlik
+USD hacmi kontrol edildi. Her baz varlık bir kez alınır; USD hacmi azalan
+sıradadır. Eşit hacimde çift kodu sırası belirleyicidir. Bu ölçü **işlem
+hacmini** gösterir; sosyal medyada konuşulma sayısını ölçmez.
+
+Kaynak coin sınıflandırmasına göre 13 **Stablecoins kategori etiketi**,
+adında açıkça tokenlaştırılmış hisse/ETF yazan 95 kayıt, Euro olan 1 kayıt,
+kategori eşleşmesi bulunmayan 14 kayıt ve en az bir boş kategori adayı olan
+15 kayıt dışarıda bırakıldı. Etiket, tokenın kendisinin sabit fiyatlı olduğunu
+kanıtlamaz; örneğin USUAL bu etiket nedeniyle dışlanmıştır. Altı baz kodun
+birden çok kategori adayı vardır; hepsinin dolu ve izin verilen kategorileri
+olduğu için korunmuş, belirsizlikleri ayrıca kaydedilmiştir. Eksik sınıfları
+tahmin edip sayıyı 400'e tamamlamak yerine **378 çift** kullanılır.
+
+Semboller `BINANCE:BTCUSDT` gibi gerçek Binance spot USDT serileridir; her
+sembolün gerçek TradingView bağlantısı ve görünen adı doğrulanmıştır. Hacim
+koşulları o çiftin kaynak hacmiyle hesaplanır; eksik veya yalnız tik sayısı
+olan veri hacim olarak kabul edilmez. Katalog bütün coinleri, bütün borsaları
+veya vadeli/perpetual çiftleri kapsamaz. İşlem yapılacak çift ile grafikteki
+borsa kodunun aynı olduğunu kontrol edin.
 
 Her paketin `catalogue.json` dosyası üyeleri, `manifest.json` dosyası kaynak
 tarihini, kapsamı, grup aralıklarını ve dosya özetlerini saklar. Listeler
 sabit birer görüntüdür; endeks değişiklikleri veya yeni coinler kendiliğinden
-kataloğa eklenmez. Grup sırası bir başarı veya güç sıralaması değildir.
+kataloğa eklenmez. Coin grup sırası seçim anındaki 24 saatlik USD hacmine
+dayanır; üyeler ve hacim sırası grafik açıkken kendiliğinden güncellenmez.
+Bu sıra gelecekteki başarı veya alış önceliği sıralaması değildir. Diğer
+piyasalarda grup sırası başarı veya güç sıralaması değildir.
 
 ## TradingView'de kullanım
 
@@ -63,10 +81,11 @@ kataloğa eklenmez. Grup sırası bir başarı veya güç sıralaması değildir
    değiştirin. Bu tablo aynı sembolün farklı kural ve zaman dilimlerini ayrı
    satır olarak gösterebilir.
 
-**Yalnız seçili grup hesaplanır.** Grup 1 açıkken diğer 245 coin grubu arka
+**Yalnız seçili grup hesaplanır.** Grup 1 açıkken diğer 37 coin grubu arka
 planda taranmaz. Grup değiştirmek göstergeyi yeniden hesaplatır. Coin dosyası
-`_01` genel 1–100, `_02` genel 101–200, `_03` genel 201–246 gruplarını içerir.
-Örneğin genel grup 201 için `_03` dosyasını açıp yerel grup 1'i seçin.
+`_01`, 378 sembolün tamamını 1–38 gruplarında içerir; son grupta 8 sembol
+vardır. Örneğin 31–40'ıncı semboller için grup 4'ü seçin. Eski 2454'lük
+toplulaştırılmış coin paketinin `_02` ve `_03` dosyaları kaldırılmıştır.
 
 Bir seferde bir grup dosyasını görünür tutun. Ayrıntı tablosu GLOBAL'in
 varsayılan sağ üst tablosuyla çakışabileceğinden grup ayrıntısını kullanırken
